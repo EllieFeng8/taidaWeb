@@ -5,24 +5,11 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Check, Settings } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 import ConnectSetting from '../components/ConnectSetting.jsx';
-import {
-    Settings,
-    Bell,
-    Thermometer,
-    Zap,
-    Clock,
-    Router,
-    X,
-    Info,
-    Cpu,
-    Check,
-    ChevronRight,
-    Power
-} from 'lucide-react';
+import { formatApiNumber } from '../utils/formatApiNumber';
 const FALLBACK_VALUE = '--';
 const TELEMETRY_SENSOR_ORDER = [
     'inletWaterTemp',
@@ -58,11 +45,7 @@ const mapSensorValues = (sensorPayload) => {
 };
 
 const formatDisplayValue = (value) => {
-    if (value === null || value === undefined || value === '') {
-        return FALLBACK_VALUE;
-    }
-
-    return String(value);
+    return formatApiNumber(value, FALLBACK_VALUE);
 };
 
 const TelemetryCard = ({ data }) => (
@@ -414,15 +397,6 @@ export function IndustrialControl({ device, onBack }) {
         { id: '09', status: 'Running', pvPercent: 85, pvRpm: 1800, svRpm: 1800, isActive: true },
     ]);
 
-    const handleToggleFan = (fanId) => {
-        setFans((prev) =>
-            prev.map((fan) =>
-                fan.id === fanId && fan.status !== 'fault'
-                    ? { ...fan, isOn: !fan.isOn }
-                    : fan
-            )
-        );
-    };
 
     const handleToggleAllFans = (enabled) => {
         setAllFansEnabled(enabled);

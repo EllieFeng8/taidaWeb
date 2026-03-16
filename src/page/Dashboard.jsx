@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { formatApiNumber } from '../utils/formatApiNumber';
 
 const ALL_GROUP_OPTION = { id: 'all', name: 'ALL_DEVICES_PLACEHOLDER', devices: [] };
 const SENSOR_FIELD_ORDER = [
@@ -38,11 +39,13 @@ const SENSOR_FIELD_ORDER = [
 ];
 
 const formatMetric = (value, unit = '') => {
-  if (value === null || value === undefined || value === '') {
+  const formattedValue = formatApiNumber(value);
+
+  if (formattedValue === '--') {
     return '--';
   }
 
-  return unit ? `${value}${unit}` : String(value);
+  return unit ? `${formattedValue}${unit}` : formattedValue;
 };
 
 const formatCombinedMetric = (primaryValue, primaryUnit, secondaryValue, secondaryUnit) => {
@@ -222,16 +225,16 @@ const DeviceCard = ({ device, onSelect }) => {
               <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">{t('dashboard.deviceCard.coolingSection.title')}</p>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className={`p-1.5 rounded border ${isAlert && device.cooling.l1 > 50 ? 'bg-red-50 border-red-200 text-red-600 font-bold' : 'bg-white border-slate-100'}`}>
-                  {t('dashboard.deviceCard.coolingSection.leftIn')}: <span className="font-mono font-bold text-[14px]">{device.cooling.l1}°C</span>
+                  {t('dashboard.deviceCard.coolingSection.leftIn')}: <span className="font-mono font-bold text-[14px]">{formatMetric(device.cooling.l1, '°C')}</span>
                 </div>
                 <div className={`p-1.5 rounded border ${isAlert && device.cooling.l2 > 50 ? 'bg-red-50 border-red-200 text-red-600 font-bold' : 'bg-white border-slate-100'}`}>
-                  {t('dashboard.deviceCard.coolingSection.leftOut')}: <span className="font-mono font-bold text-[14px]">{device.cooling.l2}°C</span>
+                  {t('dashboard.deviceCard.coolingSection.leftOut')}: <span className="font-mono font-bold text-[14px]">{formatMetric(device.cooling.l2, '°C')}</span>
                 </div>
                 <div className="bg-white p-1.5 rounded border border-slate-100">
-                  {t('dashboard.deviceCard.coolingSection.rightIn')}: <span className="font-mono font-bold text-[14px]">{device.cooling.r1}°C</span>
+                  {t('dashboard.deviceCard.coolingSection.rightIn')}: <span className="font-mono font-bold text-[14px]">{formatMetric(device.cooling.r1, '°C')}</span>
                 </div>
                 <div className="bg-white p-1.5 rounded border border-slate-100">
-                  {t('dashboard.deviceCard.coolingSection.rightOut')}: <span className="font-mono font-bold text-[14px]">{device.cooling.r2}°C</span>
+                  {t('dashboard.deviceCard.coolingSection.rightOut')}: <span className="font-mono font-bold text-[14px]">{formatMetric(device.cooling.r2, '°C')}</span>
                 </div>
               </div>
             </div>
@@ -240,11 +243,11 @@ const DeviceCard = ({ device, onSelect }) => {
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-slate-500">{t('dashboard.deviceCard.powerSection.rpm')}</span>
-                  <span className={`font-mono ${isAlert && device.power.rpm > 1800 ? 'text-red-500 font-bold' : ''}`}>{device.power.rpm} RPM</span>
+                  <span className={`font-mono ${isAlert && device.power.rpm > 1800 ? 'text-red-500 font-bold' : ''}`}>{formatMetric(device.power.rpm, ' RPM')}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">{t('dashboard.deviceCard.powerSection.hz')}</span>
-                  <span className="font-mono">{device.power.hz} Hz</span>
+                  <span className="font-mono">{formatMetric(device.power.hz, ' Hz')}</span>
                 </div>
               </div>
             </div>
@@ -283,7 +286,7 @@ const DeviceCard = ({ device, onSelect }) => {
 export const Dashboard = ({ onSelectDevice }) => {
   const { t } = useLanguage();
   const [selectedGroupId, setSelectedGroupId] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const searchQuery = '';
   const [groups, setGroups] = useState([]);
   const [devices, setDevices] = useState([]);
 
