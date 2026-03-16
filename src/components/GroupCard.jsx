@@ -9,6 +9,7 @@ export function GroupCard({ name, devices, onOpenSettings, onOpenControl, onDele
     const [showMenu, setShowMenu] = React.useState(false);
     const group = { name,  devices };
     const safeDevices = Array.isArray(devices) ? devices : [];
+    const openMenu = () => setShowMenu(true);
 
     return (
         <>
@@ -16,7 +17,8 @@ export function GroupCard({ name, devices, onOpenSettings, onOpenControl, onDele
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 whileHover={{ y: -4 }}
-                className="flex h-full flex-col bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300"
+                onClick={openMenu}
+                className="flex h-full cursor-pointer flex-col bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300"
             >
                 <div className="flex flex-1 flex-col p-5">
                     <div className="flex justify-between items-start mb-4">
@@ -25,7 +27,10 @@ export function GroupCard({ name, devices, onOpenSettings, onOpenControl, onDele
                         </div>
                         <button
                             type="button"
-                            onClick={() => setShowMenu(true)}
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                openMenu();
+                            }}
                             className="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-50 transition-colors"
                         >
                             <MoreHorizontal size={20} />
@@ -51,7 +56,10 @@ export function GroupCard({ name, devices, onOpenSettings, onOpenControl, onDele
                 <div className="bg-slate-50 px-5 py-3 flex items-center justify-end border-t border-slate-100">
                     <button
                         type="button"
-                        onClick={onDelete}
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            onDelete?.(event);
+                        }}
                         disabled={isDeleting}
                         className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-600 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
                     >

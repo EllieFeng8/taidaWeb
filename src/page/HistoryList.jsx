@@ -15,6 +15,11 @@ import { formatApiNumber } from '../utils/formatApiNumber';
 // 使用空字符串，讓請求通過 Vite proxy (vite.config.js 中的 /api -> http://127.0.0.1:8081)
 const API_HOST = '';
 const SENSOR_KEYS = Array.from({ length: 20 }, (_, index) => `s${index + 1}`);
+const EMPTY_STATE = {
+    IDLE: 'idle',
+    NO_DATA: 'no-data',
+    NO_MATCH: 'no-match',
+};
 
 const padNumber = (value) => String(value).padStart(2, '0');
 
@@ -109,6 +114,7 @@ export default function HistoryList() {
     const [tableData, setTableData] = useState([]);
     const [appliedDevice, setAppliedDevice] = useState('');
     const [appliedDateRange, setAppliedDateRange] = useState(() => getEffectiveDateRange(formatDateTimeLocalInput(getStartOfToday()), ''));
+    const [emptyState, setEmptyState] = useState(EMPTY_STATE.IDLE);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
@@ -149,6 +155,12 @@ export default function HistoryList() {
         }
     };
 
+    const applyQueryMetadata = (deviceName, dateRange) => {
+        setAppliedDevice(deviceName);
+        setAppliedDateRange(dateRange);
+        setCurrentPage(1);
+    };
+
     // Fetch sensor settings for selected device
     const fetchSensorSettings = async (deviceName) => {
         if (!deviceName) {
@@ -183,9 +195,11 @@ export default function HistoryList() {
 
         setLoading(true);
         setError(null);
+        setEmptyState(EMPTY_STATE.IDLE);
 
         try {
-            const { fromIso, toIso, fromDate, toDate } = getEffectiveDateRange(fromValue, toValue);
+            const queryDateRange = getEffectiveDateRange(fromValue, toValue);
+            const { fromIso, toIso, fromDate, toDate } = queryDateRange;
 
             // API #16: 根據設備名稱與日期時間查詢數據
             const url = `${API_HOST}/api/sensor/rangeDateTime/${encodeURIComponent(deviceName)}?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`;
@@ -193,6 +207,13 @@ export default function HistoryList() {
             console.log('Fetching from URL:', url);
 
             const response = await fetch(url);
+            if (response.status === 503) {
+                setTableData([]);
+                applyQueryMetadata(deviceName, queryDateRange);
+                setEmptyState(EMPTY_STATE.NO_DATA);
+                return;
+            }
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -229,27 +250,17 @@ export default function HistoryList() {
 
                         return row;
                     })
+                    .sort((left, right) => right.timestamp - left.timestamp)
                 : [];
 
             console.log(`Filtered ${transformedData.length} records within time range: ${new Date(fromTimestamp * 1000).toLocaleString('zh-TW')} ~ ${new Date(toTimestamp * 1000).toLocaleString('zh-TW')}`);
 
             setTableData(transformedData);
-            setAppliedDevice(deviceName);
-            setAppliedDateRange({
-                fromDate,
-                toDate,
-                fromIso,
-                toIso,
-                fromLabel: formatDateTimeLabel(fromDate),
-                toLabel: formatDateTimeLabel(toDate),
-            });
-            setCurrentPage(1); // Reset to first page
-
-            if (transformedData.length === 0) {
-                setError('查詢成功，但沒有找到符合條件的數據');
-            }
+            applyQueryMetadata(deviceName, queryDateRange);
+            setEmptyState(transformedData.length === 0 ? EMPTY_STATE.NO_MATCH : EMPTY_STATE.IDLE);
         } catch (err) {
             setError(`載入數據失敗: ${err.message}`);
+            setEmptyState(EMPTY_STATE.IDLE);
             console.error('Error fetching sensor data:', err);
         } finally {
             setLoading(false);
@@ -278,6 +289,8 @@ export default function HistoryList() {
             await handleQuery(nextDevice, fromDateTime, toDateTime);
         } else {
             setTableData([]);
+            setError(null);
+            setEmptyState(EMPTY_STATE.IDLE);
         }
     };
 
@@ -319,6 +332,11 @@ export default function HistoryList() {
     const endIndex = startIndex + itemsPerPage;
     const currentData = tableData.slice(startIndex, endIndex);
     const tableColSpan = sensorColumns.length + 2;
+    const emptyStateMessage = emptyState === EMPTY_STATE.NO_DATA
+        ? t('history.no_data_found')
+        : emptyState === EMPTY_STATE.NO_MATCH
+            ? t('history.no_matching_data')
+            : null;
 
     // Pagination handlers
     const handlePreviousPage = () => {
@@ -424,7 +442,7 @@ export default function HistoryList() {
                                 className="px-6 py-2.5 bg-white text-slate-700 border border-slate-200 rounded-lg text-sm font-semibold hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
                             >
                                 <Download size={16} />
-                                匯出 CSV
+                                {t('history.export')} CSV
                             </button>
                             <button
                                 onClick={() => handleQuery()}
@@ -494,8 +512,7 @@ export default function HistoryList() {
                                     <tr>
                                         <td colSpan={tableColSpan} className="px-6 py-12 text-center text-slate-400">
                                             <Database size={48} className="mx-auto mb-2 opacity-30" />
-                                            <p className="text-sm font-medium">{t('no_data')}</p>
-                                            <p className="text-xs mt-1">{t('please_set_filter')}</p>
+                                            <p className="text-sm font-medium">{emptyStateMessage ?? t('please_set_filter')}</p>
                                         </td>
                                     </tr>
                                 ) : (
@@ -516,131 +533,128 @@ export default function HistoryList() {
                         </div>
 
                         {/* Pagination */}
-                        <div
-                            className="p-4 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
-                            <div className="flex items-center gap-4">
-                                <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">
-                                    {t('showing')} {tableData.length > 0 ? startIndex + 1 : 0} {t('to')} {Math.min(endIndex, tableData.length)} {t('of')} {tableData.length} {t('entries')}
-                                </p>
-                                <div className="flex items-center gap-2">
-                                    <label className="text-xs text-slate-500 font-medium">{t('items_per_page')}:</label>
-                                    <select
-                                        value={itemsPerPage}
-                                        onChange={handleItemsPerPageChange}
-                                        className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
-                                    >
-                                        <option value={20}>20 {t('items')}</option>
-                                        <option value={50}>50 {t('items')}</option>
-                                        <option value={100}>100 {t('items')}</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-4">
-                                {/* Page Jump Input */}
-                                <div className="flex items-center gap-2">
-                                    <label
-                                        className="text-xs text-slate-500 font-medium whitespace-nowrap">{t('jump_to_page')}:</label>
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        max={totalPages}
-                                        value={jumpToPage}
-                                        onChange={(e) => setJumpToPage(e.target.value)}
-                                        onKeyPress={(e) => {
-                                            if (e.key === 'Enter') {
-                                                handlePageJump();
-                                            }
-                                        }}
-                                        placeholder={currentPage.toString()}
-                                        className="w-16 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-center font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
-                                    />
-                                    <button
-                                        onClick={handlePageJump}
-                                        disabled={!jumpToPage || totalPages === 0}
-                                        className="px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                                    >
-                                        {t('go')}
-                                    </button>
+                        {tableData.length > 0 && (
+                            <div
+                                className="p-4 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
+                                <div className="flex items-center gap-4">
+                                    <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">
+                                        {t('showing')} {startIndex + 1} {t('to')} {Math.min(endIndex, tableData.length)} {t('of')} {tableData.length} {t('entries')}
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-xs text-slate-500 font-medium">{t('items_per_page')}:</label>
+                                        <select
+                                            value={itemsPerPage}
+                                            onChange={handleItemsPerPageChange}
+                                            className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                                        >
+                                            <option value={10}>10 {t('items')}</option>
+                                            <option value={20}>20 {t('items')}</option>
+                                            <option value={50}>50 {t('items')}</option>
+                                            <option value={100}>100 {t('items')}</option>
+                                        </select>
+                                    </div>
                                 </div>
 
-                                {/* Page Navigation */}
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={handlePreviousPage}
-                                        disabled={currentPage === 1 || totalPages === 0}
-                                        className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                    >
-                                        <ChevronLeft size={18} />
-                                    </button>
-
-                                    <div className="flex items-center gap-1">
-                                        {/* First Page */}
-                                        {currentPage > 2 && (
-                                            <>
-                                                <button
-                                                    onClick={() => setCurrentPage(1)}
-                                                    className="w-8 h-8 rounded-lg hover:bg-slate-100 text-xs font-bold transition-colors"
-                                                >
-                                                    1
-                                                </button>
-                                                {currentPage > 3 && <span className="px-2 text-slate-400">...</span>}
-                                            </>
-                                        )}
-
-                                        {/* Previous Page */}
-                                        {currentPage > 1 && (
-                                            <button
-                                                onClick={() => setCurrentPage(currentPage - 1)}
-                                                className="w-8 h-8 rounded-lg hover:bg-slate-100 text-xs font-bold transition-colors"
-                                            >
-                                                {currentPage - 1}
-                                            </button>
-                                        )}
-
-                                        {/* Current Page */}
-                                        {totalPages > 0 && (
-                                            <button
-                                                className="w-8 h-8 rounded-lg bg-primary text-white text-xs font-bold">
-                                                {currentPage}
-                                            </button>
-                                        )}
-
-                                        {/* Next Page */}
-                                        {currentPage < totalPages && (
-                                            <button
-                                                onClick={() => setCurrentPage(currentPage + 1)}
-                                                className="w-8 h-8 rounded-lg hover:bg-slate-100 text-xs font-bold transition-colors"
-                                            >
-                                                {currentPage + 1}
-                                            </button>
-                                        )}
-
-                                        {/* Last Page */}
-                                        {currentPage < totalPages - 1 && (
-                                            <>
-                                                {currentPage < totalPages - 2 &&
-                                                    <span className="px-2 text-slate-400">...</span>}
-                                                <button
-                                                    onClick={() => setCurrentPage(totalPages)}
-                                                    className="w-8 h-8 rounded-lg hover:bg-slate-100 text-xs font-bold transition-colors"
-                                                >
-                                                    {totalPages}
-                                                </button>
-                                            </>
-                                        )}
+                                <div className="flex items-center gap-4">
+                                    {/* Page Jump Input */}
+                                    <div className="flex items-center gap-2">
+                                        <label
+                                            className="text-xs text-slate-500 font-medium whitespace-nowrap">{t('jump_to_page')}:</label>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max={totalPages}
+                                            value={jumpToPage}
+                                            onChange={(e) => setJumpToPage(e.target.value)}
+                                            onKeyPress={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    handlePageJump();
+                                                }
+                                            }}
+                                            placeholder={currentPage.toString()}
+                                            className="w-16 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-center font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                                        />
+                                        <button
+                                            onClick={handlePageJump}
+                                            disabled={!jumpToPage || totalPages === 0}
+                                            className="px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                        >
+                                            {t('go')}
+                                        </button>
                                     </div>
 
-                                    <button
-                                        onClick={handleNextPage}
-                                        disabled={currentPage === totalPages || totalPages === 0}
-                                        className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                    >
-                                        <ChevronRight size={18} />
-                                    </button>
+                                    {/* Page Navigation */}
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={handlePreviousPage}
+                                            disabled={currentPage === 1 || totalPages === 0}
+                                            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                            <ChevronLeft size={18} />
+                                        </button>
+
+                                        <div className="flex items-center gap-1">
+                                            {currentPage > 2 && (
+                                                <>
+                                                    <button
+                                                        onClick={() => setCurrentPage(1)}
+                                                        className="w-8 h-8 rounded-lg hover:bg-slate-100 text-xs font-bold transition-colors"
+                                                    >
+                                                        1
+                                                    </button>
+                                                    {currentPage > 3 && <span className="px-2 text-slate-400">...</span>}
+                                                </>
+                                            )}
+
+                                            {currentPage > 1 && (
+                                                <button
+                                                    onClick={() => setCurrentPage(currentPage - 1)}
+                                                    className="w-8 h-8 rounded-lg hover:bg-slate-100 text-xs font-bold transition-colors"
+                                                >
+                                                    {currentPage - 1}
+                                                </button>
+                                            )}
+
+                                            {totalPages > 0 && (
+                                                <button
+                                                    className="w-8 h-8 rounded-lg bg-primary text-white text-xs font-bold">
+                                                    {currentPage}
+                                                </button>
+                                            )}
+
+                                            {currentPage < totalPages && (
+                                                <button
+                                                    onClick={() => setCurrentPage(currentPage + 1)}
+                                                    className="w-8 h-8 rounded-lg hover:bg-slate-100 text-xs font-bold transition-colors"
+                                                >
+                                                    {currentPage + 1}
+                                                </button>
+                                            )}
+
+                                            {currentPage < totalPages - 1 && (
+                                                <>
+                                                    {currentPage < totalPages - 2 && <span className="px-2 text-slate-400">...</span>}
+                                                    <button
+                                                        onClick={() => setCurrentPage(totalPages)}
+                                                        className="w-8 h-8 rounded-lg hover:bg-slate-100 text-xs font-bold transition-colors"
+                                                    >
+                                                        {totalPages}
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
+
+                                        <button
+                                            onClick={handleNextPage}
+                                            disabled={currentPage === totalPages || totalPages === 0}
+                                            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                            <ChevronRight size={18} />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
                     </section>
 
 

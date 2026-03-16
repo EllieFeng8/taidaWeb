@@ -244,7 +244,6 @@ const MotorControl = ({ sensorValues }) => {
 };
 
 const FanUnitCard = ({ fan }) => {
-    const { t } = useLanguage();
     const statusColors = {
         Running: 'text-emerald-500',
         Stopped: 'text-rose-500',

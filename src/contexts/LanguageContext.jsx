@@ -190,6 +190,16 @@ const translations = {
     'alarm.resolved': '已解決',
     'alarm.acknowledge': '確認',
     'alarm.resolve': '解決',
+    'alarm.recordList': '警報紀錄',
+
+    'alarm.deviceName': '設備名稱',
+    'alarm.deviceIp': '設備 IP',
+    'alarm.description': '異常說明',
+    'alarm.loading': '警報資料載入中...',
+    'alarm.empty': '目前沒有警報資料。',
+    'alarm.fetchError': '載入警報資料失敗: {message}',
+    'alarm.paginationSummary': '顯示第 {start} 到 {end} 筆，共 {total} 筆結果',
+    'alarm.pageSummary': '每頁 {size} 筆，共 {total} 筆',
     
     // History
     'history.title': '歷史數據',
@@ -224,7 +234,9 @@ const translations = {
     'sensor': '感測器',
     'value': '數值',
     'loading_data': '載入數據中...',
-    'no_data': '無數據',
+    'no_data': '查無資料',
+    'history.no_data_found': '查無資料',
+    'history.no_matching_data': '查無符合資料',
     'please_set_filter': '請設定篩選條件並查詢',
     'showing': '顯示',
     'to': '至',
@@ -504,6 +516,16 @@ const translations = {
     'alarm.resolved': 'Resolved',
     'alarm.acknowledge': 'Acknowledge',
     'alarm.resolve': 'Resolve',
+    'alarm.recordList': 'Alarm Records',
+
+    'alarm.deviceName': 'Device Name',
+    'alarm.deviceIp': 'Device IP',
+    'alarm.description': 'Description',
+    'alarm.loading': 'Loading alarm data...',
+    'alarm.empty': 'There is currently no alarm data.',
+    'alarm.fetchError': 'Failed to load alarm data: {message}',
+    'alarm.paginationSummary': 'Showing {start} to {end} of {total} results',
+    'alarm.pageSummary': '{size} per page, {total} total',
     
     // History
     'history.title': 'History Data',
@@ -539,6 +561,8 @@ const translations = {
     'value': 'Value',
     'loading_data': 'Loading data...',
     'no_data': 'No data',
+    'history.no_data_found': 'No data found',
+    'history.no_matching_data': 'No matching data found',
     'please_set_filter': 'Please set filter conditions and query',
     'showing': 'Showing',
     'to': 'to',
