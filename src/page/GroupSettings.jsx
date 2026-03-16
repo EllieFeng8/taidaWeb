@@ -98,7 +98,7 @@ export default function GroupSettings() {
             <section>
               <div className="flex items-center justify-between mb-6 px-1">
                 <h3 className="text-lg font-bold text-slate-800">{t('groups.activeGroups')}</h3>
-                <button className="text-primary text-sm font-bold hover:underline">{t('groups.viewAll')}</button>
+                {/*<button className="text-primary text-sm font-bold hover:underline">{t('groups.viewAll')}</button>*/}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {groups.map((group) => (

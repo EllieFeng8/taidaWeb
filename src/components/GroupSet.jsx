@@ -75,9 +75,29 @@ export default function GroupSet({ group, onBack }) {
         fetchDevices();
     }, [group, t]);
 
-    const toggleDevice = (id) => {
-        setDevices(prev => prev.map(d => d.id === id ? { ...d, selected: !d.selected } : d));
+    const setDeviceSelected = (id, selected) => {
+        setDevices((prev) => prev.map((device) => (
+            device.id === id
+                ? (device.selected === selected ? device : { ...device, selected })
+                : device
+        )));
     };
+
+    const handleDeviceRowClick = (id) => {
+        setDeviceSelected(id, true);
+    };
+
+    const handleDeviceButtonClick = (event, id, isSelected) => {
+        event.stopPropagation();
+
+        if (isSelected) {
+            setDeviceSelected(id, false);
+            return;
+        }
+
+        setDeviceSelected(id, true);
+    };
+
 
     useEffect(() => {
         if (!showSavedToast) {
@@ -86,7 +106,7 @@ export default function GroupSet({ group, onBack }) {
 
         const backTimer = setTimeout(() => {
             onBack();
-        }, 1000);
+        }, 500);
 
         return () => clearTimeout(backTimer);
     }, [onBack, showSavedToast]);
@@ -243,10 +263,22 @@ export default function GroupSet({ group, onBack }) {
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
                                     {devices.map((device) => (
-                                        <tr key={device.id} className="hover:bg-slate-50/50 transition-colors group">
-                                            <td className="px-6 py-5 text-center">
+                                        <tr
+                                            key={device.id}
+                                            tabIndex={0}
+                                            aria-selected={device.selected}
+                                            onClick={() => handleDeviceButtonClick(event, device.id, device.selected)}
+                                            className={`group cursor-pointer select-none outline-none transition-all focus-visible:bg-blue-50/80 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/30 ${
+                                                device.selected
+                                                    ? 'bg-blue-50/80'
+                                                    : 'hover:bg-slate-50/80 active:bg-slate-100/80'
+                                            }`}
+                                        >
+                                            <td className="px-6 py-5 text-center transition-colors">
                                                 <button
-                                                    onClick={() => toggleDevice(device.id)}
+                                                    type="button"
+                                                    aria-pressed={device.selected}
+                                                    onClick={(event) => handleDeviceButtonClick(event, device.id, device.selected)}
                                                     className={`mx-auto w-6 h-6 rounded-lg border flex items-center justify-center transition-all ${
                                                         device.selected
                                                             ? 'bg-primary border-primary text-white'
@@ -256,8 +288,8 @@ export default function GroupSet({ group, onBack }) {
                                                     {device.selected && <Check size={16} strokeWidth={3} />}
                                                 </button>
                                             </td>
-                                            <td className="px-6 py-5 font-bold text-slate-700 text-lg">{device.id}</td>
-                                            <td className="px-6 py-5 text-slate-600">{device.name}</td>
+                                            <td className="px-6 py-5 font-bold text-slate-700 text-lg transition-colors group-hover:text-slate-900">{device.id}</td>
+                                            <td className="px-6 py-5 text-slate-600 transition-colors group-hover:text-slate-700">{device.name}</td>
                                         </tr>
                                     ))}
                                     </tbody>
@@ -282,9 +314,7 @@ export default function GroupSet({ group, onBack }) {
                             {isDeleting ? t('common.deleting') : t('groups.deleteGroup')}
                         </button>
                         <div className="flex items-center gap-4">
-                        <button onClick={onBack} className="px-6 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors">
-                            {t('common.cancel')}
-                        </button>
+
                         <button
                             onClick={handleSave}
                             disabled={isSaving}
