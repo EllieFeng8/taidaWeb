@@ -13,6 +13,7 @@ export default function GroupSettings() {
   const [selectedGroup, setSelectedGroup] = React.useState(null);
   const [view, setView] = React.useState('list');
   const [groups, setGroups] = useState([]);
+  const [deletingGroupId, setDeletingGroupId] = useState(null);
 
   const fetchGroups = React.useCallback(() => {
     return fetch(`/api/groups`, {
@@ -33,6 +34,38 @@ export default function GroupSettings() {
     const interval = setInterval(fetchGroups, 1000); // 每 10 秒查詢一次
     return () => clearInterval(interval);
   }, [fetchGroups]);
+
+  const handleDeleteGroup = async (group) => {
+    if (!group?.id) {
+      window.alert('找不到可刪除的群組 ID');
+      return;
+    }
+
+    const confirmed = window.confirm(`確定要刪除群組「${group.name}」嗎？`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingGroupId(group.id);
+
+    try {
+      const response = await fetch(`/api/groups/${encodeURIComponent(group.id)}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      await fetchGroups();
+    } catch (error) {
+      console.error('群組刪除失敗:', error);
+      window.alert('刪除群組失敗，請確認後端刪除 API 是否為 DELETE /api/groups/{id}');
+    } finally {
+      setDeletingGroupId(null);
+    }
+  };
 
 
   if (view === 'settings' && selectedGroup) {
@@ -79,6 +112,8 @@ export default function GroupSettings() {
                           setSelectedGroup(group);
                           setView('control');
                         }}
+                        onDelete={() => handleDeleteGroup(group)}
+                        isDeleting={deletingGroupId === group.id}
                     />
                 ))}
                 <AddGroupCard onClick={() => setShowConfig(true)} />

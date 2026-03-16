@@ -11,17 +11,67 @@ import {
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 
-const INITIAL_DEVICES = [
-    { id: 'PLC-001', selected: true },
-    { id: 'SENS-082', selected: true },
-    { id: 'MTR-045', selected: false },
-    { id: 'PLC-002', selected: true },
-    { id: 'SENS-091', selected: false },
-];
+const getGroupDeviceIdSet = (group) => {
+    const devices = Array.isArray(group?.devices) ? group.devices : [];
+
+    return new Set(
+        devices.flatMap((device) => {
+            if (typeof device === 'string') {
+                return [device];
+            }
+
+            if (device && typeof device === 'object') {
+                return [String(device.id), device.name].filter(Boolean);
+            }
+
+            return [];
+        })
+    );
+};
 
 export default function GroupSet({ group, onBack }) {
-    const [devices, setDevices] = useState(INITIAL_DEVICES);
+    const [devices, setDevices] = useState([]);
     const [showSavedToast, setShowSavedToast] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [initialSelectedDeviceIds, setInitialSelectedDeviceIds] = useState([]);
+
+    useEffect(() => {
+        const selectedDeviceIds = getGroupDeviceIdSet(group);
+
+        const fetchDevices = async () => {
+            try {
+                const response = await fetch('/api/devices', {
+                    method: 'GET',
+                });
+                const data = await response.json();
+                const normalizedDevices = Array.isArray(data)
+                    ? data.map((device, index) => {
+                        const id = String(device?.id ?? device?.deviceId ?? device?.name ?? `device-${index}`);
+                        const name = device?.name ?? device?.deviceName ?? id;
+                        const selected = selectedDeviceIds.has(id) || selectedDeviceIds.has(name);
+
+                        return {
+                            id,
+                            name,
+                            selected,
+                        };
+                    })
+                    : [];
+
+                setDevices(normalizedDevices);
+                setInitialSelectedDeviceIds(
+                    normalizedDevices.filter((device) => device.selected).map((device) => device.id)
+                );
+            } catch (error) {
+                console.error('設備獲取失敗:', error);
+                setDevices([]);
+                setInitialSelectedDeviceIds([]);
+            }
+        };
+
+        fetchDevices();
+    }, [group]);
 
     const toggleDevice = (id) => {
         setDevices(prev => prev.map(d => d.id === id ? { ...d, selected: !d.selected } : d));
@@ -39,8 +89,100 @@ export default function GroupSet({ group, onBack }) {
         return () => clearTimeout(backTimer);
     }, [onBack, showSavedToast]);
 
-    const handleSave = () => {
-        setShowSavedToast(true);
+    const handleSave = async () => {
+        if (!group?.id) {
+            window.alert('找不到群組 ID，無法保存設備設定');
+            return;
+        }
+
+        const initialSelectedSet = new Set(initialSelectedDeviceIds);
+        const currentSelectedDevices = devices.filter((device) => device.selected);
+        const currentSelectedSet = new Set(currentSelectedDevices.map((device) => device.id));
+        const devicesToAdd = currentSelectedDevices.filter((device) => !initialSelectedSet.has(device.id));
+        const devicesToRemove = devices.filter((device) => !currentSelectedSet.has(device.id) && initialSelectedSet.has(device.id));
+
+        setIsSaving(true);
+
+        try {
+            await Promise.all([
+                ...devicesToAdd.map((device) =>
+                    fetch(`/api/groups/${encodeURIComponent(group.id)}/devices/${encodeURIComponent(device.id)}`, {
+                        method: 'POST',
+                    }).then((response) => {
+                        console.log('群組設備新增', {
+                            action: 'add',
+                            groupId: group.id,
+                            groupName: group.name,
+                            deviceId: device.id,
+                            deviceName: device.name,
+                            status: response.status,
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}`);
+                        }
+                    })
+                ),
+                ...devicesToRemove.map((device) =>
+                    fetch(`/api/groups/${encodeURIComponent(group.id)}/devices/${encodeURIComponent(device.id)}`, {
+                        method: 'DELETE',
+                    }).then((response) => {
+                        console.log('群組設備移除', {
+                            action: 'remove',
+                            groupId: group.id,
+                            groupName: group.name,
+                            deviceId: device.id,
+                            deviceName: device.name,
+                            status: response.status,
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}`);
+                        }
+                    })
+                ),
+            ]);
+
+            setInitialSelectedDeviceIds(Array.from(currentSelectedSet));
+            setShowSavedToast(true);
+        } catch (error) {
+            console.error('群組設備保存失敗:', error);
+            window.alert('保存群組設備失敗，請確認新增 API 為 POST /api/groups/{GroupId}/devices/{DeviceId}，移除 API 為 DELETE /api/groups/{GroupId}/devices/{DeviceId}');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDeleteGroup = async () => {
+        if (!group?.id) {
+            window.alert('找不到可刪除的群組 ID');
+            return;
+        }
+
+        const confirmed = window.confirm(`確定要刪除群組「${group.name}」嗎？`);
+
+        if (!confirmed) {
+            return;
+        }
+
+        setIsDeleting(true);
+
+        try {
+            const response = await fetch(`/api/groups/${encodeURIComponent(group.id)}`, {
+                method: 'DELETE',
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            onBack?.();
+        } catch (error) {
+            console.error('群組刪除失敗:', error);
+            window.alert('刪除群組失敗，請確認後端刪除 API 是否為 DELETE /api/groups/{id}');
+        } finally {
+            setIsDeleting(false);
+        }
     };
 
     return (
@@ -94,6 +236,7 @@ export default function GroupSet({ group, onBack }) {
                                     <tr className="bg-slate-50/50">
                                         <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 w-24 text-center">選擇</th>
                                         <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">設備 ID</th>
+                                        <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">設備名稱</th>
                                     </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
@@ -112,6 +255,7 @@ export default function GroupSet({ group, onBack }) {
                                                 </button>
                                             </td>
                                             <td className="px-6 py-5 font-bold text-slate-700 text-lg">{device.id}</td>
+                                            <td className="px-6 py-5 text-slate-600">{device.name}</td>
                                         </tr>
                                     ))}
                                     </tbody>
@@ -119,7 +263,7 @@ export default function GroupSet({ group, onBack }) {
                             </div>
 
                             <div className="px-6 py-4 bg-slate-50/30 border-t border-slate-100">
-                                <p className="text-sm text-slate-400 font-medium">顯示 5 個設備中的 5 個</p>
+                                <p className="text-sm text-slate-400 font-medium">顯示 {devices.length} 個設備中的 {devices.length} 個</p>
                             </div>
                         </motion.section>
                     </div>
@@ -127,14 +271,27 @@ export default function GroupSet({ group, onBack }) {
 
                 {/* 底部操作列 (Footer) */}
                 <footer className="p-6 border-t border-slate-200 bg-white">
-                    <div className="max-w-4xl mx-auto flex justify-end items-center gap-4">
+                    <div className="fixed bottom-0 left-64 right-0 bg-white/80 backdrop-blur-md border-t border-slate-200 p-6 flex justify-end gap-4 z-20 justify-between items-center gap-4">
+                        <button
+                            onClick={handleDeleteGroup}
+                            disabled={isDeleting}
+                            className="px-6 py-2.5 rounded-xl border border-red-200 bg-red-50 text-sm font-bold text-red-600 hover:bg-red-100 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            {isDeleting ? '刪除中...' : '刪除群組'}
+                        </button>
+                        <div className="flex items-center gap-4">
                         <button onClick={onBack} className="px-6 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors">
                             取消
                         </button>
-                        <button onClick={handleSave} className="px-8 py-2.5 rounded-xl bg-primary text-white text-sm font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-600 transition-all flex items-center gap-2">
+                        <button
+                            onClick={handleSave}
+                            disabled={isSaving}
+                            className="px-8 py-2.5 rounded-xl bg-primary text-white text-sm font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-600 transition-all flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
                             <Save size={18} />
-                            儲存群組設定
+                            {isSaving ? '儲存中...' : '儲存群組設定'}
                         </button>
+                        </div>
                     </div>
                 </footer>
             </main>
