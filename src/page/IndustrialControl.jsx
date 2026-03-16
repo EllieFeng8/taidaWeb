@@ -3,13 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, Check, Settings } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { formatApiNumber } from '../utils/formatApiNumber';
 
 import ConnectSetting from '../components/ConnectSetting.jsx';
-import { formatApiNumber } from '../utils/formatApiNumber';
 const FALLBACK_VALUE = '--';
 const TELEMETRY_SENSOR_ORDER = [
     'inletWaterTemp',
@@ -48,6 +48,27 @@ const formatDisplayValue = (value) => {
     return formatApiNumber(value, FALLBACK_VALUE);
 };
 
+const buildFansFromHolding = (holdingPayload) => Array.from({ length: 9 }, (_, index) => {
+    const fanNumber = index + 1;
+    const id = String(fanNumber).padStart(2, '0');
+    const pvValue = Number(holdingPayload?.[`cooling_fan${fanNumber}_pv`] ?? 0);
+    const svValue = Number(holdingPayload?.[`cooling_fan${fanNumber}_sv`] ?? 0);
+    const safePvValue = Number.isNaN(pvValue) ? 0 : pvValue;
+    const safeSvValue = Number.isNaN(svValue) ? 0 : svValue;
+    const isActive = safePvValue > 0 || safeSvValue > 0;
+
+    return {
+        id,
+        status: isActive ? 'Running' : 'Stopped',
+        pvPercent: safePvValue,
+        pvRpm: safePvValue,
+        svRpm: safeSvValue,
+        isActive,
+    };
+});
+
+const POLLING_INTERVAL_MS = 30000;
+
 const TelemetryCard = ({ data }) => (
     <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
         <p className={`text-[16px] font-bold ${data.colorClass} mb-3`}>{data.label}</p>
@@ -82,7 +103,7 @@ const PVText = ({ value, unit = '' }) => (
     </span>
 );
 
-const PIDInput = ({ label, pvValue }) => (
+const PIDInput = ({ label, pvValue, value, onChange }) => (
     <div className="space-y-1.5 space-x-1.5">
         <label className="text-s font-bold text-slate-500 uppercase">{label}</label>
         <PVText value={pvValue} />
@@ -90,14 +111,23 @@ const PIDInput = ({ label, pvValue }) => (
             className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
             step="0.1"
             type="number"
+            value={value}
+            onChange={onChange}
             placeholder={FALLBACK_VALUE}
         />
     </div>
 );
 
-const ValveControl = ({ sensorValues }) => {
+const ValveControl = ({
+    holdingData,
+    percentage,
+    onPercentageChange,
+    onSubmit,
+    isSubmitting,
+    pidValues,
+    onPidChange,
+}) => {
     const { t } = useLanguage();
-    const [percentage, setPercentage] = useState('');
     const [outletPidMonitoringEnabled, setOutletPidMonitoringEnabled] = useState(true);
     const [outletCorrectionEnabled, setOutletCorrectionEnabled] = useState(true);
 
@@ -118,25 +148,45 @@ const ValveControl = ({ sensorValues }) => {
             </div>
             <div className="p-6 flex-1 flex flex-col gap-6">
                 <div className="space-y-2 space-x-1.5">
-                    <label className="text-xs text-[14px] font-semibold text-slate-600">{t('industrial.openingRatio')}</label>
-                    <PVText value={sensorValues.outletWaterTemp} unit="°C" />
+                    <label className="text-xs text-[14px] font-semibold text-slate-600 ">{t('industrial.openingRatio')}</label>
+                    <PVText value={holdingData?.outlet_electric_valve_opening_pv} unit="%" />
                     <div className="relative">
                         <input
                             className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
                             type="number"
                             value={percentage}
-                            onChange={(event) => setPercentage(event.target.value)}
+                            onChange={(event) => onPercentageChange?.(event.target.value)}
                             placeholder={FALLBACK_VALUE}
                         />
                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-slate-400 font-bold">%</span>
                     </div>
                 </div>
                 <div className="grid grid-cols-3 gap-4 text-[14px]">
-                    <PIDInput label="P:" pvValue={FALLBACK_VALUE} />
-                    <PIDInput label="I:" pvValue={FALLBACK_VALUE} />
-                    <PIDInput label="D:" pvValue={FALLBACK_VALUE} />
+                    <PIDInput
+                        label="P:"
+                        pvValue={holdingData?.group2_pid_p_pv}
+                        value={pidValues.p}
+                        onChange={(event) => onPidChange?.('p', event.target.value)}
+                    />
+                    <PIDInput
+                        label="I:"
+                        pvValue={holdingData?.group2_pid_i_pv}
+                        value={pidValues.i}
+                        onChange={(event) => onPidChange?.('i', event.target.value)}
+                    />
+                    <PIDInput
+                        label="D:"
+                        pvValue={holdingData?.group2_pid_d_pv}
+                        value={pidValues.d}
+                        onChange={(event) => onPidChange?.('d', event.target.value)}
+                    />
                 </div>
-                <button className="w-full py-2 border border-primary text-primary font-bold rounded-lg bg-white hover:bg-primary hover:text-white hover:shadow-lg hover:shadow-primary/20 transition-all text-xs mt-auto">
+                <button
+                    type="button"
+                    onClick={onSubmit}
+                    disabled={isSubmitting}
+                    className="w-full py-2 border border-primary text-primary font-bold rounded-lg bg-white hover:bg-primary hover:text-white hover:shadow-lg hover:shadow-primary/20 transition-all text-xs mt-auto disabled:opacity-50"
+                >
                     {t('common.confirm')}
                 </button>
             </div>
@@ -144,10 +194,8 @@ const ValveControl = ({ sensorValues }) => {
     );
 };
 
-const ReturnValveControl = ({ sensorValues }) => {
+const ReturnValveControl = ({ holdingData, openingRatio, onOpeningRatioChange, onSubmit, isSubmitting }) => {
     const { t } = useLanguage();
-    const [openingRatio, setOpeningRatio] = useState('');
-    const [targetValue, setTargetValue] = useState('');
 
     return (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm h-full flex flex-col">
@@ -158,31 +206,26 @@ const ReturnValveControl = ({ sensorValues }) => {
                 <div className="grid grid-cols-1 gap-4">
                     <div className="space-y-1.5 space-x-1.5">
                         <label className="text-[14px] font-bold text-slate-500 uppercase">{t('industrial.openingRatio')}</label>
-                        <PVText value={sensorValues.returnWaterTemp} unit="°C" />
+                        <PVText value={holdingData?.outlet_electric_valve_opening_pv} unit="%" />
                         <div className="relative">
                             <input
                                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
                                 type="number"
                                 value={openingRatio}
-                                onChange={(event) => setOpeningRatio(event.target.value)}
+                                onChange={(event) => onOpeningRatioChange?.(event.target.value)}
                                 placeholder={FALLBACK_VALUE}
                             />
                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">%</span>
                         </div>
                     </div>
-                    <div className="space-y-1.5 space-x-1.5">
-                        <label className="text-[16px] font-bold text-slate-500 uppercase">{t('industrial.setValue')}</label>
-                        <PVText value={sensorValues.returnWaterPressure} unit="pa" />
-                        <input
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-primary/20 outline-none"
-                            type="number"
-                            value={targetValue}
-                            onChange={(event) => setTargetValue(event.target.value)}
-                            placeholder={FALLBACK_VALUE}
-                        />
-                    </div>
+
                 </div>
-                <button className="w-full py-2 border border-primary text-primary font-bold rounded-lg bg-white hover:bg-primary hover:text-white hover:shadow-lg hover:shadow-primary/20 transition-all text-xs mt-auto">
+                <button
+                    type="button"
+                    onClick={onSubmit}
+                    disabled={isSubmitting}
+                    className="w-full py-2 border border-primary text-primary font-bold rounded-lg bg-white hover:bg-primary hover:text-white hover:shadow-lg hover:shadow-primary/20 transition-all text-xs mt-auto disabled:opacity-50"
+                >
                     {t('common.confirm')}
                 </button>
             </div>
@@ -190,10 +233,9 @@ const ReturnValveControl = ({ sensorValues }) => {
     );
 };
 
-const MotorControl = ({ sensorValues }) => {
+const MotorControl = ({ sensorValues, holdingData, targetFrequency, onTargetFrequencyChange, onSubmit, isSubmitting }) => {
     const { t } = useLanguage();
     const [enabled, setEnabled] = useState(true);
-    const [targetFrequency, setTargetFrequency] = useState('');
 
     return (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
@@ -207,20 +249,25 @@ const MotorControl = ({ sensorValues }) => {
                 <div className="grid grid-cols-1 gap-6">
                     <div className="flex-1 space-y-1.5 space-x-1.5">
                         <label className="text-[14px] font-bold text-slate-500 uppercase">{t('industrial.targetFrequency')}</label>
-                        <PVText value={sensorValues.hz} unit="Hz" />
+                        <PVText value={holdingData?.circulating_pump_pv} unit="Hz" />
                         <div className="flex flex-1 gap-2">
                             <div className="relative flex-1">
                                 <input
                                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-3 text-lg font-bold focus:ring-2 focus:ring-primary/20 outline-none disabled:opacity-50"
                                     type="number"
                                     value={targetFrequency}
-                                    onChange={(event) => setTargetFrequency(event.target.value)}
+                                    onChange={(event) => onTargetFrequencyChange?.(event.target.value)}
                                     placeholder={FALLBACK_VALUE}
                                     disabled={!enabled}
                                 />
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 font-bold text-slate-400">Hz</span>
                             </div>
-                            <button className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold border border-primary/20 hover:bg-primary hover:text-white transition-all">
+                            <button
+                                type="button"
+                                onClick={onSubmit}
+                                disabled={!enabled || isSubmitting}
+                                className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold border border-primary/20 hover:bg-primary hover:text-white transition-all disabled:opacity-50"
+                            >
                                 {t('common.confirm')}
                             </button>
                         </div>
@@ -243,7 +290,8 @@ const MotorControl = ({ sensorValues }) => {
     );
 };
 
-const FanUnitCard = ({ fan }) => {
+const FanUnitCard = ({ fan, onSvChange, onSubmit, isSubmitting }) => {
+    const { t } = useLanguage();
     const statusColors = {
         Running: 'text-emerald-500',
         Stopped: 'text-rose-500',
@@ -260,7 +308,7 @@ const FanUnitCard = ({ fan }) => {
             <div className="flex justify-between items-start mb-5">
                 <div>
                     <h5 className="text-sm font-bold flex items-center gap-2">
-                        Fan Unit <span className="text-slate-400">{fan.id}</span>
+                        {t('industrial.fanLabel')} <span className="text-slate-400">{fan.id}</span>
                         {fan.isPrimary && <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded ml-1">Primary</span>}
                     </h5>
                     <p className={`text-[10px] font-bold uppercase tracking-wider mt-1 ${statusColors[fan.status]}`}>
@@ -277,11 +325,11 @@ const FanUnitCard = ({ fan }) => {
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">PV</p>
                     <div className="space-y-1.5">
                         <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
-                            <span className="text-sm font-bold">{fan.pvPercent}</span>
+                            <span className="text-sm font-bold">{formatDisplayValue(fan.pvPercent)}</span>
                             <span className="text-[10px] text-slate-400 font-bold">%</span>
                         </div>
                         <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
-                            <span className="text-sm font-bold">{fan.pvRpm}</span>
+                            <span className="text-sm font-bold">{formatDisplayValue(fan.pvRpm)}</span>
                             <span className="text-[10px] text-slate-400 font-bold">RPM</span>
                         </div>
                     </div>
@@ -291,10 +339,16 @@ const FanUnitCard = ({ fan }) => {
                     <div className="flex h-full max-h-[72px] border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm focus-within:ring-2 focus-within:ring-blue-100 transition-all">
                         <input
                             type="number"
-                            defaultValue={fan.svRpm}
+                            value={fan.svRpm}
+                            onChange={(event) => onSvChange?.(fan.id, event.target.value)}
                             className="w-full border-none bg-transparent text-lg font-bold px-3 focus:ring-0"
                         />
-                        <button className="bg-slate-50 px-3 flex items-center justify-center border-l border-slate-100 hover:bg-slate-100 transition-colors">
+                        <button
+                            type="button"
+                            onClick={() => onSubmit?.(fan.id)}
+                            disabled={isSubmitting}
+                            className="bg-slate-50 px-3 flex items-center justify-center border-l border-slate-100 transition-colors disabled:opacity-50"
+                        >
                             <Check size={18} className="text-slate-400" />
                         </button>
                     </div>
@@ -310,9 +364,28 @@ export function IndustrialControl({ device, onBack }) {
     const [pidMonitoringEnabled, setPidMonitoringEnabled] = useState(true);
     const [fansCorrectionEnabled, setFansCorrectionEnabled] = useState(true);
     const [sensorData, setSensorData] = useState({});
+    const [holdingData, setHoldingData] = useState({});
+    const [fans, setFans] = useState([]);
     const [allFansRpmTarget, setAllFansRpmTarget] = useState('');
+    const [outletTargetTempSv, setOutletTargetTempSv] = useState('');
+    const [circulatingPumpSv, setCirculatingPumpSv] = useState('');
+    const [outletValveOpening, setOutletValveOpening] = useState('');
     const [pressureTarget, setPressureTarget] = useState('');
+    const [returnValveOpening, setReturnValveOpening] = useState('');
     const [pidValues, setPidValues] = useState({ p: '', i: '', d: '' });
+    const [valvePidValues, setValvePidValues] = useState({ p: '', i: '', d: '' });
+    const [submittingFanId, setSubmittingFanId] = useState(null);
+    const [isSubmittingPid, setIsSubmittingPid] = useState(false);
+    const [isSubmittingAllFans, setIsSubmittingAllFans] = useState(false);
+    const [isSubmittingOutletTargetTemp, setIsSubmittingOutletTargetTemp] = useState(false);
+    const [isSubmittingOutletValveOpening, setIsSubmittingOutletValveOpening] = useState(false);
+    const [isSubmittingPressureTarget, setIsSubmittingPressureTarget] = useState(false);
+    const [isSubmittingReturnValveOpening, setIsSubmittingReturnValveOpening] = useState(false);
+    const [isSubmittingPumpFrequency, setIsSubmittingPumpFrequency] = useState(false);
+    const isEditingOutletTargetTempRef = useRef(false);
+    const isEditingOutletValveOpeningRef = useRef(false);
+    const isEditingPressureTargetRef = useRef(false);
+    const isEditingReturnValveOpeningRef = useRef(false);
 
     const deviceIdentifier = device?.name ?? device?.deviceName ?? device?.id ?? device?.deviceId;
     const sensorValues = mapSensorValues(sensorData);
@@ -382,20 +455,73 @@ export function IndustrialControl({ device, onBack }) {
         };
 
         fetchDeviceSensor();
+        const intervalId = setInterval(fetchDeviceSensor, POLLING_INTERVAL_MS);
+
+        return () => clearInterval(intervalId);
     }, [deviceIdentifier, t]);
 
-    const [fans, setFans] = useState([
-        { id: '01', status: 'Running', pvPercent: 85, pvRpm: 1800, svRpm: 1800, isActive: true },
-        { id: '02', status: 'Running', pvPercent: 85, pvRpm: 1800, svRpm: 1800, isActive: true },
-        { id: '03', status: 'Stopped', pvPercent: 0, pvRpm: 0, svRpm: 0, isActive: false },
-        { id: '04', status: 'Running', pvPercent: 85, pvRpm: 1800, svRpm: 1800, isActive: true },
-        { id: '05', status: 'Optimal', pvPercent: 92, pvRpm: 2100, svRpm: 2100, isActive: true, isPrimary: true },
-        { id: '06', status: 'Running', pvPercent: 85, pvRpm: 1800, svRpm: 1800, isActive: true },
-        { id: '07', status: 'Running', pvPercent: 85, pvRpm: 1800, svRpm: 1800, isActive: true },
-        { id: '08', status: 'Warning', pvPercent: 72, pvRpm: 1550, svRpm: 1800, isActive: true },
-        { id: '09', status: 'Running', pvPercent: 85, pvRpm: 1800, svRpm: 1800, isActive: true },
-    ]);
+    useEffect(() => {
+        if (!deviceIdentifier) {
+            setFans([]);
+            setHoldingData({});
+            return;
+        }
 
+        const fetchFanHoldingData = () => {
+            fetch(`/api/modbus/holding/${encodeURIComponent(deviceIdentifier)}`, {
+                method: 'GET',
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    setHoldingData(data ?? {});
+                    setFans(buildFansFromHolding(data ?? {}));
+                    setAllFansRpmTarget(String(data?.circulating_pump_sv ?? ''));
+                    if (!isEditingOutletTargetTempRef.current) {
+                        setOutletTargetTempSv(String(data?.outlet_target_temp_sv ?? ''));
+                    }
+                    setCirculatingPumpSv(String(data?.circulating_pump_sv ?? ''));
+                    if (!isEditingOutletValveOpeningRef.current) {
+                        setOutletValveOpening(String(data?.outlet_electric_valve_opening_sv ?? ''));
+                    }
+                    if (!isEditingReturnValveOpeningRef.current) {
+                        setReturnValveOpening(String(data?.return_electric_valve_opening_sv ?? ''));
+                    }
+                    if (!isEditingPressureTargetRef.current) {
+                        setPressureTarget(String(data?.target_pressure_diff_sv ?? ''));
+                    }
+                    setPidValues({
+                        p: String(data?.group1_pid_p_sv ?? ''),
+                        i: String(data?.group1_pid_i_sv ?? ''),
+                        d: String(data?.group1_pid_d_sv ?? ''),
+                    });
+                    setValvePidValues({
+                        p: String(data?.group2_pid_p_sv ?? ''),
+                        i: String(data?.group2_pid_i_sv ?? ''),
+                        d: String(data?.group2_pid_d_sv ?? ''),
+                    });
+                })
+                .catch((error) => {
+                    console.error(t('industrial.error.fetchSensor'), error);
+                    setHoldingData({});
+                    setFans([]);
+                });
+        };
+
+        fetchFanHoldingData();
+        const intervalId = setInterval(fetchFanHoldingData, POLLING_INTERVAL_MS);
+
+        return () => clearInterval(intervalId);
+    }, [deviceIdentifier, t]);
+
+    const handleToggleFan = (fanId) => {
+        setFans((prev) =>
+            prev.map((fan) =>
+                fan.id === fanId && fan.status !== 'fault'
+                    ? { ...fan, isOn: !fan.isOn }
+                    : fan
+            )
+        );
+    };
 
     const handleToggleAllFans = (enabled) => {
         setAllFansEnabled(enabled);
@@ -404,6 +530,319 @@ export function IndustrialControl({ device, onBack }) {
                 fan.status === 'fault' ? fan : { ...fan, isOn: enabled }
             )
         );
+    };
+
+    const handleFanSvChange = (fanId, value) => {
+        setFans((prev) =>
+            prev.map((fan) => (
+                fan.id === fanId ? { ...fan, svRpm: value } : fan
+            ))
+        );
+    };
+
+    const handleSubmitFanSv = async (fanId) => {
+        if (!deviceIdentifier) {
+            return;
+        }
+
+        const fanNumber = Number(fanId);
+        if (Number.isNaN(fanNumber)) {
+            return;
+        }
+
+        const targetFan = fans.find((fan) => fan.id === fanId);
+        const nextValue = Number(targetFan?.svRpm);
+
+        setSubmittingFanId(fanId);
+
+        try {
+            const response = await fetch(
+                `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent(`cooling_fan${fanNumber}_sv`)}`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        value: Number.isNaN(nextValue) ? 0 : nextValue,
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            setFans((prev) =>
+                prev.map((fan) => (
+                    fan.id === fanId
+                        ? { ...fan, svRpm: Number.isNaN(nextValue) ? 0 : nextValue }
+                        : fan
+                ))
+            );
+        } catch (error) {
+            console.error(`風扇 ${fanId} SV 設定失敗:`, error);
+        } finally {
+            setSubmittingFanId(null);
+        }
+    };
+
+    const buildSvPayload = () => ({
+        circulating_pump_sv: Number(circulatingPumpSv) || 0,
+        cooling_fan1_sv: Number(fans.find((fan) => fan.id === '01')?.svRpm) || 0,
+        cooling_fan2_sv: Number(fans.find((fan) => fan.id === '02')?.svRpm) || 0,
+        cooling_fan3_sv: Number(fans.find((fan) => fan.id === '03')?.svRpm) || 0,
+        cooling_fan4_sv: Number(fans.find((fan) => fan.id === '04')?.svRpm) || 0,
+        cooling_fan5_sv: Number(fans.find((fan) => fan.id === '05')?.svRpm) || 0,
+        cooling_fan6_sv: Number(fans.find((fan) => fan.id === '06')?.svRpm) || 0,
+        cooling_fan7_sv: Number(fans.find((fan) => fan.id === '07')?.svRpm) || 0,
+        cooling_fan8_sv: Number(fans.find((fan) => fan.id === '08')?.svRpm) || 0,
+        cooling_fan9_sv: Number(fans.find((fan) => fan.id === '09')?.svRpm) || 0,
+        return_electric_valve_opening_sv: Number(returnValveOpening) || 0,
+        group1_pid_p_sv: Number(pidValues.p) || 0,
+        group1_pid_i_sv: Number(pidValues.i) || 0,
+        group1_pid_d_sv: Number(pidValues.d) || 0,
+        group2_pid_p_sv: Number(valvePidValues.p) || 0,
+        group2_pid_i_sv: Number(valvePidValues.i) || 0,
+        group2_pid_d_sv: Number(valvePidValues.d) || 0,
+    });
+
+    const handleSubmitPidValues = async () => {
+        if (!deviceIdentifier) {
+            return;
+        }
+
+        setIsSubmittingPid(true);
+
+        try {
+            const response = await fetch(`/api/modbus/sv/${encodeURIComponent(deviceIdentifier)}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(buildSvPayload()),
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+        } catch (error) {
+            console.error('PID 設定失敗:', error);
+        } finally {
+            setIsSubmittingPid(false);
+        }
+    };
+
+    const handleSubmitAllFansSv = async () => {
+        if (!deviceIdentifier) {
+            return;
+        }
+
+        const nextValue = Number(allFansRpmTarget);
+        const normalizedValue = Number.isNaN(nextValue) ? 0 : nextValue;
+        const nextFans = fans.map((fan) => ({ ...fan, svRpm: normalizedValue }));
+
+        setIsSubmittingAllFans(true);
+
+        try {
+            const response = await fetch(`/api/modbus/sv/${encodeURIComponent(deviceIdentifier)}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    circulating_pump_sv: Number(circulatingPumpSv) || 0,
+                    cooling_fan1_sv: normalizedValue,
+                    cooling_fan2_sv: normalizedValue,
+                    cooling_fan3_sv: normalizedValue,
+                    cooling_fan4_sv: normalizedValue,
+                    cooling_fan5_sv: normalizedValue,
+                    cooling_fan6_sv: normalizedValue,
+                    cooling_fan7_sv: normalizedValue,
+                    cooling_fan8_sv: normalizedValue,
+                    cooling_fan9_sv: normalizedValue,
+                    return_electric_valve_opening_sv: Number(returnValveOpening) || 0,
+                    group1_pid_p_sv: Number(pidValues.p) || 0,
+                    group1_pid_i_sv: Number(pidValues.i) || 0,
+                    group1_pid_d_sv: Number(pidValues.d) || 0,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            setFans(nextFans);
+        } catch (error) {
+            console.error('全部風扇 SV 設定失敗:', error);
+        } finally {
+            setIsSubmittingAllFans(false);
+        }
+    };
+
+    const handleSubmitOutletTargetTemp = async () => {
+        if (!deviceIdentifier) {
+            return;
+        }
+
+        const nextValue = Number(outletTargetTempSv);
+        setIsSubmittingOutletTargetTemp(true);
+
+        try {
+            const response = await fetch(
+                `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent('outlet_target_temp_sv')}`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        value: Number.isNaN(nextValue) ? 0 : nextValue,
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+        } catch (error) {
+            console.error('出風目標溫度設定失敗:', error);
+        } finally {
+            isEditingOutletTargetTempRef.current = false;
+            setIsSubmittingOutletTargetTemp(false);
+        }
+    };
+
+    const handleSubmitPumpFrequency = async () => {
+        if (!deviceIdentifier) {
+            return;
+        }
+
+        const nextValue = Number(circulatingPumpSv);
+        setIsSubmittingPumpFrequency(true);
+
+        try {
+            const response = await fetch(
+                `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent('circulating_pump_sv')}`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        value: Number.isNaN(nextValue) ? 0 : nextValue,
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+        } catch (error) {
+            console.error('循環泵設定失敗:', error);
+        } finally {
+            setIsSubmittingPumpFrequency(false);
+        }
+    };
+
+    const handleSubmitOutletValveOpening = async () => {
+        if (!deviceIdentifier) {
+            return;
+        }
+
+        const nextValue = Number(outletValveOpening);
+        setIsSubmittingOutletValveOpening(true);
+
+        try {
+            const response = await fetch(`/api/modbus/sv/${encodeURIComponent(deviceIdentifier)}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    ...buildSvPayload(),
+                    outlet_electric_valve_opening_sv: Number.isNaN(nextValue) ? 0 : nextValue,
+                    group2_pid_p_sv: Number(valvePidValues.p) || 0,
+                    group2_pid_i_sv: Number(valvePidValues.i) || 0,
+                    group2_pid_d_sv: Number(valvePidValues.d) || 0,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+        } catch (error) {
+            console.error('出水閥開度設定失敗:', error);
+        } finally {
+            isEditingOutletValveOpeningRef.current = false;
+            setIsSubmittingOutletValveOpening(false);
+        }
+    };
+
+    const handleSubmitPressureTarget = async () => {
+        if (!deviceIdentifier) {
+            return;
+        }
+
+        const nextValue = Number(pressureTarget);
+        setIsSubmittingPressureTarget(true);
+
+        try {
+            const response = await fetch(
+                `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent('target_pressure_diff_sv')}`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        value: Number.isNaN(nextValue) ? 0 : nextValue,
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+        } catch (error) {
+            console.error('壓差控制設定失敗:', error);
+        } finally {
+            isEditingPressureTargetRef.current = false;
+            setIsSubmittingPressureTarget(false);
+        }
+    };
+
+    const handleSubmitReturnValveOpening = async () => {
+        if (!deviceIdentifier) {
+            return;
+        }
+
+        const nextValue = Number(returnValveOpening);
+        setIsSubmittingReturnValveOpening(true);
+
+        try {
+            const response = await fetch(
+                `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent('return_electric_valve_opening_sv')}`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        value: Number.isNaN(nextValue) ? 0 : nextValue,
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+        } catch (error) {
+            console.error('混水閥開度設定失敗:', error);
+        } finally {
+            isEditingReturnValveOpeningRef.current = false;
+            setIsSubmittingReturnValveOpening(false);
+        }
     };
 
     const statusText = {
@@ -471,24 +910,69 @@ export function IndustrialControl({ device, onBack }) {
                         </span>
                     </div>
                     <div className="pt-2 border-t border-slate-100 space-y-2">
+                        <PVText value={holdingData?.outlet_target_temp_pv} unit="°C" />
                         <div className="flex items-center gap-2">
                             <span className="text-xs text-slate-500 shrink-0">{t('industrial.targetTemperature')}</span>
                             <input
                                 className="w-full h-7 text-[12px] border border-slate-200 rounded px-1 focus:ring-1 focus:ring-primary outline-none"
                                 type="number"
+                                value={outletTargetTempSv}
+                                onChange={(event) => {
+                                    isEditingOutletTargetTempRef.current = true;
+                                    setOutletTargetTempSv(event.target.value);
+                                }}
                                 placeholder={FALLBACK_VALUE}
                             />
                             <span className="text-[16px] text-slate-400">°C</span>
                         </div>
-                        <button className="w-full px-2 py-1 bg-primary text-white text-[12px] font-bold rounded">{t('common.confirm')}</button>
+                        <button
+                            type="button"
+                            onClick={handleSubmitOutletTargetTemp}
+                            disabled={isSubmittingOutletTargetTemp}
+                            className="w-full px-2 py-1 bg-primary text-white text-[12px] font-bold rounded disabled:opacity-50"
+                        >
+                            {t('common.confirm')}
+                        </button>
                     </div>
                 </div>
             </section>
 
             <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
-                <ValveControl sensorValues={sensorValues} />
-                <ReturnValveControl sensorValues={sensorValues} />
-                <MotorControl sensorValues={sensorValues} />
+                <ValveControl
+                    holdingData={holdingData}
+                    percentage={outletValveOpening}
+                    onPercentageChange={(value) => {
+                        isEditingOutletValveOpeningRef.current = true;
+                        setOutletValveOpening(value);
+                    }}
+                    onSubmit={handleSubmitOutletValveOpening}
+                    isSubmitting={isSubmittingOutletValveOpening}
+                    pidValues={valvePidValues}
+                    onPidChange={(key, value) =>
+                        setValvePidValues((prev) => ({
+                            ...prev,
+                            [key]: value,
+                        }))
+                    }
+                />
+                <ReturnValveControl
+                    holdingData={holdingData}
+                    openingRatio={returnValveOpening}
+                    onOpeningRatioChange={(value) => {
+                        isEditingReturnValveOpeningRef.current = true;
+                        setReturnValveOpening(value);
+                    }}
+                    onSubmit={handleSubmitReturnValveOpening}
+                    isSubmitting={isSubmittingReturnValveOpening}
+                />
+                <MotorControl
+                    sensorValues={sensorValues}
+                    holdingData={holdingData}
+                    targetFrequency={circulatingPumpSv}
+                    onTargetFrequencyChange={setCirculatingPumpSv}
+                    onSubmit={handleSubmitPumpFrequency}
+                    isSubmitting={isSubmittingPumpFrequency}
+                />
             </section>
 
             <section className="space-y-6">
@@ -525,7 +1009,12 @@ export function IndustrialControl({ device, onBack }) {
                                     />
                                     <span className="absolute right-3 top-2.5 text-[10px] text-slate-400 font-bold">RPM</span>
                                 </div>
-                                <button className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold border border-primary/20 hover:bg-primary hover:text-white transition-all">
+                                <button
+                                    type="button"
+                                    onClick={handleSubmitAllFansSv}
+                                    disabled={isSubmittingAllFans}
+                                    className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold border border-primary/20 hover:bg-primary hover:text-white transition-all disabled:opacity-50"
+                                >
                                     {t('common.confirm')}
                                 </button>
                             </div>
@@ -536,9 +1025,9 @@ export function IndustrialControl({ device, onBack }) {
                         <h3 className="uppercase tracking-wider font-bold text-slate-400">{t('industrial.differentialPressureControl')}</h3>
                         <div className="flex items-center gap-4">
                             <div className="flex flex-col">
-                                <span className="text-[12px] text-slate-400 font-bold">CV</span>
+                                <span className="text-[12px] text-slate-400 font-bold">PV</span>
                                 <span className="text-s font-bold text-slate-700">
-                                    {formatDisplayValue(sensorValues.inletWaterPressure)} Pa
+                                    {formatDisplayValue(holdingData?.target_pressure_diff_pv)} Pa
                                 </span>
                             </div>
                             <div className="flex-1 flex gap-2">
@@ -546,13 +1035,27 @@ export function IndustrialControl({ device, onBack }) {
                                     <input
                                         type="number"
                                         value={pressureTarget}
-                                        onChange={(event) => setPressureTarget(event.target.value)}
+                                        onChange={(event) => {
+                                            isEditingPressureTargetRef.current = true;
+                                            setPressureTarget(event.target.value);
+                                        }}
+                                        onFocus={() => {
+                                            isEditingPressureTargetRef.current = true;
+                                        }}
+                                        onBlur={() => {
+                                            isEditingPressureTargetRef.current = false;
+                                        }}
                                         placeholder={FALLBACK_VALUE}
                                         className="w-full bg-white border-none rounded-lg px-3 py-2 text-sm ring-1 ring-slate-200 focus:ring-primary outline-none"
                                     />
                                     <span className="absolute right-3 top-2.5 text-[10px] text-slate-400 font-bold">Pa</span>
                                 </div>
-                                <button className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold border border-primary/20 hover:bg-primary hover:text-white transition-all">
+                                <button
+                                    type="button"
+                                    onClick={handleSubmitPressureTarget}
+                                    disabled={isSubmittingPressureTarget}
+                                    className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold border border-primary/20 hover:bg-primary hover:text-white transition-all disabled:opacity-50"
+                                >
                                     {t('common.confirm')}
                                 </button>
                             </div>
@@ -570,7 +1073,15 @@ export function IndustrialControl({ device, onBack }) {
                                 ].map((item) => (
                                     <div key={item.key}>
                                         <label className="text-slate-400 block mb-1 font-bold">{item.label}</label>
-                                        <PVText value={item.key === 'p' ? sensorValues.pidP : item.key === 'i' ? sensorValues.pidI : FALLBACK_VALUE} />
+                                        <PVText
+                                            value={
+                                                item.key === 'p'
+                                                    ? holdingData?.group1_pid_p_pv
+                                                    : item.key === 'i'
+                                                        ? holdingData?.group1_pid_i_pv
+                                                        : holdingData?.group1_pid_d_pv
+                                            }
+                                        />
                                         <input
                                             type="number"
                                             value={pidValues[item.key]}
@@ -587,7 +1098,12 @@ export function IndustrialControl({ device, onBack }) {
                                     </div>
                                 ))}
                             </div>
-                            <button className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold border border-primary/20 hover:bg-primary hover:text-white transition-all">
+                            <button
+                                type="button"
+                                onClick={handleSubmitPidValues}
+                                disabled={isSubmittingPid}
+                                className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold border border-primary/20 hover:bg-primary hover:text-white transition-all disabled:opacity-50"
+                            >
                                 {t('common.confirm')}
                             </button>
                         </div>
@@ -600,7 +1116,13 @@ export function IndustrialControl({ device, onBack }) {
                     className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
                 >
                     {fans.map((fan) => (
-                        <FanUnitCard key={fan.id} fan={fan}  />
+                        <FanUnitCard
+                            key={fan.id}
+                            fan={fan}
+                            onSvChange={handleFanSvChange}
+                            onSubmit={handleSubmitFanSv}
+                            isSubmitting={submittingFanId === fan.id}
+                        />
                     ))}
                 </motion.div>
             </section>
