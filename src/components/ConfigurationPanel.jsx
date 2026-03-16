@@ -1,14 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Edit3, Info, Search, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Edit3, Info } from 'lucide-react';
 
-export default function ConfigurationPanel({ onClose }) {
+export default function ConfigurationPanel({ onClose, onSaved }) {
     const [showSavedToast, setShowSavedToast] = useState(false);
-
-    const devices = [
-        { id: 'PLC-CTRL-4401', brand: 'Siemens S7-1200', status: 'online', mac: '00:1A:2B', checked: true },
-        { id: 'SEN-TMP-992', brand: 'Omron 熱電偶', status: 'online', mac: '00:3C:9D', checked: true },
-        { id: 'MOT-DRV-022', brand: 'ABB 變頻器', status: 'warning', mac: '00:EF:11', checked: false },
-    ];
+    const [groupName, setGroupName] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+    const [saveError, setSaveError] = useState('');
 
     useEffect(() => {
         if (!showSavedToast) {
@@ -16,14 +13,46 @@ export default function ConfigurationPanel({ onClose }) {
         }
 
         const closeTimer = setTimeout(() => {
-            onClose();
+            onClose?.();
         }, 1000);
 
         return () => clearTimeout(closeTimer);
     }, [onClose, showSavedToast]);
 
-    const handleSave = () => {
-        setShowSavedToast(true);
+    const handleSave = async () => {
+        const trimmedName = groupName.trim();
+
+        if (!trimmedName) {
+            setSaveError('請輸入群組名稱');
+            return;
+        }
+
+        setIsSaving(true);
+        setSaveError('');
+
+        try {
+            const response = await fetch('/api/groups', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name: trimmedName,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            setShowSavedToast(true);
+            await onSaved?.();
+        } catch (error) {
+            console.error('群組保存失敗:', error);
+            setSaveError('保存失敗，請確認群組名稱是否符合後端規格');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -39,7 +68,7 @@ export default function ConfigurationPanel({ onClose }) {
                         <Edit3 className="text-primary" size={24} />
                         群組設定
                     </h3>
-                    <p className="text-sm text-slate-500 mt-1">修改「群組 1」的設定</p>
+                    <p className="text-sm text-slate-500 mt-1">建立新群組並選擇包含的設備</p>
                 </div>
                 <div className="flex gap-3">
                     <button
@@ -50,90 +79,40 @@ export default function ConfigurationPanel({ onClose }) {
                     </button>
                     <button
                         onClick={handleSave}
-                        className="px-6 py-2 text-sm font-bold text-white bg-primary rounded-lg shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                        disabled={isSaving}
+                        className="px-6 py-2 text-sm font-bold text-white bg-primary rounded-lg shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100"
                     >
-                        儲存變更
+                        {isSaving ? '儲存中...' : '儲存變更'}
                     </button>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                {/* Left Column: Basic Info */}
-                <div className="space-y-6">
+                <div className="space-y-6 lg:col-span-1">
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-2">群組名稱</label>
                         <input
                             className="w-full bg-slate-50 border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
                             type="text"
-                            defaultValue="群組 1"
+                            value={groupName}
+                            onChange={(event) => setGroupName(event.target.value)}
+                            placeholder="例如：一樓冷卻系統"
                         />
-                        <p className="text-[11px] text-slate-500 mt-2 italic">標準命名格式：單元-區段-類型</p>
+
+                        {saveError && (
+                            <p className="mt-2 text-xs font-medium text-red-600">{saveError}</p>
+                        )}
                     </div>
 
                     <div className="p-4 rounded-xl bg-primary/5 border border-primary/10">
-                        <h4 className="text-sm font-bold text-primary mb-2 flex items-center gap-2">
-                            <Info size={16} />
-                            設定提示
-                        </h4>
+
                         <p className="text-xs text-slate-600 leading-relaxed">
-                            群組可讓你同時對多個設備下達廣播指令。請確認群組內所有成員的硬體版本彼此相容。
+                            目前建立群組 API 只需要群組名稱。設備綁定若需要，應由其他 API 或後續編輯流程處理。
                         </p>
                     </div>
                 </div>
 
-                {/* Right Column: Device Selection */}
-                <div className="lg:col-span-2">
-                    <label className="block text-sm font-bold text-slate-700 mb-4">設備選擇</label>
-                    <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white">
-                        <div className="bg-slate-50 px-4 py-3 flex items-center justify-between border-b border-slate-200">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">可用設備</span>
-                            <div className="relative">
-                                <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                                <input
-                                    className="pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none w-48 transition-all"
-                                    placeholder="搜尋 ID..."
-                                    type="text"
-                                />
-                            </div>
-                        </div>
 
-                        <div className="max-h-[320px] overflow-y-auto divide-y divide-slate-100">
-                            {devices.map((device) => (
-                                <label
-                                    key={device.id}
-                                    className="flex items-center justify-between px-4 py-4 cursor-pointer hover:bg-primary/5 transition-colors group"
-                                >
-                                    <div className="flex items-center gap-4">
-                                        <input
-                                            defaultChecked={device.checked}
-                                            className="size-4 rounded text-primary border-slate-300 focus:ring-primary transition-all cursor-pointer"
-                                            type="checkbox"
-                                        />
-                                        <div>
-                                            <p className="text-sm font-bold text-slate-800">{device.id}</p>
-                                            <p className="text-[11px] text-slate-500 uppercase font-medium">{device.brand}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-4">
-                                        {device.status === 'online' ? (
-                                            <CheckCircle2 className="text-emerald-500" size={20} />
-                                        ) : (
-                                            <AlertTriangle className="text-amber-500" size={20} />
-                                        )}
-                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md uppercase tracking-tight">
-                      MAC: {device.mac}
-                    </span>
-                                    </div>
-                                </label>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between px-1">
-                        <p className="text-xs text-slate-500 font-medium italic">目前顯示此群組可用設備 12 台中的 3 台。</p>
-                        <button className="text-primary text-xs font-bold hover:underline transition-all">查看所有相容設備</button>
-                    </div>
-                </div>
             </div>
         </section>
     );

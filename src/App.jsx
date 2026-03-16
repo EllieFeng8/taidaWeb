@@ -5,7 +5,8 @@ import GroupSettings from './page/GroupSettings.jsx';
 import { GroupControl } from './components/GroupControl';
 import { Dashboard } from './page/Dashboard';
 import Alarm from './page/Alarm.jsx';
-import IndustrialControl from './page/IndustrialControl.jsx';
+import {IndustrialControl} from './page/IndustrialControl.jsx';
+import HistoryList from './page/HistoryList.jsx';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -15,6 +16,7 @@ export default function App() {
     dashboard: '設備總覽',
     groups: '群組設定',
     alerts: '警報',
+    history: '歷史數據',
     logs: '系統紀錄',
     control: '群組控制',
     industrialControl: '工業控制'
@@ -79,6 +81,8 @@ export default function App() {
         return <Dashboard onSelectDevice={handleOpenDevice} />;
       case 'alerts':
         return <Alarm />;
+      case 'history':
+        return <HistoryList />;
       case 'groups':
         return <GroupSettings groups={groups} onEditGroup={handleEditGroup} />;
       default:

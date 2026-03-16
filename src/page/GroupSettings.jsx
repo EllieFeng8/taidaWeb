@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect,useState } from 'react';
 // import { Plus } from 'lucide-react';
 // import Sidebar from './components/Sidebar';
 // import Header from './components/Header';
@@ -12,23 +12,28 @@ export default function GroupSettings() {
   const [showConfig, setShowConfig] = React.useState(false);
   const [selectedGroup, setSelectedGroup] = React.useState(null);
   const [view, setView] = React.useState('list');
+  const [groups, setGroups] = useState([]);
 
-  const activeGroups = [
-    {
-      name: '群組 1',
-      description: '主要配電產線的組裝叢集。',
-      devices: ['設備 1', '設備 2'],
-      status: '運行中',
-      created: '建立於 2 天前'
-    },
-    {
-      name: '群組 2',
-      description: '次級測試與品質控制單元。',
-      devices: ['設備 3', '設備 4'],
-      status: '維護中',
-      created: '建立於 5 天前'
-    }
-  ];
+  const fetchGroups = React.useCallback(() => {
+    return fetch(`/api/groups`, {
+      method: "GET",
+    })
+        .then(res => res.json())
+        .then(data => {
+          setGroups(Array.isArray(data) ? data : []);
+        })
+        .catch(err => {
+          console.error("群組獲取失敗:", err);
+          setGroups([]);
+        });
+  }, []);
+
+  useEffect(() => {
+    fetchGroups();
+    const interval = setInterval(fetchGroups, 1000); // 每 10 秒查詢一次
+    return () => clearInterval(interval);
+  }, [fetchGroups]);
+
 
   if (view === 'settings' && selectedGroup) {
     return <GroupSet group={selectedGroup} onBack={() => setView('list')} />;
@@ -50,8 +55,7 @@ export default function GroupSettings() {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
               >
-                <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">管理設備群組</h1>
-                <p className="text-slate-500 mt-1.5 text-lg">建立並設定群組，以進行同步化工業自動控制。</p>
+
               </motion.div>
             </div>
 
@@ -62,20 +66,17 @@ export default function GroupSettings() {
                 <button className="text-primary text-sm font-bold hover:underline">查看全部</button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {activeGroups.map((group) => (
+                {groups.map((group) => (
                     <GroupCard
-                        key={group.name}
+                        key={group.id}
                         name={group.name}
-                        description={group.description}
                         devices={group.devices}
-                        status={group.status}
-                        created={group.created}
-                        onOpenSettings={(groupData) => {
-                          setSelectedGroup(groupData);
+                        onOpenSettings={() => {
+                          setSelectedGroup(group);
                           setView('settings');
                         }}
-                        onOpenControl={(groupData) => {
-                          setSelectedGroup(groupData);
+                        onOpenControl={() => {
+                          setSelectedGroup(group);
                           setView('control');
                         }}
                     />
@@ -94,7 +95,10 @@ export default function GroupSettings() {
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
                 >
-                  <ConfigurationPanel onClose={() => setShowConfig(false)} />
+                  <ConfigurationPanel
+                      onClose={() => setShowConfig(false)}
+                      onSaved={fetchGroups}
+                  />
                 </motion.div>
             )}
 

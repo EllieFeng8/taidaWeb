@@ -3,161 +3,424 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  LayoutDashboard,
-  Users,
-  ListTodo,
-  LogOut,
-  Factory,
-  Plus,
-  Search,
-  Bell,
-  X,
-  AlertCircle,
-  Clock
+  TriangleAlert,
+  MoreVertical,
+  Radio,
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-// --- Mock Data ---
-
-const INITIAL_DEVICES = [
-  { id: '1', group: '主幫浦站', status: 'online', temp: '45.2°C', flow: '12.5 公升/秒', press: '42 PSI' },
-  { id: '2', group: '次級閥門', status: 'offline', temp: '--', flow: '--', press: '--' },
-  { id: '3', group: '主馬達機組', status: 'warning', temp: '82.1°C', flow: '8.1 公升/秒', press: '31 PSI' },
-  { id: '4', group: '冷卻陣列', status: 'online', temp: '22.8°C', flow: '4.2 公升/秒', press: '18 PSI' },
-
+const ALL_GROUP_OPTION = { id: 'all', name: '全部設備', devices: [] };
+const SENSOR_FIELD_ORDER = [
+  'inletWaterTemp',
+  'inletWaterPressure',
+  'outletWaterTemp',
+  'outletWaterPressure',
+  'returnWaterTemp',
+  'returnWaterPressure',
+  'inletAirTemp',
+  'inletAirHumidity',
+  'outletAirTemp',
+  'outletAirHumidity',
+  'coolingL1',
+  'coolingL2',
+  'coolingR1',
+  'coolingR2',
+  'rpm',
+  'hz',
 ];
 
-const ALERTS = [
-  { id: 1, type: 'critical', title: '嚴重警報：設備 1', message: '偵測到零流量，需要立即檢查。', time: '2 分鐘前' },
-  { id: 2, type: 'warning', title: '溫度警告：設備 103', message: '馬達溫度超過門檻值（82°C）。', time: '12 分鐘前' },
-  { id: 3, type: 'info', title: '連線中斷：設備 102', message: '機組已離線，正在嘗試自動重新連線...', time: '45 分鐘前' },
-  { id: 4, type: 'success', title: '維護完成', message: '設備 098 韌體更新並驗證完成。', time: '1 小時前' },
+const formatMetric = (value, unit = '') => {
+  if (value === null || value === undefined || value === '') {
+    return '--';
+  }
 
-];
+  return unit ? `${value}${unit}` : String(value);
+};
+
+const formatCombinedMetric = (primaryValue, primaryUnit, secondaryValue, secondaryUnit) => {
+  const primary = formatMetric(primaryValue, primaryUnit);
+  const secondary = formatMetric(secondaryValue, secondaryUnit);
+
+  if (primary === '--' && secondary === '--') {
+    return '--';
+  }
+
+  if (secondary === '--') {
+    return primary;
+  }
+
+  if (primary === '--') {
+    return secondary;
+  }
+
+  return `${primary} / ${secondary}`;
+};
+
+const normalizeDeviceStatus = (status) => {
+  if (!status) {
+    return 'online';
+  }
+
+  const normalized = String(status).toLowerCase();
+
+  if (['alert', 'critical', 'warning', 'offline', 'online', 'running'].includes(normalized)) {
+    return normalized;
+  }
+
+  return 'online';
+};
+
+const mapSensorValues = (sensorPayload) => {
+  const sensorEntries = Object.entries(sensorPayload ?? {}).filter(([key]) => /^s\d+$/.test(key));
+  const mappedValues = {};
+
+  SENSOR_FIELD_ORDER.forEach((fieldName, index) => {
+    mappedValues[fieldName] = sensorEntries[index]?.[1];
+  });
+
+  return mappedValues;
+};
+
+const normalizeDevice = (device, index, sensorPayload) => {
+  const name = device?.name ?? device?.deviceName ?? `Device ${index + 1}`;
+  const id = String(device?.id ?? device?.deviceId ?? name);
+  const sensorValues = mapSensorValues(sensorPayload);
+
+  return {
+    ...device,
+    ...sensorValues,
+    id,
+    name,
+    status: normalizeDeviceStatus(device?.status),
+    water: {
+      in: device?.water?.in ?? formatCombinedMetric(sensorValues.inletWaterTemp ?? device?.inletWaterTemp, '°C', sensorValues.inletWaterPressure ?? device?.inletWaterPressure, 'b'),
+      out: device?.water?.out ?? formatCombinedMetric(sensorValues.outletWaterTemp ?? device?.outletWaterTemp, '°C', sensorValues.outletWaterPressure ?? device?.outletWaterPressure, 'b'),
+      return: device?.water?.return ?? formatCombinedMetric(sensorValues.returnWaterTemp ?? device?.returnWaterTemp, '°C', sensorValues.returnWaterPressure ?? device?.returnWaterPressure, 'b'),
+    },
+    air: {
+      in: device?.air?.in ?? formatCombinedMetric(sensorValues.inletAirTemp ?? device?.inletAirTemp, '°C', sensorValues.inletAirHumidity ?? device?.inletAirHumidity, '%'),
+      out: device?.air?.out ?? formatCombinedMetric(sensorValues.outletAirTemp ?? device?.outletAirTemp, '°C', sensorValues.outletAirHumidity ?? device?.outletAirHumidity, '%'),
+    },
+    cooling: {
+      l1: device?.cooling?.l1 ?? sensorValues.coolingL1 ?? device?.coolingL1 ?? '--',
+      l2: device?.cooling?.l2 ?? sensorValues.coolingL2 ?? device?.coolingL2 ?? '--',
+      r1: device?.cooling?.r1 ?? sensorValues.coolingR1 ?? device?.coolingR1 ?? '--',
+      r2: device?.cooling?.r2 ?? sensorValues.coolingR2 ?? device?.coolingR2 ?? '--',
+    },
+    power: {
+      rpm: device?.power?.rpm ?? sensorValues.rpm ?? device?.rpm ?? '--',
+      hz: device?.power?.hz ?? sensorValues.hz ?? device?.hz ?? '--',
+    },
+  };
+};
+
+const getDeviceIdentifierSet = (group) => {
+  const devices = Array.isArray(group?.devices) ? group.devices : [];
+
+  return new Set(
+      devices.flatMap((device) => {
+        if (typeof device === 'string') {
+          return [device];
+        }
+
+        if (device && typeof device === 'object') {
+          return [device.id, device.name].filter(Boolean);
+        }
+
+        return [];
+      })
+  );
+};
+
 
 // --- Components ---
-const StatusBadge = ({ status }) => {
-  const styles = {
-    online: 'bg-emerald-100 text-emerald-700',
-    offline: 'bg-slate-100 text-slate-500',
-    warning: 'bg-amber-100 text-amber-700',
-    critical: 'bg-rose-100 text-rose-700',
-  };
-  const labels = {
-    online: '運行中',
-    offline: '離線',
-    warning: '警告',
-    critical: '嚴重',
-  };
-  return (
-      <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${styles[status]}`}>
-      {labels[status] ?? status}
-    </span>
-  );
-};
-
 const DeviceCard = ({ device, onSelect }) => {
-  const isWarning = device.status === 'warning';
-  const isCritical = device.status === 'critical';
-  const isOffline = device.status === 'offline';
+  const isAlert = device.status === 'alert';
 
   return (
-      <button
-        type="button"
-        onClick={() => onSelect(device)}
-        className="bg-white p-5 rounded-xl border border-slate-200 flex flex-col gap-4 hover:shadow-md hover:border-primary/40 transition-all text-left cursor-pointer"
-      >
-        <div className="flex justify-between items-start">
-          <div>
-            <h3 className="font-bold text-lg">設備 {device.id}</h3>
-            <p className="text-[10px] text-slate-500 uppercase font-semibold tracking-wider">群組：{device.group}</p>
+      <motion.button
+          type="button"
+          layout
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          onClick={() => onSelect?.(device)}
+          whileHover={{ y: -4 }}
+          whileTap={{ scale: 0.995 }}
+          className={`group w-full cursor-pointer overflow-hidden rounded-xl border bg-white text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg ${
+              isAlert
+                  ? 'border-2 border-red-500 shadow-lg shadow-red-500/10 hover:shadow-red-500/20'
+                  : 'border-slate-200 hover:border-primary/40 hover:shadow-primary/10'
+          } focus:outline-none focus:ring-2 focus:ring-primary/30`}
+        >
+        <div className={`${isAlert ? 'bg-red-500 text-white' : 'border-b border-slate-200 bg-slate-50 group-hover:bg-primary/5'} px-4 py-3 flex justify-between items-center transition-colors`}>
+          <div className="flex items-center gap-3">
+            {isAlert ? <TriangleAlert size={18} /> : <Radio size={18} className="text-primary" />}
+            <h3 className="font-bold">{device.name}</h3>
+            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                isAlert ? 'bg-white text-red-600 animate-pulse' : 'bg-green-100 text-green-700'
+            }`}>
+            {isAlert ? 'ALERT - 高溫警報' : '運行中'}
+          </span>
           </div>
-          <StatusBadge status={device.status} />
+          <span className={isAlert ? 'text-white/80' : 'text-slate-400'}>
+            <MoreVertical size={18} />
+          </span>
         </div>
 
-        <div className={`grid grid-cols-3 gap-2 ${isOffline ? 'opacity-50' : ''}`}>
-          <div className={`p-2 rounded-lg ${isWarning ? 'bg-amber-50 border border-amber-100' : 'bg-slate-50'}`}>
-            <p className={`text-[10px] font-medium ${isWarning ? 'text-amber-600' : 'text-slate-500'}`}>溫度</p>
-            <p className={`text-sm font-bold ${isWarning ? 'text-amber-700' : 'text-slate-900'}`}>{device.temp}</p>
-          </div>
-          <div className={`p-2 rounded-lg ${isCritical ? 'bg-rose-50 border border-rose-100' : 'bg-slate-50'}`}>
-            <p className={`text-[10px] font-medium ${isCritical ? 'text-rose-600' : 'text-slate-500'}`}>流量</p>
-            <p className={`text-sm font-bold ${isCritical ? 'text-rose-700' : 'text-slate-900'}`}>{device.flow}</p>
-          </div>
-          <div className="p-2 bg-slate-50 rounded-lg">
-            <p className="text-[10px] text-slate-500 font-medium">壓力</p>
-            <p className="text-sm font-bold text-slate-900">{device.press}</p>
-          </div>
-        </div>
-      </button>
-  );
-};
-
-export const Dashboard = ({ onSelectDevice }) => {
-  const [showNotification, setShowNotification] = useState(true);
-
-  return (
-      <div className="flex h-screen bg-[#f8fafc] text-slate-900 font-sans overflow-hidden">
-
-
-        {/* Main Content */}
-        <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <div className="flex-1 flex overflow-hidden">
-            {/* Scrollable Area */}
-            <div className="flex-1 overflow-y-auto p-8">
-              {/* Filters */}
-              <div className="flex flex-wrap items-center gap-3 mb-8">
-                <button className="px-4 py-1.5 rounded-full bg-blue-600 text-white text-xs font-bold">全部機組（124）</button>
-                <button className="px-4 py-1.5 rounded-full bg-white text-slate-600 border border-slate-200 text-xs font-medium flex items-center gap-2 hover:border-slate-300">
-                  運行中 <span className="size-2 bg-emerald-500 rounded-full"></span>
-                </button>
-                <button className="px-4 py-1.5 rounded-full bg-white text-slate-600 border border-slate-200 text-xs font-medium flex items-center gap-2 hover:border-slate-300">
-                  警告 <span className="size-2 bg-amber-500 rounded-full"></span>
-                </button>
-                <button className="px-4 py-1.5 rounded-full bg-white text-slate-600 border border-slate-200 text-xs font-medium flex items-center gap-2 hover:border-slate-300">
-                  嚴重 <span className="size-2 bg-rose-500 rounded-full"></span>
-                </button>
+        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Column 1: Water & Air */}
+          <div className="space-y-3">
+            <div className={`p-3 rounded-lg ${isAlert ? 'bg-red-50' : 'bg-slate-50'}`}>
+              <p className={`text-[10px] font-bold uppercase mb-1 ${isAlert ? 'text-red-400' : 'text-slate-400'}`}>進/出/回水監測</p>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">入水</span>
+                  <span className={`font-mono ${isAlert ? 'text-red-600 font-bold' : ''}`}>{device.water.in}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">出水</span>
+                  <span className="font-mono">{device.water.out}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">回水</span>
+                  <span className="font-mono">{device.water.return}</span>
+                </div>
               </div>
-
-              {/* Device Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-                {INITIAL_DEVICES.map(device => (
-                    <DeviceCard key={device.id} device={device} onSelect={onSelectDevice} />
-                ))}
-
+            </div>
+            <div className="p-3 rounded-lg bg-slate-50">
+              <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">進風/出風狀態</p>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">進風</span>
+                  <span className="font-mono text-primary">{device.air.in}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">出風</span>
+                  <span className="font-mono">{device.air.out}</span>
+                </div>
               </div>
             </div>
           </div>
-        </main>
 
-        {/* Floating Notification */}
-        <AnimatePresence>
-          {showNotification && (
-              <motion.div
-                  initial={{ opacity: 0, y: 50, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="fixed bottom-6 right-6 z-50 w-80 bg-rose-50 border-l-4 border-rose-500 p-4 rounded-lg shadow-2xl"
-              >
-                <div className="flex justify-between items-start mb-1">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle size={14} className="text-rose-600" />
-                    <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest">嚴重錯誤：</p>
-                  </div>
-                  <button
-                      onClick={() => setShowNotification(false)}
-                      className="text-slate-400 hover:text-slate-600 transition-colors"
-                  >
-                    <X size={16} />
-                  </button>
+          {/* Column 2: Cooling & Power */}
+          <div className="space-y-3">
+            <div className="p-3 rounded-lg bg-slate-50">
+              <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">冷排溫度監測</p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className={`p-1.5 rounded border ${isAlert && device.cooling.l1 > 50 ? 'bg-red-50 border-red-200 text-red-600 font-bold' : 'bg-white border-slate-100'}`}>
+                  左入: <span className="font-mono font-bold text-[14px]">{device.cooling.l1}°C</span>
                 </div>
-                <p className="text-xs font-bold text-slate-800">設備 1：偵測到零流量</p>
-                <p className="text-[10px] text-slate-500 mt-1">需要立即檢查，以避免設備損壞。</p>
-              </motion.div>
-          )}
-        </AnimatePresence>
+                <div className={`p-1.5 rounded border ${isAlert && device.cooling.l2 > 50 ? 'bg-red-50 border-red-200 text-red-600 font-bold' : 'bg-white border-slate-100'}`}>
+                  左出: <span className="font-mono font-bold text-[14px]">{device.cooling.l2}°C</span>
+                </div>
+                <div className="bg-white p-1.5 rounded border border-slate-100">
+                  右入: <span className="font-mono font-bold text-[14px]">{device.cooling.r1}°C</span>
+                </div>
+                <div className="bg-white p-1.5 rounded border border-slate-100">
+                  右出: <span className="font-mono font-bold text-[14px]">{device.cooling.r2}°C</span>
+                </div>
+              </div>
+            </div>
+            <div className="p-3 rounded-lg bg-slate-50">
+              <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">動力系統</p>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">轉速</span>
+                  <span className={`font-mono ${isAlert && device.power.rpm > 1800 ? 'text-red-500 font-bold' : ''}`}>{device.power.rpm} RPM</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">頻率</span>
+                  <span className="font-mono">{device.power.hz} Hz</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Column 3: Efficiency & Graph */}
+          {/*<div className={`flex flex-col items-center justify-center p-4 rounded-xl border border-dashed ${*/}
+          {/*    isAlert ? 'bg-red-500/5 border-red-500/20' : 'bg-primary/5 border-primary/20'*/}
+          {/*}`}>*/}
+          {/*  <div className={`${isAlert ? 'text-red-500' : 'text-primary'} font-bold text-3xl mb-1`}>*/}
+          {/*    {device.efficiency}%*/}
+          {/*  </div>*/}
+          {/*  <div className="text-[10px] text-slate-500 font-bold">運行效率</div>*/}
+          {/*  <div className="mt-4 w-full aspect-video bg-white rounded-lg overflow-hidden flex items-center justify-center">*/}
+          {/*    <div className={`w-full h-full bg-gradient-to-tr ${*/}
+          {/*        isAlert ? 'from-red-500/10 to-red-500/30' : 'from-primary/10 to-primary/30'*/}
+          {/*    }`}></div>*/}
+          {/*  </div>*/}
+          {/*</div><div className={`flex flex-col items-center justify-center p-4 rounded-xl border border-dashed ${*/}
+          {/*    isAlert ? 'bg-red-500/5 border-red-500/20' : 'bg-primary/5 border-primary/20'*/}
+          {/*}`}>*/}
+          {/*  <div className={`${isAlert ? 'text-red-500' : 'text-primary'} font-bold text-3xl mb-1`}>*/}
+          {/*    {device.efficiency}%*/}
+          {/*  </div>*/}
+          {/*  <div className="text-[10px] text-slate-500 font-bold">運行效率</div>*/}
+          {/*  <div className="mt-4 w-full aspect-video bg-white rounded-lg overflow-hidden flex items-center justify-center">*/}
+          {/*    <div className={`w-full h-full bg-gradient-to-tr ${*/}
+          {/*        isAlert ? 'from-red-500/10 to-red-500/30' : 'from-primary/10 to-primary/30'*/}
+          {/*    }`}></div>*/}
+          {/*  </div>*/}
+          {/*</div>*/}
+        </div>
+      </motion.button>
+  );
+};
+export const Dashboard = ({ onSelectDevice }) => {
+  const [selectedGroupId, setSelectedGroupId] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [groups, setGroups] = useState([]);
+  const [devices, setDevices] = useState([]);
+
+
+  useEffect(() => {
+    const fetchGroups = () => {
+      fetch(`/api/groups`, {
+        method: 'GET',
+      })
+          .then((res) => res.json())
+          .then((data) => {
+            setGroups(Array.isArray(data) ? data : []);
+          })
+          .catch((err) => console.error('群組獲取失敗:', err));
+    };
+
+    fetchGroups();
+    const interval = setInterval(fetchGroups, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const fetchDevices = async () => {
+      try {
+        const response = await fetch('/api/devices', {
+          method: 'GET',
+        });
+        const data = await response.json();
+        const deviceList = Array.isArray(data) ? data : [];
+        const normalizedDevices = await Promise.all(
+            deviceList.map(async (device, index) => {
+              const deviceIdentifier = device?.name ?? device?.deviceName ?? device?.id ?? device?.deviceId;
+
+              if (!deviceIdentifier) {
+                return normalizeDevice(device, index);
+              }
+
+              try {
+                const sensorResponse = await fetch(`/api/sensor/last/${encodeURIComponent(deviceIdentifier)}`, {
+                  method: 'GET',
+                });
+                const sensorData = await sensorResponse.json();
+
+                return normalizeDevice(device, index, sensorData);
+              } catch (error) {
+                console.error(`設備 ${deviceIdentifier} 感測資料獲取失敗:`, error);
+                return normalizeDevice(device, index);
+              }
+            })
+        );
+
+        setDevices(normalizedDevices);
+      } catch (err) {
+        console.error('設備獲取失敗:', err);
+        setDevices([]);
+      }
+    };
+
+    fetchDevices();
+  }, []);
+
+  const groupOptions = [ALL_GROUP_OPTION, ...groups];
+  const selectedGroup = groupOptions.find((group) => String(group.id) === selectedGroupId) ?? ALL_GROUP_OPTION;
+  const selectedGroupDevices = getDeviceIdentifierSet(selectedGroup);
+
+  const filteredDevices = devices.filter(device => {
+    if (
+        selectedGroupId !== 'all' &&
+        !selectedGroupDevices.has(device.id) &&
+        !selectedGroupDevices.has(device.name)
+    ) {
+      return false;
+    }
+
+    if (searchQuery && !device.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    return true;
+  });
+
+  return (
+      <div className="flex h-screen w-full flex-col overflow-hidden bg-background-light">
+
+        <div className="flex flex-1 overflow-hidden">
+
+          {/* Main Content */}
+          <main className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-8 space-y-10">
+              {/*<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">*/}
+              {/*  <div>*/}
+              {/*    <p className="text-sm text-slate-500"></p>*/}
+              {/*  </div>*/}
+              {/*  <div className="flex gap-2">*/}
+              {/*    <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-slate-200 text-sm font-medium hover:bg-slate-50 transition-colors">*/}
+              {/*      <Filter size={18} />*/}
+              {/*      篩選*/}
+              {/*    </button>*/}
+              {/*    <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-blue-600 transition-colors">*/}
+              {/*      <Plus size={18} />*/}
+              {/*      新增設備*/}
+              {/*    </button>*/}
+              {/*  </div>*/}
+              {/*</div>*/}
+
+              <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">設備群組</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    目前顯示 <span className="font-bold text-slate-700">{selectedGroup.name}</span> 的設備資訊
+                  </p>
+                </div>
+                <div className="relative w-full sm:w-64">
+                  <select
+                      value={selectedGroupId}
+                      onChange={(e) => setSelectedGroupId(e.target.value)}
+                      className="w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-sm font-semibold text-slate-700 outline-none transition-all hover:border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  >
+                    {groupOptions.map((group) => (
+                        <option key={group.id} value={String(group.id)}>
+                          {group.name}
+                        </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                      size={18}
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                </div>
+              </div>
+
+              {/* Grid */}
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <AnimatePresence mode="popLayout">
+                  {filteredDevices.map((device) => (
+                      <DeviceCard
+                          key={device.id}
+                          device={device}
+                          onSelect={onSelectDevice}
+                      />
+                  ))}
+                </AnimatePresence>
+              </div>
+              {filteredDevices.length === 0 && (
+                  <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
+                    {selectedGroup.name} 目前沒有符合條件的設備。
+                  </div>
+              )}
+            </div>
+          </main>
+        </div>
       </div>
   );
 };

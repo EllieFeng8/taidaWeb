@@ -18,14 +18,6 @@ export const Header = ({ title }) => {
             <span className="absolute top-2 right-2 size-2 bg-red-500 rounded-full border-2 border-white"></span>
           </button>
         </div>
-        
-        <div className="h-8 w-[1px] bg-slate-200 mx-2"></div>
-        
-        <button className="flex items-center gap-2 p-1 pr-3 hover:bg-slate-50 rounded-full transition-colors">
-          <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-            <User size={18} />
-          </div>
-        </button>
       </div>
     </header>
   );
