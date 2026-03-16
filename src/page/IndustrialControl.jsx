@@ -8,6 +8,21 @@ import { motion } from 'motion/react';
 import { ArrowLeft } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
+import ConnectSetting from '../components/ConnectSetting.jsx';
+import {
+    Settings,
+    Bell,
+    Thermometer,
+    Zap,
+    Clock,
+    Router,
+    X,
+    Info,
+    Cpu,
+    Check,
+    ChevronRight,
+    Power
+} from 'lucide-react';
 const FALLBACK_VALUE = '--';
 const TELEMETRY_SENSOR_ORDER = [
     'inletWaterTemp',
@@ -245,36 +260,70 @@ const MotorControl = ({ sensorValues }) => {
     );
 };
 
-const FanUnitCard = ({ fan, onToggle }) => {
+const FanUnitCard = ({ fan }) => {
     const { t } = useLanguage();
+    const statusColors = {
+        Running: 'text-emerald-500',
+        Stopped: 'text-rose-500',
+        Warning: 'text-amber-500',
+        Optimal: 'text-blue-500',
+    };
 
     return (
-        <div className={`bg-white dark:bg-slate-900 border ${fan.status === 'fault' ? 'border-red-200 dark:border-red-900/50 bg-red-50/10' : 'border-slate-200 dark:border-slate-800'} rounded-xl p-5 shadow-sm hover:border-primary/50 transition-colors flex flex-col justify-between h-full`}>
-            <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center gap-2">
-                    <h5 className="text-[16px] font-bold text-slate-800 dark:text-slate-100">{t('industrial.fanLabel')} {fan.displayId}</h5>
-                    {fan.status === 'fault' && <span className="material-symbols-outlined text-red-500 text-sm">error</span>}
+        <div className={`border rounded-2xl p-5 transition-all ${
+            fan.isPrimary
+                ? 'border-blue-200 bg-blue-50/30 ring-2 ring-blue-100 shadow-lg shadow-blue-50'
+                : 'border-slate-200 bg-slate-50/50'
+        }`}>
+            <div className="flex justify-between items-start mb-5">
+                <div>
+                    <h5 className="text-sm font-bold flex items-center gap-2">
+                        Fan Unit <span className="text-slate-400">{fan.id}</span>
+                        {fan.isPrimary && <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded ml-1">Primary</span>}
+                    </h5>
+                    <p className={`text-[10px] font-bold uppercase tracking-wider mt-1 ${statusColors[fan.status]}`}>
+                        {fan.status}
+                    </p>
                 </div>
-                <Toggle checked={fan.isOn} onChange={() => onToggle?.(fan.id)} />
+                <button className={`w-10 h-5 rounded-full relative transition-colors ${fan.isActive ? 'bg-blue-600' : 'bg-slate-300'}`}>
+                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${fan.isActive ? 'left-5.5' : 'left-0.5'}`} />
+                </button>
             </div>
-            <div className="space-y-1.5 space-x-1.5">
-                <label className="text-[14px] font-bold text-slate-400 uppercase">{t('industrial.targetSpeed')}</label>
-                <PVText value={fan.pv} />
-                <div className="relative">
-                    <input
-                        className={`w-full bg-slate-50 dark:bg-slate-800 border ${fan.status === 'fault' ? 'border-red-100 dark:border-red-900/30' : 'border-slate-200 dark:border-slate-700'} rounded-lg px-3 py-2 text-sm font-bold focus:ring-1 focus:ring-primary/30 outline-none`}
-                        type="number"
-                        placeholder={FALLBACK_VALUE}
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-slate-400 font-bold">{t('industrial.rpmUnit')}</span>
+
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">PV</p>
+                    <div className="space-y-1.5">
+                        <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
+                            <span className="text-sm font-bold">{fan.pvPercent}</span>
+                            <span className="text-[10px] text-slate-400 font-bold">%</span>
+                        </div>
+                        <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
+                            <span className="text-sm font-bold">{fan.pvRpm}</span>
+                            <span className="text-[10px] text-slate-400 font-bold">RPM</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">SV</p>
+                    <div className="flex h-full max-h-[72px] border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                        <input
+                            type="number"
+                            defaultValue={fan.svRpm}
+                            className="w-full border-none bg-transparent text-lg font-bold px-3 focus:ring-0"
+                        />
+                        <button className="bg-slate-50 px-3 flex items-center justify-center border-l border-slate-100 hover:bg-slate-100 transition-colors">
+                            <Check size={18} className="text-slate-400" />
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     );
 };
-
 export function IndustrialControl({ device, onBack }) {
     const { t } = useLanguage();
+    const [isModalOpen, setIsModalOpen] = useState(false);
     const [allFansEnabled, setAllFansEnabled] = useState(false);
     const [pidMonitoringEnabled, setPidMonitoringEnabled] = useState(true);
     const [fansCorrectionEnabled, setFansCorrectionEnabled] = useState(true);
@@ -354,15 +403,15 @@ export function IndustrialControl({ device, onBack }) {
     }, [deviceIdentifier, t]);
 
     const [fans, setFans] = useState([
-        { id: '1', name: '風扇 01', pvKey: 'rpm', status: 'online', isOn: true },
-        { id: '2', name: '風扇 02', pvKey: 'rpm', status: 'online', isOn: true },
-        { id: '3', name: '風扇 03', pvKey: null, status: 'standby', isOn: false },
-        { id: '4', name: '風扇 04', pvKey: 'rpm', status: 'online', isOn: true },
-        { id: '5', name: '風扇 05', pvKey: null, status: 'standby', isOn: true },
-        { id: '6', name: '風扇 06', pvKey: 'rpm', status: 'online', isOn: true },
-        { id: '7', name: '風扇 07', pvKey: 'rpm', status: 'online', isOn: true },
-        { id: '8', name: '風扇 08', pvKey: 'rpm', status: 'online', isOn: true },
-        { id: '9', name: '風扇 09', pvKey: 'rpm', status: 'online', isOn: true },
+        { id: '01', status: 'Running', pvPercent: 85, pvRpm: 1800, svRpm: 1800, isActive: true },
+        { id: '02', status: 'Running', pvPercent: 85, pvRpm: 1800, svRpm: 1800, isActive: true },
+        { id: '03', status: 'Stopped', pvPercent: 0, pvRpm: 0, svRpm: 0, isActive: false },
+        { id: '04', status: 'Running', pvPercent: 85, pvRpm: 1800, svRpm: 1800, isActive: true },
+        { id: '05', status: 'Optimal', pvPercent: 92, pvRpm: 2100, svRpm: 2100, isActive: true, isPrimary: true },
+        { id: '06', status: 'Running', pvPercent: 85, pvRpm: 1800, svRpm: 1800, isActive: true },
+        { id: '07', status: 'Running', pvPercent: 85, pvRpm: 1800, svRpm: 1800, isActive: true },
+        { id: '08', status: 'Warning', pvPercent: 72, pvRpm: 1550, svRpm: 1800, isActive: true },
+        { id: '09', status: 'Running', pvPercent: 85, pvRpm: 1800, svRpm: 1800, isActive: true },
     ]);
 
     const handleToggleFan = (fanId) => {
@@ -404,7 +453,7 @@ export function IndustrialControl({ device, onBack }) {
 
     return (
         <div className="min-h-full bg-slate-50/50 dark:bg-background-dark/50 text-slate-900 dark:text-slate-100 p-8 overflow-y-auto">
-            <header className="flex items-center justify-between mb-8">
+            <header className="flex items-center justify-between mb-8 w-full">
                 <div className="flex items-center gap-4">
                     <button
                         onClick={onBack}
@@ -428,6 +477,12 @@ export function IndustrialControl({ device, onBack }) {
                         </div>
                     </div>
                 </div>
+                <button
+                    onClick={() => setIsModalOpen(true)}
+                    className="flex items-center justify-center rounded-xl h-10 w-10 bg-blue-600 text-white shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all"
+                >
+                    <Settings size={20} />
+                </button>
             </header>
 
             <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
@@ -572,17 +627,16 @@ export function IndustrialControl({ device, onBack }) {
                     className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
                 >
                     {fans.map((fan) => (
-                        <FanUnitCard
-                            key={fan.id}
-                            fan={{
-                                ...fan,
-                                pv: fan.pvKey ? sensorValues[fan.pvKey] : FALLBACK_VALUE,
-                            }}
-                            onToggle={handleToggleFan}
-                        />
+                        <FanUnitCard key={fan.id} fan={fan}  />
                     ))}
                 </motion.div>
             </section>
+
+            <ConnectSetting
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                device={device}
+            />
         </div>
     );
 }
