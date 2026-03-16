@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const getGroupDeviceIdSet = (group) => {
     const devices = Array.isArray(group?.devices) ? group.devices : [];
@@ -30,6 +31,7 @@ const getGroupDeviceIdSet = (group) => {
 };
 
 export default function GroupSet({ group, onBack }) {
+    const { t } = useLanguage();
     const [devices, setDevices] = useState([]);
     const [showSavedToast, setShowSavedToast] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -64,14 +66,14 @@ export default function GroupSet({ group, onBack }) {
                     normalizedDevices.filter((device) => device.selected).map((device) => device.id)
                 );
             } catch (error) {
-                console.error('設備獲取失敗:', error);
+                console.error(t('groups.error.fetchDevices'), error);
                 setDevices([]);
                 setInitialSelectedDeviceIds([]);
             }
         };
 
         fetchDevices();
-    }, [group]);
+    }, [group, t]);
 
     const toggleDevice = (id) => {
         setDevices(prev => prev.map(d => d.id === id ? { ...d, selected: !d.selected } : d));
@@ -91,7 +93,7 @@ export default function GroupSet({ group, onBack }) {
 
     const handleSave = async () => {
         if (!group?.id) {
-            window.alert('找不到群組 ID，無法保存設備設定');
+            window.alert(t('groups.error.saveMissingId'));
             return;
         }
 
@@ -109,7 +111,7 @@ export default function GroupSet({ group, onBack }) {
                     fetch(`/api/groups/${encodeURIComponent(group.id)}/devices/${encodeURIComponent(device.id)}`, {
                         method: 'POST',
                     }).then((response) => {
-                        console.log('群組設備新增', {
+                        console.log(t('groups.log.deviceAdded'), {
                             action: 'add',
                             groupId: group.id,
                             groupName: group.name,
@@ -127,7 +129,7 @@ export default function GroupSet({ group, onBack }) {
                     fetch(`/api/groups/${encodeURIComponent(group.id)}/devices/${encodeURIComponent(device.id)}`, {
                         method: 'DELETE',
                     }).then((response) => {
-                        console.log('群組設備移除', {
+                        console.log(t('groups.log.deviceRemoved'), {
                             action: 'remove',
                             groupId: group.id,
                             groupName: group.name,
@@ -146,8 +148,8 @@ export default function GroupSet({ group, onBack }) {
             setInitialSelectedDeviceIds(Array.from(currentSelectedSet));
             setShowSavedToast(true);
         } catch (error) {
-            console.error('群組設備保存失敗:', error);
-            window.alert('保存群組設備失敗，請確認新增 API 為 POST /api/groups/{GroupId}/devices/{DeviceId}，移除 API 為 DELETE /api/groups/{GroupId}/devices/{DeviceId}');
+            console.error(t('groups.log.saveDevicesFailed'), error);
+            window.alert(t('groups.error.saveDevicesFailed'));
         } finally {
             setIsSaving(false);
         }
@@ -155,11 +157,11 @@ export default function GroupSet({ group, onBack }) {
 
     const handleDeleteGroup = async () => {
         if (!group?.id) {
-            window.alert('找不到可刪除的群組 ID');
+            window.alert(t('groups.error.deleteMissingId'));
             return;
         }
 
-        const confirmed = window.confirm(`確定要刪除群組「${group.name}」嗎？`);
+        const confirmed = window.confirm(t('groups.confirm.deleteWithName', { name: group.name }));
 
         if (!confirmed) {
             return;
@@ -178,8 +180,8 @@ export default function GroupSet({ group, onBack }) {
 
             onBack?.();
         } catch (error) {
-            console.error('群組刪除失敗:', error);
-            window.alert('刪除群組失敗，請確認後端刪除 API 是否為 DELETE /api/groups/{id}');
+            console.error(t('groups.log.deleteFailed'), error);
+            window.alert(t('groups.error.deleteFailed'));
         } finally {
             setIsDeleting(false);
         }
@@ -189,18 +191,18 @@ export default function GroupSet({ group, onBack }) {
         <div className="flex h-screen overflow-hidden font-sans">
             {showSavedToast && (
                 <div className="fixed bottom-24 right-8 z-40 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700 shadow-lg shadow-emerald-100">
-                    儲存成功
+                    {t('common.saveSuccess')}
                 </div>
             )}
 
 
-            {/* 主要內容區 */}
+            {/* Main content */}
             <main className="flex-1 flex flex-col overflow-hidden bg-background-light">
 
-                {/* 可捲動內容 */}
+                {/* Scrollable content */}
                 <div className="flex-1 overflow-y-auto p-10">
                     <div className="max-w-4xl mx-auto space-y-8">
-                        {/* 標題區塊 */}
+                        {/* Header */}
                         <div className="space-y-3">
                             <div className="flex items-center gap-4">
                                 <button
@@ -211,32 +213,32 @@ export default function GroupSet({ group, onBack }) {
                                     <ArrowLeft size={20} />
                                 </button>
                                 <div>
-                                    <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">群組設備管理</h1>
-                                    <p className="text-sm text-primary font-bold mt-1">{group?.name ?? '群組'}</p>
+                                    <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">{t('groups.deviceManagementTitle')}</h1>
+                                    <p className="text-sm text-primary font-bold mt-1">{group?.name ?? t('groups.defaultGroupName')}</p>
                                 </div>
                             </div>
                             <p className="text-slate-500 leading-relaxed max-w-2xl">
-                                選擇應在此特定集群中共同監控的設備。您可以選擇 PLC、傳感器或馬達進行邏輯分組。
+                                {t('groups.deviceManagementDescription')}
                             </p>
                         </div>
 
-                        {/* 設備列表 */}
+                        {/* Device list */}
                         <motion.section
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm"
                         >
                             <div className="p-6 border-b border-slate-100">
-                                <h3 className="text-lg font-bold text-slate-800">可用設備</h3>
+                                <h3 className="text-lg font-bold text-slate-800">{t('groups.availableDevices')}</h3>
                             </div>
 
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                     <tr className="bg-slate-50/50">
-                                        <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 w-24 text-center">選擇</th>
-                                        <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">設備 ID</th>
-                                        <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">設備名稱</th>
+                                        <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 w-24 text-center">{t('groups.table.select')}</th>
+                                        <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">{t('groups.table.deviceId')}</th>
+                                        <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">{t('groups.table.deviceName')}</th>
                                     </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
@@ -262,26 +264,26 @@ export default function GroupSet({ group, onBack }) {
                                 </table>
                             </div>
 
-                            <div className="px-6 py-4 bg-slate-50/30 border-t border-slate-100">
-                                <p className="text-sm text-slate-400 font-medium">顯示 {devices.length} 個設備中的 {devices.length} 個</p>
-                            </div>
+                            {/*<div className="px-6 py-4 bg-slate-50/30 border-t border-slate-100">*/}
+                            {/*    <p className="text-sm text-slate-400 font-medium">{t('groups.table.summary', { shown: devices.length, total: devices.length })}</p>*/}
+                            {/*</div>*/}
                         </motion.section>
                     </div>
                 </div>
 
-                {/* 底部操作列 (Footer) */}
+                {/* Footer action bar */}
                 <footer className="p-6 border-t border-slate-200 bg-white">
-                    <div className="fixed bottom-0 left-64 right-0 bg-white/80 backdrop-blur-md border-t border-slate-200 p-6 flex justify-end gap-4 z-20 justify-between items-center gap-4">
+                    <div className="fixed bottom-0 left-64 right-0 z-20 flex items-center justify-between gap-4 border-t border-slate-200 bg-white/80 p-6 backdrop-blur-md">
                         <button
                             onClick={handleDeleteGroup}
                             disabled={isDeleting}
                             className="px-6 py-2.5 rounded-xl border border-red-200 bg-red-50 text-sm font-bold text-red-600 hover:bg-red-100 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                            {isDeleting ? '刪除中...' : '刪除群組'}
+                            {isDeleting ? t('common.deleting') : t('groups.deleteGroup')}
                         </button>
                         <div className="flex items-center gap-4">
                         <button onClick={onBack} className="px-6 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors">
-                            取消
+                            {t('common.cancel')}
                         </button>
                         <button
                             onClick={handleSave}
@@ -289,7 +291,7 @@ export default function GroupSet({ group, onBack }) {
                             className="px-8 py-2.5 rounded-xl bg-primary text-white text-sm font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-600 transition-all flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             <Save size={18} />
-                            {isSaving ? '儲存中...' : '儲存群組設定'}
+                            {isSaving ? t('common.saving') : t('groups.saveGroupSettings')}
                         </button>
                         </div>
                     </div>
@@ -299,18 +301,3 @@ export default function GroupSet({ group, onBack }) {
     );
 }
 
-function SidebarItem({ icon, label, active = false }) {
-    return (
-        <a
-            href="#"
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                active
-                    ? 'bg-primary text-white shadow-md shadow-blue-500/20'
-                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-            }`}
-        >
-            {icon}
-            <span className="text-sm font-bold tracking-tight">{label}</span>
-        </a>
-    );
-}

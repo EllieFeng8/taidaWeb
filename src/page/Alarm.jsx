@@ -23,6 +23,7 @@ import {
     ClipboardCheck
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const alarmData = [
     {

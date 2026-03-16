@@ -11,14 +11,18 @@ import {
     ArrowRight,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export default function GroupMenu({
     open,
     onClose,
-    groupName = '群組',
+    groupName,
     onOpenSettings,
     onOpenControl
 }) {
+    const { t } = useLanguage();
+    const resolvedGroupName = groupName ?? t('groups.defaultGroupName');
+
     return (
         <AnimatePresence>
             {open && (
@@ -41,7 +45,7 @@ export default function GroupMenu({
                             <div className="flex items-center justify-between border-b border-slate-100 px-8 py-6">
                                 <h3 className="flex items-center gap-3 text-xl font-bold text-slate-900">
                                     <Settings2 className="h-6 w-6 text-blue-600" />
-                                    {groupName} 操作
+                                    {t('groups.menu.title', { name: resolvedGroupName })}
                                 </h3>
                                 <button
                                     onClick={onClose}
@@ -53,7 +57,7 @@ export default function GroupMenu({
 
                             {/* Modal Body */}
                             <div className="p-8">
-                                <p className="mb-8 text-sm font-medium text-slate-500">請選擇 {groupName} 要執行的操作：</p>
+                                <p className="mb-8 text-sm font-medium text-slate-500">{t('groups.menu.prompt', { name: resolvedGroupName })}</p>
 
                                 <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                                     {/* Option 1: Group Settings */}
@@ -68,12 +72,12 @@ export default function GroupMenu({
                                         <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-blue-100 text-blue-600 transition-transform duration-300 group-hover:scale-110">
                                             <Settings2 className="h-8 w-8" />
                                         </div>
-                                        <h4 className="mb-2 text-lg font-bold text-slate-900">群組設定</h4>
+                                        <h4 className="mb-2 text-lg font-bold text-slate-900">{t('groups.menu.settingsTitle')}</h4>
                                         <p className="text-sm leading-relaxed text-slate-500">
-                                            修改群組名稱與包含的設備。調整層級架構與資產分配。
+                                            {t('groups.menu.settingsDescription')}
                                         </p>
                                         <div className="mt-6 flex items-center text-sm font-bold text-blue-600 opacity-0 transition-opacity group-hover:opacity-100">
-                                            前往設定 <ArrowRight className="ml-1 h-4 w-4" />
+                                            {t('groups.menu.settingsAction')} <ArrowRight className="ml-1 h-4 w-4" />
                                         </div>
                                     </button>
 
@@ -89,12 +93,12 @@ export default function GroupMenu({
                                         <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/25 transition-transform duration-300 group-hover:scale-110">
                                             <Gamepad2 className="h-8 w-8" />
                                         </div>
-                                        <h4 className="mb-2 text-lg font-bold text-slate-900">群組控制</h4>
+                                        <h4 className="mb-2 text-lg font-bold text-slate-900">{t('groups.menu.controlTitle')}</h4>
                                         <p className="text-sm leading-relaxed text-slate-500">
-                                            統一控制風扇轉速、量測頻率與開關。執行即時批次指令操作。
+                                            {t('groups.menu.controlDescription')}
                                         </p>
                                         <div className="mt-6 flex items-center text-sm font-bold text-blue-600 opacity-0 transition-opacity group-hover:opacity-100">
-                                            開啟面板 <ArrowRight className="ml-1 h-4 w-4" />
+                                            {t('groups.menu.controlAction')} <ArrowRight className="ml-1 h-4 w-4" />
                                         </div>
                                     </button>
                                 </div>
@@ -106,7 +110,7 @@ export default function GroupMenu({
                                     onClick={onClose}
                                     className="px-5 py-2 text-sm font-bold text-slate-500 hover:text-slate-900 transition-colors"
                                 >
-                                    取消
+                                    {t('common.cancel')}
                                 </button>
                             </div>
                         </motion.div>

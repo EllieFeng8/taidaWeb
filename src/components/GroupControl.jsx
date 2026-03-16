@@ -4,22 +4,22 @@ import {
   Activity, 
   Fan, 
   ArrowLeft, 
-  Save, 
   RotateCcw,
   CheckCircle2,
   TriangleAlert
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export const GroupControl = ({ group, onBack }) => {
+  const { t } = useLanguage();
   const [masterPower, setMasterPower] = useState(true);
   const [samplingFreq, setSamplingFreq] = useState(100);
   const [showSavedToast, setShowSavedToast] = useState(false);
   
   const [fans, setFans] = useState(() => 
     Array.from({ length: 9 }, (_, i) => ({
-      id: `F1-0${i + 1}`,
-      name: `機組 #F1-0${i + 1}`,
+      // id: `F1-0${i + 1}`,
       speed: i === 2 ? 0 : 2100 + (Math.floor(Math.random() * 500)),
       active: i !== 2 && i !== 4,
       fault: i === 4
@@ -46,7 +46,7 @@ export const GroupControl = ({ group, onBack }) => {
     <div className="p-8 space-y-8 max-w-7xl mx-auto pb-32">
       {showSavedToast && (
         <div className="fixed bottom-24 right-8 z-40 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700 shadow-lg shadow-emerald-100">
-          儲存成功
+          {t('groupControl.saved')}
         </div>
       )}
 
@@ -61,21 +61,21 @@ export const GroupControl = ({ group, onBack }) => {
           </button>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-extrabold text-slate-900">群組控制</h1>
+              <h1 className="text-2xl font-extrabold text-slate-900">{t('groupControl.title')}</h1>
               <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider">
                 {group.name}
               </span>
             </div>
-            <p className="text-sm text-slate-500">管理 {group.name} 內的所有機組</p>
+            <p className="text-sm text-slate-500">{t('groupControl.manageGroup', { name: group.name })}</p>
           </div>
         </div>
         
         <div className="flex items-center gap-4">
           <div className="text-right hidden sm:block">
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">系統狀態</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('groupControl.systemStatus')}</div>
             <div className="text-sm font-bold text-green-500 flex items-center justify-end gap-1.5">
               <span className="size-2 rounded-full bg-green-500 animate-pulse"></span>
-              運行中
+              {t('groupControl.running')}
             </div>
           </div>
         </div>
@@ -93,8 +93,8 @@ export const GroupControl = ({ group, onBack }) => {
               <Power size={24} />
             </div>
             <div>
-              <p className="font-bold text-slate-900">主電源系統</p>
-              <p className="text-xs text-slate-500">同步切換所有風扇</p>
+              <p className="font-bold text-slate-900">{t('groupControl.masterPowerTitle')}</p>
+              <p className="text-xs text-slate-500">{t('groupControl.masterPowerDescription')}</p>
             </div>
           </div>
           <button 
@@ -115,8 +115,8 @@ export const GroupControl = ({ group, onBack }) => {
               <Activity size={24} />
             </div>
             <div>
-              <p className="font-bold text-slate-900">取樣頻率</p>
-              <p className="text-xs text-slate-500">感測器更新間隔</p>
+              <p className="font-bold text-slate-900">{t('groupControl.samplingFrequency')}</p>
+              <p className="text-xs text-slate-500">{t('groupControl.samplingFrequencyDescription')}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -126,7 +126,7 @@ export const GroupControl = ({ group, onBack }) => {
               value={samplingFreq}
               onChange={(e) => setSamplingFreq(parseInt(e.target.value))}
             />
-            <span className="text-xs font-bold text-slate-400">毫秒</span>
+            <span className="text-xs font-bold text-slate-400">{t('groupControl.milliseconds')}</span>
           </div>
         </motion.div>
       </section>
@@ -135,7 +135,7 @@ export const GroupControl = ({ group, onBack }) => {
       <section className="space-y-6">
         <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
           <Fan className="text-primary" size={20} />
-          單機風扇控制
+          {t('groupControl.individualFanControl')}
         </h3>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -153,18 +153,20 @@ export const GroupControl = ({ group, onBack }) => {
                     <Fan size={20} className={(fan.active && masterPower) ? 'animate-spin-slow' : ''} />
                   </div>
                   <div>
-                    <span className="font-bold text-slate-900">{fan.name}</span>
+                    <span className="font-bold text-slate-900">{t('groupControl.fanName',
+                        // { id: fan.id }
+                    )}</span>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       {fan.fault ? (
                         <span className="text-[10px] font-bold text-red-500 flex items-center gap-1">
-                          <TriangleAlert size={10} /> 故障
+                          <TriangleAlert size={10} /> {t('groupControl.fault')}
                         </span>
                       ) : (fan.active && masterPower) ? (
                         <span className="text-[10px] font-bold text-green-500 flex items-center gap-1">
-                          <CheckCircle2 size={10} /> 運轉中
+                          <CheckCircle2 size={10} /> {t('groupControl.operating')}
                         </span>
                       ) : (
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">待命</span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">{t('groupControl.standby')}</span>
                       )}
                     </div>
                   </div>
@@ -180,7 +182,7 @@ export const GroupControl = ({ group, onBack }) => {
               </div>
               
               <div className="space-y-2">
-                <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">設定風扇轉速</label>
+                <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">{t('groupControl.setFanSpeed')}</label>
                 <div className="flex items-center gap-3">
                   <input 
                     disabled={!fan.active || fan.fault}
@@ -188,13 +190,13 @@ export const GroupControl = ({ group, onBack }) => {
                     type="number" 
                     defaultValue={fan.speed}
                   />
-                  <span className="text-xs font-bold text-slate-400">轉/分</span>
+                  <span className="text-xs font-bold text-slate-400">{t('groupControl.rpmUnit')}</span>
                 </div>
               </div>
 
               {fan.fault && (
                 <button className="w-full mt-4 py-2 bg-red-100 text-red-600 text-[10px] font-bold rounded-lg uppercase tracking-widest hover:bg-red-200 transition-colors">
-                  需要手動重置
+                  {t('groupControl.manualResetRequired')}
                 </button>
               )}
             </motion.div>
@@ -205,14 +207,14 @@ export const GroupControl = ({ group, onBack }) => {
       {/* Bottom Action Bar */}
       <div className="fixed bottom-0 left-64 right-0 bg-white/80 backdrop-blur-md border-t border-slate-200 p-6 flex justify-end gap-4 z-20">
         <button className="px-6 py-2.5 border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-all">
-          捨棄變更
+          {t('groupControl.discardChanges')}
         </button>
         <button
           onClick={() => setShowSavedToast(true)}
           className="px-10 py-2.5 bg-primary text-white font-bold rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 flex items-center gap-2"
         >
           <RotateCcw size={18} />
-          套用變更
+          {t('groupControl.applyChanges')}
         </button>
       </div>
     </div>

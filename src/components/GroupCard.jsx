@@ -2,8 +2,10 @@ import React from 'react';
 import { MoreHorizontal, Network, PlusCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import GroupMenu from './GroupMenu';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export function GroupCard({ name, devices, onOpenSettings, onOpenControl, onDelete, isDeleting = false }) {
+    const { t } = useLanguage();
     const [showMenu, setShowMenu] = React.useState(false);
     const group = { name,  devices };
     const safeDevices = Array.isArray(devices) ? devices : [];
@@ -53,7 +55,7 @@ export function GroupCard({ name, devices, onOpenSettings, onOpenControl, onDele
                         disabled={isDeleting}
                         className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-600 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                        {isDeleting ? '刪除中...' : '刪除群組'}
+                        {isDeleting ? t('common.deleting') : t('groups.deleteGroup')}
                     </button>
                 </div>
             </motion.div>
@@ -124,6 +126,8 @@ export function GroupCard({ name, devices, onOpenSettings, onOpenControl, onDele
 //     );
 // }
 export function AddGroupCard({ onClick }) {
+    const { t } = useLanguage();
+
     return (
         <motion.div
             whileHover={{ scale: 1.02 }}
@@ -134,7 +138,7 @@ export function AddGroupCard({ onClick }) {
             <div className="size-12 rounded-full bg-slate-100 flex items-center justify-center mb-3 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
                 <PlusCircle size={24} className="text-slate-400 group-hover:text-primary" />
             </div>
-            <p className="text-sm font-bold text-slate-500 group-hover:text-primary transition-colors">新增群組</p>
+            <p className="text-sm font-bold text-slate-500 group-hover:text-primary transition-colors">{t('groups.createNew')}</p>
         </motion.div>
     );
 }

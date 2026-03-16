@@ -7,8 +7,10 @@ import ConfigurationPanel from '../components/ConfigurationPanel';
 import { GroupControl } from '../components/GroupControl';
 import GroupSet from '../components/GroupSet';
 import { motion } from 'motion/react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export default function GroupSettings() {
+  const { t } = useLanguage();
   const [showConfig, setShowConfig] = React.useState(false);
   const [selectedGroup, setSelectedGroup] = React.useState(null);
   const [view, setView] = React.useState('list');
@@ -24,10 +26,10 @@ export default function GroupSettings() {
           setGroups(Array.isArray(data) ? data : []);
         })
         .catch(err => {
-          console.error("群組獲取失敗:", err);
+          console.error(t('groups.error.fetchGroups'), err);
           setGroups([]);
         });
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     fetchGroups();
@@ -37,11 +39,11 @@ export default function GroupSettings() {
 
   const handleDeleteGroup = async (group) => {
     if (!group?.id) {
-      window.alert('找不到可刪除的群組 ID');
+      window.alert(t('groups.error.deleteMissingId'));
       return;
     }
 
-    const confirmed = window.confirm(`確定要刪除群組「${group.name}」嗎？`);
+    const confirmed = window.confirm(t('groups.confirm.deleteWithName', { name: group.name }));
 
     if (!confirmed) {
       return;
@@ -60,8 +62,8 @@ export default function GroupSettings() {
 
       await fetchGroups();
     } catch (error) {
-      console.error('群組刪除失敗:', error);
-      window.alert('刪除群組失敗，請確認後端刪除 API 是否為 DELETE /api/groups/{id}');
+      console.error(t('groups.log.deleteFailed'), error);
+      window.alert(t('groups.error.deleteFailed'));
     } finally {
       setDeletingGroupId(null);
     }
@@ -95,8 +97,8 @@ export default function GroupSettings() {
             {/* Active Groups Section */}
             <section>
               <div className="flex items-center justify-between mb-6 px-1">
-                <h3 className="text-lg font-bold text-slate-800">啟用中的群組</h3>
-                <button className="text-primary text-sm font-bold hover:underline">查看全部</button>
+                <h3 className="text-lg font-bold text-slate-800">{t('groups.activeGroups')}</h3>
+                <button className="text-primary text-sm font-bold hover:underline">{t('groups.viewAll')}</button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {groups.map((group) => (

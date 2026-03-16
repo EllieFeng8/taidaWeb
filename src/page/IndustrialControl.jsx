@@ -6,6 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const FALLBACK_VALUE = '--';
 const TELEMETRY_SENSOR_ORDER = [
@@ -97,6 +98,7 @@ const PIDInput = ({ label, pvValue }) => (
 );
 
 const ValveControl = ({ sensorValues }) => {
+    const { t } = useLanguage();
     const [percentage, setPercentage] = useState('');
     const [outletPidMonitoringEnabled, setOutletPidMonitoringEnabled] = useState(true);
     const [outletCorrectionEnabled, setOutletCorrectionEnabled] = useState(true);
@@ -104,21 +106,21 @@ const ValveControl = ({ sensorValues }) => {
     return (
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm h-full flex flex-col">
             <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                <h2 className="text-[16px] font-bold flex items-center gap-2">出水閥控制</h2>
+                <h2 className="text-[16px] font-bold flex items-center gap-2">{t('industrial.outletValveControl')}</h2>
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-3">
-                        <span className="text-xs font-bold text-slate-500 uppercase">PID 已啟用</span>
+                        <span className="text-xs font-bold text-slate-500 uppercase">{t('industrial.pidEnabled')}</span>
                         <Toggle checked={outletPidMonitoringEnabled} onChange={setOutletPidMonitoringEnabled} />
                     </div>
                     <div className="flex items-center gap-3">
-                        <span className="text-xs font-bold text-slate-500 uppercase">正向修正</span>
+                        <span className="text-xs font-bold text-slate-500 uppercase">{t('industrial.forwardCorrection')}</span>
                         <Toggle checked={outletCorrectionEnabled} onChange={setOutletCorrectionEnabled} />
                     </div>
                 </div>
             </div>
             <div className="p-6 flex-1 flex flex-col gap-6">
                 <div className="space-y-2 space-x-1.5">
-                    <label className="text-xs text-[14px] font-semibold text-slate-600 dark:text-slate-400">開度比例</label>
+                    <label className="text-xs text-[14px] font-semibold text-slate-600 dark:text-slate-400">{t('industrial.openingRatio')}</label>
                     <PVText value={sensorValues.outletWaterTemp} unit="°C" />
                     <div className="relative">
                         <input
@@ -137,7 +139,7 @@ const ValveControl = ({ sensorValues }) => {
                     <PIDInput label="D:" pvValue={FALLBACK_VALUE} />
                 </div>
                 <button className="w-full py-2 border border-primary text-primary font-bold rounded-lg bg-white hover:bg-primary hover:text-white hover:shadow-lg hover:shadow-primary/20 transition-all text-xs mt-auto">
-                    確定
+                    {t('common.confirm')}
                 </button>
             </div>
         </div>
@@ -145,18 +147,19 @@ const ValveControl = ({ sensorValues }) => {
 };
 
 const ReturnValveControl = ({ sensorValues }) => {
+    const { t } = useLanguage();
     const [openingRatio, setOpeningRatio] = useState('');
     const [targetValue, setTargetValue] = useState('');
 
     return (
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm h-full flex flex-col">
             <div className="p-5 border-b border-slate-100 dark:border-slate-800">
-                <h2 className="text-[16px] font-bold flex items-center gap-2">混水閥控制</h2>
+                <h2 className="text-[16px] font-bold flex items-center gap-2">{t('industrial.mixingValveControl')}</h2>
             </div>
             <div className="p-6 flex-1 flex flex-col gap-4">
                 <div className="grid grid-cols-1 gap-4">
                     <div className="space-y-1.5 space-x-1.5">
-                        <label className="text-[14px] font-bold text-slate-500 uppercase">開度比例</label>
+                        <label className="text-[14px] font-bold text-slate-500 uppercase">{t('industrial.openingRatio')}</label>
                         <PVText value={sensorValues.returnWaterTemp} unit="°C" />
                         <div className="relative">
                             <input
@@ -170,7 +173,7 @@ const ReturnValveControl = ({ sensorValues }) => {
                         </div>
                     </div>
                     <div className="space-y-1.5 space-x-1.5">
-                        <label className="text-[16px] font-bold text-slate-500 uppercase">設定數值</label>
+                        <label className="text-[16px] font-bold text-slate-500 uppercase">{t('industrial.setValue')}</label>
                         <PVText value={sensorValues.returnWaterPressure} unit="pa" />
                         <input
                             className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-primary/20 outline-none"
@@ -182,7 +185,7 @@ const ReturnValveControl = ({ sensorValues }) => {
                     </div>
                 </div>
                 <button className="w-full py-2 border border-primary text-primary font-bold rounded-lg bg-white hover:bg-primary hover:text-white hover:shadow-lg hover:shadow-primary/20 transition-all text-xs mt-auto">
-                    確定
+                    {t('common.confirm')}
                 </button>
             </div>
         </div>
@@ -190,6 +193,7 @@ const ReturnValveControl = ({ sensorValues }) => {
 };
 
 const MotorControl = ({ sensorValues }) => {
+    const { t } = useLanguage();
     const [enabled, setEnabled] = useState(true);
     const [targetFrequency, setTargetFrequency] = useState('');
 
@@ -197,14 +201,14 @@ const MotorControl = ({ sensorValues }) => {
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
             <div className="p-5 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex justify-between items-center w-full">
-                    <h2 className="text-[16px] font-bold flex items-center gap-2">混水泵浦控制</h2>
+                    <h2 className="text-[16px] font-bold flex items-center gap-2">{t('industrial.mixingPumpControl')}</h2>
                     <Toggle checked={enabled} onChange={setEnabled} />
                 </div>
             </div>
             <div className="p-6">
                 <div className="grid grid-cols-1 gap-6">
                     <div className="flex-1 space-y-1.5 space-x-1.5">
-                        <label className="text-[14px] font-bold text-slate-500 uppercase">目標頻率</label>
+                        <label className="text-[14px] font-bold text-slate-500 uppercase">{t('industrial.targetFrequency')}</label>
                         <PVText value={sensorValues.hz} unit="Hz" />
                         <div className="flex flex-1 gap-2">
                             <div className="relative flex-1">
@@ -219,18 +223,18 @@ const MotorControl = ({ sensorValues }) => {
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 font-bold text-slate-400">Hz</span>
                             </div>
                             <button className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold border border-primary/20 hover:bg-primary hover:text-white transition-all">
-                                確定
+                                {t('common.confirm')}
                             </button>
                         </div>
                     </div>
                     <div className="px-6 py-3 bg-primary/5 rounded-xl border border-primary/10">
-                        <p className="text-[12px] font-bold text-primary uppercase">當前水流量</p>
+                        <p className="text-[12px] font-bold text-primary uppercase">{t('industrial.currentFlowRate')}</p>
                         <p className="text-xl font-extrabold text-primary leading-tight">
-                            {formatDisplayValue(sensorValues.flowRate)} <span className="text-xs font-medium">公升/分</span>
+                            {formatDisplayValue(sensorValues.flowRate)} <span className="text-xs font-medium">{t('industrial.flowUnit')}</span>
                         </p>
                     </div>
                     <div className="px-6 py-3 bg-primary/5 rounded-xl border border-primary/10">
-                        <p className="text-[12px] font-bold text-primary uppercase">當前熱交換</p>
+                        <p className="text-[12px] font-bold text-primary uppercase">{t('industrial.currentHeatExchange')}</p>
                         <p className="text-xl font-extrabold text-primary leading-tight">
                             {formatDisplayValue(sensorValues.heatExchange)} <span className="text-xs font-medium">kW</span>
                         </p>
@@ -241,31 +245,36 @@ const MotorControl = ({ sensorValues }) => {
     );
 };
 
-const FanUnitCard = ({ fan, onToggle }) => (
-    <div className={`bg-white dark:bg-slate-900 border ${fan.status === 'fault' ? 'border-red-200 dark:border-red-900/50 bg-red-50/10' : 'border-slate-200 dark:border-slate-800'} rounded-xl p-5 shadow-sm hover:border-primary/50 transition-colors flex flex-col justify-between h-full`}>
-        <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-2">
-                <h5 className="text-[16px] font-bold text-slate-800 dark:text-slate-100">{fan.name}</h5>
-                {fan.status === 'fault' && <span className="material-symbols-outlined text-red-500 text-sm">error</span>}
+const FanUnitCard = ({ fan, onToggle }) => {
+    const { t } = useLanguage();
+
+    return (
+        <div className={`bg-white dark:bg-slate-900 border ${fan.status === 'fault' ? 'border-red-200 dark:border-red-900/50 bg-red-50/10' : 'border-slate-200 dark:border-slate-800'} rounded-xl p-5 shadow-sm hover:border-primary/50 transition-colors flex flex-col justify-between h-full`}>
+            <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center gap-2">
+                    <h5 className="text-[16px] font-bold text-slate-800 dark:text-slate-100">{t('industrial.fanLabel')} {fan.displayId}</h5>
+                    {fan.status === 'fault' && <span className="material-symbols-outlined text-red-500 text-sm">error</span>}
+                </div>
+                <Toggle checked={fan.isOn} onChange={() => onToggle?.(fan.id)} />
             </div>
-            <Toggle checked={fan.isOn} onChange={() => onToggle?.(fan.id)} />
-        </div>
-        <div className="space-y-1.5 space-x-1.5">
-            <label className="text-[14px] font-bold text-slate-400 uppercase">目標轉速</label>
-            <PVText value={fan.pv} />
-            <div className="relative">
-                <input
-                    className={`w-full bg-slate-50 dark:bg-slate-800 border ${fan.status === 'fault' ? 'border-red-100 dark:border-red-900/30' : 'border-slate-200 dark:border-slate-700'} rounded-lg px-3 py-2 text-sm font-bold focus:ring-1 focus:ring-primary/30 outline-none`}
-                    type="number"
-                    placeholder={FALLBACK_VALUE}
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-slate-400 font-bold">轉/分</span>
+            <div className="space-y-1.5 space-x-1.5">
+                <label className="text-[14px] font-bold text-slate-400 uppercase">{t('industrial.targetSpeed')}</label>
+                <PVText value={fan.pv} />
+                <div className="relative">
+                    <input
+                        className={`w-full bg-slate-50 dark:bg-slate-800 border ${fan.status === 'fault' ? 'border-red-100 dark:border-red-900/30' : 'border-slate-200 dark:border-slate-700'} rounded-lg px-3 py-2 text-sm font-bold focus:ring-1 focus:ring-primary/30 outline-none`}
+                        type="number"
+                        placeholder={FALLBACK_VALUE}
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-slate-400 font-bold">{t('industrial.rpmUnit')}</span>
+                </div>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 export function IndustrialControl({ device, onBack }) {
+    const { t } = useLanguage();
     const [allFansEnabled, setAllFansEnabled] = useState(false);
     const [pidMonitoringEnabled, setPidMonitoringEnabled] = useState(true);
     const [fansCorrectionEnabled, setFansCorrectionEnabled] = useState(true);
@@ -278,45 +287,45 @@ export function IndustrialControl({ device, onBack }) {
     const sensorValues = mapSensorValues(sensorData);
     const telemetry = [
         {
-            label: '入水數據',
+            label: t('industrial.telemetry.inletWaterData'),
             colorClass: 'text-primary',
             metrics: [
-                { name: '溫度', value: sensorValues.inletWaterTemp, unit: '°C' },
-                { name: '壓力', value: sensorValues.inletWaterPressure, unit: 'pa' },
+                { name: t('industrial.temperature'), value: sensorValues.inletWaterTemp, unit: '°C' },
+                { name: t('industrial.pressure'), value: sensorValues.inletWaterPressure, unit: 'pa' },
             ],
         },
         {
-            label: '出水數據',
+            label: t('industrial.telemetry.outletWaterData'),
             colorClass: 'text-orange-500',
             metrics: [
-                { name: '溫度', value: sensorValues.outletWaterTemp, unit: '°C' },
-                { name: '壓力', value: sensorValues.outletWaterPressure, unit: 'pa' },
+                { name: t('industrial.temperature'), value: sensorValues.outletWaterTemp, unit: '°C' },
+                { name: t('industrial.pressure'), value: sensorValues.outletWaterPressure, unit: 'pa' },
             ],
         },
         {
-            label: '回水數據',
+            label: t('industrial.telemetry.returnWaterData'),
             colorClass: 'text-indigo-500',
             metrics: [
-                { name: '溫度', value: sensorValues.returnWaterTemp, unit: '°C' },
-                { name: '壓力', value: sensorValues.returnWaterPressure, unit: 'pa' },
+                { name: t('industrial.temperature'), value: sensorValues.returnWaterTemp, unit: '°C' },
+                { name: t('industrial.pressure'), value: sensorValues.returnWaterPressure, unit: 'pa' },
             ],
         },
         {
-            label: '盤管水溫監控',
+            label: t('industrial.telemetry.coilWaterMonitoring'),
             colorClass: 'text-emerald-600',
             metrics: [
-                { name: '左 入', value: sensorValues.coolingL1, unit: '°C' },
-                { name: '左 出', value: sensorValues.coolingL2, unit: '°C' },
-                { name: '右 入', value: sensorValues.coolingR1, unit: '°C' },
-                { name: '右 出', value: sensorValues.coolingR2, unit: '°C' },
+                { name: t('industrial.metric.leftIn'), value: sensorValues.coolingL1, unit: '°C' },
+                { name: t('industrial.metric.leftOut'), value: sensorValues.coolingL2, unit: '°C' },
+                { name: t('industrial.metric.rightIn'), value: sensorValues.coolingR1, unit: '°C' },
+                { name: t('industrial.metric.rightOut'), value: sensorValues.coolingR2, unit: '°C' },
             ],
         },
         {
-            label: '入風溫濕度',
+            label: t('industrial.telemetry.inletAirTempHumidity'),
             colorClass: 'text-sky-500',
             metrics: [
-                { name: '溫度', value: sensorValues.inletAirTemp, unit: '°C' },
-                { name: '濕度', value: sensorValues.inletAirHumidity, unit: '%RH' },
+                { name: t('industrial.temperature'), value: sensorValues.inletAirTemp, unit: '°C' },
+                { name: t('industrial.metric.humidity'), value: sensorValues.inletAirHumidity, unit: '%RH' },
             ],
         },
     ];
@@ -336,13 +345,13 @@ export function IndustrialControl({ device, onBack }) {
                     setSensorData(data ?? {});
                 })
                 .catch((error) => {
-                    console.error('設備感測資料獲取失敗:', error);
+                    console.error(t('industrial.error.fetchSensor'), error);
                     setSensorData({});
                 });
         };
 
         fetchDeviceSensor();
-    }, [deviceIdentifier]);
+    }, [deviceIdentifier, t]);
 
     const [fans, setFans] = useState([
         { id: '1', name: '風扇 01', pvKey: 'rpm', status: 'online', isOn: true },
@@ -376,12 +385,12 @@ export function IndustrialControl({ device, onBack }) {
     };
 
     const statusText = {
-        running: '系統正常',
-        alert: '異常警示',
-        online: '系統正常',
-        warning: '需要注意',
-        critical: '異常警示',
-        offline: '設備離線',
+        running: t('industrial.status.normal'),
+        alert: t('industrial.status.alert'),
+        online: t('industrial.status.normal'),
+        warning: t('industrial.status.warning'),
+        critical: t('industrial.status.alert'),
+        offline: t('industrial.status.offline'),
     };
 
     const statusClass = {
@@ -404,7 +413,7 @@ export function IndustrialControl({ device, onBack }) {
                         <ArrowLeft size={20} />
                     </button>
                     <div>
-                        <h2 className="text-xl font-bold tracking-tight">設備 {device?.id}</h2>
+                        <h2 className="text-xl font-bold tracking-tight">{t('industrial.deviceTitle', { id: device?.id ?? '' })}</h2>
                         <div className="flex items-center gap-2">
                             <span className={`flex h-2 w-2 rounded-full ${
                                 device?.status === 'alert' || device?.status === 'critical' ? 'bg-red-500' :
@@ -415,7 +424,7 @@ export function IndustrialControl({ device, onBack }) {
                                 {statusText[device?.status] ?? statusText.online}
                             </span>
                             <span className="text-xs text-slate-400 px-2">•</span>
-                            <span className="text-xs text-slate-500 font-medium">編號：DEV-{device?.id}</span>
+                            {/*<span className="text-xs text-slate-500 font-medium">{t('industrial.deviceSerial', { id: device?.id ?? '' })}</span>*/}
                         </div>
                     </div>
                 </div>
@@ -426,16 +435,16 @@ export function IndustrialControl({ device, onBack }) {
                     <TelemetryCard key={item.label} data={item} />
                 ))}
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <p className="text-[18px] font-bold text-cyan-600 mb-3">出風溫度</p>
+                    <p className="text-[18px] font-bold text-cyan-600 mb-3">{t('industrial.telemetry.outletAirTemperature')}</p>
                     <div className="flex justify-between items-center text-xs mb-2">
-                        <span className="text-slate-500">溫度:</span>
+                        <span className="text-slate-500">{t('industrial.temperature')}:</span>
                         <span className="font-bold">
                             {formatDisplayValue(sensorValues.outletAirTemp)} <span className="text-slate-400 font-normal">°C</span>
                         </span>
                     </div>
                     <div className="pt-2 border-t border-slate-100 space-y-2">
                         <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-500 shrink-0">目標溫度</span>
+                            <span className="text-xs text-slate-500 shrink-0">{t('industrial.targetTemperature')}</span>
                             <input
                                 className="w-full h-7 text-[12px] border border-slate-200 rounded px-1 focus:ring-1 focus:ring-primary outline-none"
                                 type="number"
@@ -443,7 +452,7 @@ export function IndustrialControl({ device, onBack }) {
                             />
                             <span className="text-[16px] text-slate-400">°C</span>
                         </div>
-                        <button className="w-full px-2 py-1 bg-primary text-white text-[12px] font-bold rounded">確定</button>
+                        <button className="w-full px-2 py-1 bg-primary text-white text-[12px] font-bold rounded">{t('common.confirm')}</button>
                     </div>
                 </div>
             </section>
@@ -457,13 +466,13 @@ export function IndustrialControl({ device, onBack }) {
             <section className="space-y-6">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-8">
-                        <h2 className="text-[20px] font-bold flex items-center gap-2">風扇控制</h2>
+                        <h2 className="text-[20px] font-bold flex items-center gap-2">{t('industrial.fanControl')}</h2>
                         <div className="flex items-center gap-3">
-                            <span className="text-xs font-bold text-slate-500 uppercase">PID 啟動監控</span>
+                            <span className="text-xs font-bold text-slate-500 uppercase">{t('industrial.pidStartMonitoring')}</span>
                             <Toggle checked={pidMonitoringEnabled} onChange={setPidMonitoringEnabled} />
                         </div>
                         <div className="flex items-center gap-3">
-                            <span className="text-xs font-bold text-slate-500 uppercase">正向修正</span>
+                            <span className="text-xs font-bold text-slate-500 uppercase">{t('industrial.forwardCorrection')}</span>
                             <Toggle checked={fansCorrectionEnabled} onChange={setFansCorrectionEnabled} />
                         </div>
                     </div>
@@ -472,7 +481,7 @@ export function IndustrialControl({ device, onBack }) {
                 <div className="bg-slate-50/50 p-6 rounded-xl border border-slate-200 mb-8 grid grid-cols-1 xl:grid-cols-3 gap-8">
                     <div className="space-y-4 items-center gap-2">
                         <div className="flex space-x-4">
-                            <h3 className="uppercase tracking-wider font-bold text-slate-400">一鍵開啟全部</h3>
+                            <h3 className="uppercase tracking-wider font-bold text-slate-400">{t('industrial.oneClickEnableAll')}</h3>
                             <Toggle checked={allFansEnabled} onChange={handleToggleAllFans} />
                             <PVText value={sensorValues.rpm} />
                         </div>
@@ -489,14 +498,14 @@ export function IndustrialControl({ device, onBack }) {
                                     <span className="absolute right-3 top-2.5 text-[10px] text-slate-400 font-bold">RPM</span>
                                 </div>
                                 <button className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold border border-primary/20 hover:bg-primary hover:text-white transition-all">
-                                    確定
+                                    {t('common.confirm')}
                                 </button>
                             </div>
                         </div>
                     </div>
 
                     <div className="space-y-4 border-l border-slate-200 xl:pl-8">
-                        <h3 className="uppercase tracking-wider font-bold text-slate-400">壓差控制</h3>
+                        <h3 className="uppercase tracking-wider font-bold text-slate-400">{t('industrial.differentialPressureControl')}</h3>
                         <div className="flex items-center gap-4">
                             <div className="flex flex-col">
                                 <span className="text-[12px] text-slate-400 font-bold">CV</span>
@@ -516,14 +525,14 @@ export function IndustrialControl({ device, onBack }) {
                                     <span className="absolute right-3 top-2.5 text-[10px] text-slate-400 font-bold">Pa</span>
                                 </div>
                                 <button className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold border border-primary/20 hover:bg-primary hover:text-white transition-all">
-                                    確定
+                                    {t('common.confirm')}
                                 </button>
                             </div>
                         </div>
                     </div>
 
                     <div className="space-y-4 border-l border-slate-200 xl:pl-8">
-                        <h3 className="uppercase tracking-wider font-bold text-slate-400">PID 設定</h3>
+                        <h3 className="uppercase tracking-wider font-bold text-slate-400">{t('industrial.pidSettings')}</h3>
                         <div className="flex items-end gap-3">
                             <div className="grid grid-cols-3 gap-2 flex-1 text-xs">
                                 {[
@@ -551,7 +560,7 @@ export function IndustrialControl({ device, onBack }) {
                                 ))}
                             </div>
                             <button className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold border border-primary/20 hover:bg-primary hover:text-white transition-all">
-                                確定
+                                {t('common.confirm')}
                             </button>
                         </div>
                     </div>

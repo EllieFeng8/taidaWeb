@@ -8,11 +8,14 @@ import {
     Database
 } from 'lucide-react';
 import {motion} from 'motion/react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 // 使用空字符串，讓請求通過 Vite proxy (vite.config.js 中的 /api -> http://127.0.0.1:8081)
 const API_HOST = '';
 
 export default function HistoryList() {
+    const { t } = useLanguage();
+
     // State management
     const [devices, setDevices] = useState([]);
     const [selectedDevice, setSelectedDevice] = useState('');
@@ -224,7 +227,7 @@ export default function HistoryList() {
                     <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                         <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
                             <Filter size={18} className="text-primary"/>
-                            篩選條件
+                            {t('filter_conditions')}
                         </h3>
                         {error && (
                             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
@@ -235,7 +238,7 @@ export default function HistoryList() {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             <div className="space-y-1.5">
-                                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">選擇設備</label>
+                                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('select_device')}</label>
                                 <div className="relative">
                                     <Database className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
                                     <select
@@ -243,7 +246,7 @@ export default function HistoryList() {
                                         value={selectedDevice}
                                         onChange={(e) => setSelectedDevice(e.target.value)}
                                     >
-                                        <option value="">請選擇設備</option>
+                                        <option value="">{t('please_select_device')}</option>
                                         {devices.map((device) => (
                                             <option key={device.id} value={device.name}>
                                                 {device.name}
@@ -255,7 +258,7 @@ export default function HistoryList() {
 
                             <div className="space-y-1.5">
                                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                    開始日期時間 <span className="text-slate-400 font-normal">(選填，預設: 2025/01/01)</span>
+                                    {t('start_datetime')} <span className="text-slate-400 font-normal">({t('optional')}, {t('default')}: 2025/01/01)</span>
                                 </label>
                                 <div className="relative">
                                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
@@ -271,7 +274,7 @@ export default function HistoryList() {
 
                             <div className="space-y-1.5">
                                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                    結束日期時間 <span className="text-slate-400 font-normal">(選填，預設: 今日)</span>
+                                    {t('end_datetime')} <span className="text-slate-400 font-normal">({t('optional')}, {t('default')}: {new Date().toISOString().slice(0, 16).replace('T', ' ')})</span>
                                 </label>
                                 <div className="relative">
                                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
@@ -295,12 +298,12 @@ export default function HistoryList() {
                                     <>
                                         <div
                                             className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                        查詢中...
+                                        {t('querying')}
                                     </>
                                 ) : (
                                     <>
                                         <Search size={16}/>
-                                        查詢數據
+                                        {t('query_data')}
                                     </>
                                 )}
                             </button>
@@ -313,18 +316,18 @@ export default function HistoryList() {
                             <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs">
                                 <div className="flex items-center gap-4">
                                     <span className="text-slate-600">
-                                        <span className="font-semibold text-slate-700">設備：</span>
+                                        <span className="font-semibold text-slate-700">{t('device')}：</span>
                                         {selectedDevice}
                                     </span>
                                     <span className="text-slate-400">|</span>
                                     <span className="text-slate-600">
-                                        <span className="font-semibold text-slate-700">時間範圍：</span>
+                                        <span className="font-semibold text-slate-700">{t('time_range')}：</span>
                                         {fromDateTime || '2025-01-01 00:00'} ~ {toDateTime || new Date().toISOString().slice(0, 16).replace('T', ' ')}
                                     </span>
                                 </div>
                                 <span className="text-slate-600">
-                                    <span className="font-semibold text-primary">總計：</span>
-                                    {tableData.length} 筆記錄
+                                    <span className="font-semibold text-primary">{t('total')}：</span>
+                                    {tableData.length} {t('records')}
                                 </span>
                             </div>
                         )}
@@ -332,10 +335,10 @@ export default function HistoryList() {
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                 <tr className="bg-slate-50 text-slate-500 uppercase text-[11px] font-bold tracking-widest border-b border-slate-200">
-                                    <th className="px-6 py-4">時間</th>
-                                    <th className="px-6 py-4">Device ID</th>
-                                    <th className="px-6 py-4">Sensor</th>
-                                    <th className="px-6 py-4">數值</th>
+                                    <th className="px-6 py-4">{t('time')}</th>
+                                    <th className="px-6 py-4">{t('device_id')}</th>
+                                    <th className="px-6 py-4">{t('sensor')}</th>
+                                    <th className="px-6 py-4">{t('value')}</th>
                                 </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 text-sm">
@@ -345,7 +348,7 @@ export default function HistoryList() {
                                             <div className="flex items-center justify-center gap-2">
                                                 <div
                                                     className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-                                                載入數據中...
+                                                {t('loading_data')}
                                             </div>
                                         </td>
                                     </tr>
@@ -353,8 +356,8 @@ export default function HistoryList() {
                                     <tr>
                                         <td colSpan="4" className="px-6 py-12 text-center text-slate-400">
                                             <Database size={48} className="mx-auto mb-2 opacity-30"/>
-                                            <p className="text-sm font-medium">無數據</p>
-                                            <p className="text-xs mt-1">請設定篩選條件並查詢</p>
+                                            <p className="text-sm font-medium">{t('no_data')}</p>
+                                            <p className="text-xs mt-1">{t('please_set_filter')}</p>
                                         </td>
                                     </tr>
                                 ) : (
@@ -376,18 +379,18 @@ export default function HistoryList() {
                             className="p-4 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
                             <div className="flex items-center gap-4">
                                 <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">
-                                    顯示 {tableData.length > 0 ? startIndex + 1 : 0} 到 {Math.min(endIndex, tableData.length)} 筆，共 {tableData.length} 筆數據
+                                    {t('showing')} {tableData.length > 0 ? startIndex + 1 : 0} {t('to')} {Math.min(endIndex, tableData.length)} {t('of')} {tableData.length} {t('entries')}
                                 </p>
                                 <div className="flex items-center gap-2">
-                                    <label className="text-xs text-slate-500 font-medium">每頁顯示:</label>
+                                    <label className="text-xs text-slate-500 font-medium">{t('items_per_page')}:</label>
                                     <select
                                         value={itemsPerPage}
                                         onChange={handleItemsPerPageChange}
                                         className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
                                     >
-                                        <option value={20}>20 筆</option>
-                                        <option value={50}>50 筆</option>
-                                        <option value={100}>100 筆</option>
+                                        <option value={20}>20 {t('items')}</option>
+                                        <option value={50}>50 {t('items')}</option>
+                                        <option value={100}>100 {t('items')}</option>
                                     </select>
                                 </div>
                             </div>
@@ -396,7 +399,7 @@ export default function HistoryList() {
                                 {/* Page Jump Input */}
                                 <div className="flex items-center gap-2">
                                     <label
-                                        className="text-xs text-slate-500 font-medium whitespace-nowrap">跳至頁:</label>
+                                        className="text-xs text-slate-500 font-medium whitespace-nowrap">{t('jump_to_page')}:</label>
                                     <input
                                         type="number"
                                         min="1"
@@ -416,7 +419,7 @@ export default function HistoryList() {
                                         disabled={!jumpToPage || totalPages === 0}
                                         className="px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                                     >
-                                        前往
+                                        {t('go')}
                                     </button>
                                 </div>
 

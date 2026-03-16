@@ -11,8 +11,9 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useLanguage } from '../contexts/LanguageContext';
 
-const ALL_GROUP_OPTION = { id: 'all', name: '全部設備', devices: [] };
+const ALL_GROUP_OPTION = { id: 'all', name: 'ALL_DEVICES_PLACEHOLDER', devices: [] };
 const SENSOR_FIELD_ORDER = [
   'inletWaterTemp',
   'inletWaterPressure',
@@ -147,6 +148,7 @@ const getDeviceIdentifierSet = (group) => {
 
 // --- Components ---
 const DeviceCard = ({ device, onSelect }) => {
+  const { t } = useLanguage();
   const isAlert = device.status === 'alert';
 
   return (
@@ -171,7 +173,7 @@ const DeviceCard = ({ device, onSelect }) => {
             <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                 isAlert ? 'bg-white text-red-600 animate-pulse' : 'bg-green-100 text-green-700'
             }`}>
-            {isAlert ? 'ALERT - 高溫警報' : '運行中'}
+            {isAlert ? t('dashboard.deviceCard.alertBadge') : t('dashboard.deviceCard.runningBadge')}
           </span>
           </div>
           <span className={isAlert ? 'text-white/80' : 'text-slate-400'}>
@@ -183,31 +185,31 @@ const DeviceCard = ({ device, onSelect }) => {
           {/* Column 1: Water & Air */}
           <div className="space-y-3">
             <div className={`p-3 rounded-lg ${isAlert ? 'bg-red-50' : 'bg-slate-50'}`}>
-              <p className={`text-[10px] font-bold uppercase mb-1 ${isAlert ? 'text-red-400' : 'text-slate-400'}`}>進/出/回水監測</p>
+              <p className={`text-[10px] font-bold uppercase mb-1 ${isAlert ? 'text-red-400' : 'text-slate-400'}`}>{t('dashboard.deviceCard.waterSection.title')}</p>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-slate-500">入水</span>
+                  <span className="text-slate-500">{t('dashboard.deviceCard.waterSection.in')}</span>
                   <span className={`font-mono ${isAlert ? 'text-red-600 font-bold' : ''}`}>{device.water.in}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">出水</span>
+                  <span className="text-slate-500">{t('dashboard.deviceCard.waterSection.out')}</span>
                   <span className="font-mono">{device.water.out}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">回水</span>
+                  <span className="text-slate-500">{t('dashboard.deviceCard.waterSection.return')}</span>
                   <span className="font-mono">{device.water.return}</span>
                 </div>
               </div>
             </div>
             <div className="p-3 rounded-lg bg-slate-50">
-              <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">進風/出風狀態</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">{t('dashboard.deviceCard.airSection.title')}</p>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-slate-500">進風</span>
+                  <span className="text-slate-500">{t('dashboard.deviceCard.airSection.in')}</span>
                   <span className="font-mono text-primary">{device.air.in}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">出風</span>
+                  <span className="text-slate-500">{t('dashboard.deviceCard.airSection.out')}</span>
                   <span className="font-mono">{device.air.out}</span>
                 </div>
               </div>
@@ -217,31 +219,31 @@ const DeviceCard = ({ device, onSelect }) => {
           {/* Column 2: Cooling & Power */}
           <div className="space-y-3">
             <div className="p-3 rounded-lg bg-slate-50">
-              <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">冷排溫度監測</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">{t('dashboard.deviceCard.coolingSection.title')}</p>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className={`p-1.5 rounded border ${isAlert && device.cooling.l1 > 50 ? 'bg-red-50 border-red-200 text-red-600 font-bold' : 'bg-white border-slate-100'}`}>
-                  左入: <span className="font-mono font-bold text-[14px]">{device.cooling.l1}°C</span>
+                  {t('dashboard.deviceCard.coolingSection.leftIn')}: <span className="font-mono font-bold text-[14px]">{device.cooling.l1}°C</span>
                 </div>
                 <div className={`p-1.5 rounded border ${isAlert && device.cooling.l2 > 50 ? 'bg-red-50 border-red-200 text-red-600 font-bold' : 'bg-white border-slate-100'}`}>
-                  左出: <span className="font-mono font-bold text-[14px]">{device.cooling.l2}°C</span>
+                  {t('dashboard.deviceCard.coolingSection.leftOut')}: <span className="font-mono font-bold text-[14px]">{device.cooling.l2}°C</span>
                 </div>
                 <div className="bg-white p-1.5 rounded border border-slate-100">
-                  右入: <span className="font-mono font-bold text-[14px]">{device.cooling.r1}°C</span>
+                  {t('dashboard.deviceCard.coolingSection.rightIn')}: <span className="font-mono font-bold text-[14px]">{device.cooling.r1}°C</span>
                 </div>
                 <div className="bg-white p-1.5 rounded border border-slate-100">
-                  右出: <span className="font-mono font-bold text-[14px]">{device.cooling.r2}°C</span>
+                  {t('dashboard.deviceCard.coolingSection.rightOut')}: <span className="font-mono font-bold text-[14px]">{device.cooling.r2}°C</span>
                 </div>
               </div>
             </div>
             <div className="p-3 rounded-lg bg-slate-50">
-              <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">動力系統</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">{t('dashboard.deviceCard.powerSection.title')}</p>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-slate-500">轉速</span>
+                  <span className="text-slate-500">{t('dashboard.deviceCard.powerSection.rpm')}</span>
                   <span className={`font-mono ${isAlert && device.power.rpm > 1800 ? 'text-red-500 font-bold' : ''}`}>{device.power.rpm} RPM</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">頻率</span>
+                  <span className="text-slate-500">{t('dashboard.deviceCard.powerSection.hz')}</span>
                   <span className="font-mono">{device.power.hz} Hz</span>
                 </div>
               </div>
@@ -279,6 +281,7 @@ const DeviceCard = ({ device, onSelect }) => {
   );
 };
 export const Dashboard = ({ onSelectDevice }) => {
+  const { t } = useLanguage();
   const [selectedGroupId, setSelectedGroupId] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [groups, setGroups] = useState([]);
@@ -343,7 +346,7 @@ export const Dashboard = ({ onSelectDevice }) => {
     fetchDevices();
   }, []);
 
-  const groupOptions = [ALL_GROUP_OPTION, ...groups];
+  const groupOptions = [{ ...ALL_GROUP_OPTION, name: t('dashboard.allDevicesOption') }, ...groups];
   const selectedGroup = groupOptions.find((group) => String(group.id) === selectedGroupId) ?? ALL_GROUP_OPTION;
   const selectedGroupDevices = getDeviceIdentifierSet(selectedGroup);
 
@@ -386,9 +389,9 @@ export const Dashboard = ({ onSelectDevice }) => {
 
               <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">設備群組</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{t('dashboard.groupTitle')}</p>
                   <p className="mt-1 text-sm text-slate-500">
-                    目前顯示 <span className="font-bold text-slate-700">{selectedGroup.name}</span> 的設備資訊
+                    {t('dashboard.groupDescription1')} <span className="font-bold text-slate-700">{selectedGroup.name}</span> {t('dashboard.groupDescription2')}
                   </p>
                 </div>
                 <div className="relative w-full sm:w-64">
@@ -424,7 +427,7 @@ export const Dashboard = ({ onSelectDevice }) => {
               </div>
               {filteredDevices.length === 0 && (
                   <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
-                    {selectedGroup.name} 目前沒有符合條件的設備。
+                    {selectedGroup.name} {t('dashboard.noMatchingDevices')}
                   </div>
               )}
             </div>
