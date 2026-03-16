@@ -49,7 +49,7 @@ const formatDisplayValue = (value) => {
 };
 
 const TelemetryCard = ({ data }) => (
-    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
         <p className={`text-[16px] font-bold ${data.colorClass} mb-3`}>{data.label}</p>
         <div className="grid grid-cols-1 gap-2 text-xs">
             {data.metrics.map((metric) => (
@@ -72,7 +72,7 @@ const Toggle = ({ checked, onChange }) => (
             checked={checked}
             onChange={(event) => onChange?.(event.target.checked)}
         />
-        <div className="relative h-5 w-10 rounded-full bg-slate-200 dark:bg-slate-700 transition-colors duration-200 peer-checked:bg-primary after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform after:duration-200 peer-checked:after:translate-x-5"></div>
+        <div className="relative h-5 w-10 rounded-full bg-slate-200 transition-colors duration-200 peer-checked:bg-primary after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform after:duration-200 peer-checked:after:translate-x-5"></div>
     </label>
 );
 
@@ -87,7 +87,7 @@ const PIDInput = ({ label, pvValue }) => (
         <label className="text-s font-bold text-slate-500 uppercase">{label}</label>
         <PVText value={pvValue} />
         <input
-            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
             step="0.1"
             type="number"
             placeholder={FALLBACK_VALUE}
@@ -102,8 +102,8 @@ const ValveControl = ({ sensorValues }) => {
     const [outletCorrectionEnabled, setOutletCorrectionEnabled] = useState(true);
 
     return (
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm h-full flex flex-col">
-            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm h-full flex flex-col">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
                 <h2 className="text-[16px] font-bold flex items-center gap-2">{t('industrial.outletValveControl')}</h2>
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-3">
@@ -118,11 +118,11 @@ const ValveControl = ({ sensorValues }) => {
             </div>
             <div className="p-6 flex-1 flex flex-col gap-6">
                 <div className="space-y-2 space-x-1.5">
-                    <label className="text-xs text-[14px] font-semibold text-slate-600 dark:text-slate-400">{t('industrial.openingRatio')}</label>
+                    <label className="text-xs text-[14px] font-semibold text-slate-600">{t('industrial.openingRatio')}</label>
                     <PVText value={sensorValues.outletWaterTemp} unit="°C" />
                     <div className="relative">
                         <input
-                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
                             type="number"
                             value={percentage}
                             onChange={(event) => setPercentage(event.target.value)}
@@ -150,8 +150,8 @@ const ReturnValveControl = ({ sensorValues }) => {
     const [targetValue, setTargetValue] = useState('');
 
     return (
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm h-full flex flex-col">
-            <div className="p-5 border-b border-slate-100 dark:border-slate-800">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm h-full flex flex-col">
+            <div className="p-5 border-b border-slate-100">
                 <h2 className="text-[16px] font-bold flex items-center gap-2">{t('industrial.mixingValveControl')}</h2>
             </div>
             <div className="p-6 flex-1 flex flex-col gap-4">
@@ -161,7 +161,7 @@ const ReturnValveControl = ({ sensorValues }) => {
                         <PVText value={sensorValues.returnWaterTemp} unit="°C" />
                         <div className="relative">
                             <input
-                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
                                 type="number"
                                 value={openingRatio}
                                 onChange={(event) => setOpeningRatio(event.target.value)}
@@ -174,7 +174,7 @@ const ReturnValveControl = ({ sensorValues }) => {
                         <label className="text-[16px] font-bold text-slate-500 uppercase">{t('industrial.setValue')}</label>
                         <PVText value={sensorValues.returnWaterPressure} unit="pa" />
                         <input
-                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-primary/20 outline-none"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-primary/20 outline-none"
                             type="number"
                             value={targetValue}
                             onChange={(event) => setTargetValue(event.target.value)}
@@ -196,8 +196,8 @@ const MotorControl = ({ sensorValues }) => {
     const [targetFrequency, setTargetFrequency] = useState('');
 
     return (
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-            <div className="p-5 border-b border-slate-100 dark:border-slate-800">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+            <div className="p-5 border-b border-slate-100">
                 <div className="flex justify-between items-center w-full">
                     <h2 className="text-[16px] font-bold flex items-center gap-2">{t('industrial.mixingPumpControl')}</h2>
                     <Toggle checked={enabled} onChange={setEnabled} />
@@ -211,7 +211,7 @@ const MotorControl = ({ sensorValues }) => {
                         <div className="flex flex-1 gap-2">
                             <div className="relative flex-1">
                                 <input
-                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-3 text-lg font-bold focus:ring-2 focus:ring-primary/20 outline-none disabled:opacity-50"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-3 text-lg font-bold focus:ring-2 focus:ring-primary/20 outline-none disabled:opacity-50"
                                     type="number"
                                     value={targetFrequency}
                                     onChange={(event) => setTargetFrequency(event.target.value)}
@@ -416,16 +416,16 @@ export function IndustrialControl({ device, onBack }) {
     };
 
     const statusClass = {
-        running: 'text-emerald-600 dark:text-emerald-400',
-        alert: 'text-red-600 dark:text-red-400',
-        online: 'text-emerald-600 dark:text-emerald-400',
-        warning: 'text-amber-600 dark:text-amber-400',
-        critical: 'text-red-600 dark:text-red-400',
-        offline: 'text-slate-500 dark:text-slate-400',
+        running: 'text-emerald-600',
+        alert: 'text-red-600',
+        online: 'text-emerald-600',
+        warning: 'text-amber-600',
+        critical: 'text-red-600',
+        offline: 'text-slate-500',
     };
 
     return (
-        <div className="min-h-full bg-slate-50/50 dark:bg-background-dark/50 text-slate-900 dark:text-slate-100 p-8 overflow-y-auto">
+        <div className="min-h-full bg-slate-50/50 text-slate-900 p-8 overflow-y-auto">
             <header className="flex items-center justify-between mb-8 w-full">
                 <div className="flex items-center gap-4">
                     <button

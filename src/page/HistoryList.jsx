@@ -502,19 +502,12 @@ export default function HistoryList() {
                                     <tr>
                                         <td colSpan={tableColSpan} className="px-6 py-12 text-center text-slate-400">
                                             <div className="flex items-center justify-center gap-2">
-                                                <div
-                                                    className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                                                <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
                                                 {t('loading_data')}
                                             </div>
                                         </td>
                                     </tr>
-                                ) : currentData.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={tableColSpan} className="px-6 py-12 text-center text-slate-400">
-                                            <Database size={48} className="mx-auto mb-2 opacity-30" />
-                                            <p className="text-sm font-medium">{emptyStateMessage ?? t('please_set_filter')}</p>
-                                        </td>
-                                    </tr>
+
                                 ) : (
                                     currentData.map((row) => (
                                         <tr key={row.id} className="hover:bg-slate-50 transition-colors">
@@ -531,6 +524,12 @@ export default function HistoryList() {
                                 </tbody>
                             </table>
                         </div>
+                        {!loading && currentData.length === 0 && (
+                            <div className="px-6 py-12 text-center text-slate-400">
+                                <Database size={48} className="mx-auto mb-2 opacity-30" />
+                                <p className="text-sm font-medium">{emptyStateMessage ?? t('please_set_filter')}</p>
+                            </div>
+                        )}
 
                         {/* Pagination */}
                         {tableData.length > 0 && (
