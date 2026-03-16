@@ -30,6 +30,10 @@ const SENSOR_FIELD_ORDER = [
   'coolingR2',
   'rpm',
   'hz',
+  'flowRate',
+  'heatExchange',
+  'pidP',
+  'pidI',
 ];
 
 const formatMetric = (value, unit = '') => {
@@ -74,11 +78,10 @@ const normalizeDeviceStatus = (status) => {
 };
 
 const mapSensorValues = (sensorPayload) => {
-  const sensorEntries = Object.entries(sensorPayload ?? {}).filter(([key]) => /^s\d+$/.test(key));
   const mappedValues = {};
 
   SENSOR_FIELD_ORDER.forEach((fieldName, index) => {
-    mappedValues[fieldName] = sensorEntries[index]?.[1];
+    mappedValues[fieldName] = sensorPayload?.[`s${index + 1}`] ?? '--';
   });
 
   return mappedValues;
@@ -113,6 +116,12 @@ const normalizeDevice = (device, index, sensorPayload) => {
     power: {
       rpm: device?.power?.rpm ?? sensorValues.rpm ?? device?.rpm ?? '--',
       hz: device?.power?.hz ?? sensorValues.hz ?? device?.hz ?? '--',
+    },
+    system: {
+      flowRate: sensorValues.flowRate ?? device?.flowRate ?? '--',
+      heatExchange: sensorValues.heatExchange ?? device?.heatExchange ?? '--',
+      pidP: sensorValues.pidP ?? device?.pidP ?? '--',
+      pidI: sensorValues.pidI ?? device?.pidI ?? '--',
     },
   };
 };
