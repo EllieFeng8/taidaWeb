@@ -30,6 +30,12 @@ const formatDateTimeLabel = (date) => {
     return `${safeDate.getFullYear()}-${padNumber(safeDate.getMonth() + 1)}-${padNumber(safeDate.getDate())} ${padNumber(safeDate.getHours())}:${padNumber(safeDate.getMinutes())}:${padNumber(safeDate.getSeconds())}`;
 };
 
+const formatDateTimeFileNamePart = (date) => {
+    const safeDate = date instanceof Date ? date : new Date(date);
+
+    return `${safeDate.getFullYear()}-${padNumber(safeDate.getMonth() + 1)}-${padNumber(safeDate.getDate())}_${padNumber(safeDate.getHours())}-${padNumber(safeDate.getMinutes())}-${padNumber(safeDate.getSeconds())}`;
+};
+
 const getStartOfToday = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -294,10 +300,13 @@ export default function HistoryList() {
         const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
         const downloadUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        const safeDeviceName = (selectedDevice || 'history').replace(/[\\/:*?"<>|]/gu, '_');
+        const exportDeviceName = appliedDevice || selectedDevice || '設備';
+        const safeDeviceName = exportDeviceName.replace(/[\\/:*?"<>|]/gu, '_');
+        const startDateTime = formatDateTimeFileNamePart(appliedDateRange.fromDate);
+        const endDateTime = formatDateTimeFileNamePart(appliedDateRange.toDate);
 
         link.href = downloadUrl;
-        link.download = `${safeDeviceName}_${Date.now()}.csv`;
+        link.download = `${safeDeviceName}_${startDateTime}_${endDateTime}.csv`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
