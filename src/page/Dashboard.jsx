@@ -67,7 +67,17 @@ const formatCombinedMetric = (primaryValue, primaryUnit, secondaryValue, seconda
     return `${primary} / ${secondary}`;
 };
 
-const normalizeDeviceStatus = (status) => {
+const isDisconnectedSensorPayload = (sensorPayload) => {
+    const statusCode = Number(sensorPayload?.status);
+
+    return Number.isFinite(statusCode) && statusCode === 503;
+};
+
+const normalizeDeviceStatus = (status, sensorPayload) => {
+    if (isDisconnectedSensorPayload(sensorPayload)) {
+        return 'offline';
+    }
+
     if (!status) {
         return 'online';
     }
@@ -92,6 +102,7 @@ const mapSensorValues = (sensorPayload) => {
 };
 
 const normalizeDevice = (device, index, sensorPayload) => {
+    // console.log('Normalizing device', {device, sensorPayload});
     const name = device?.name ?? device?.deviceName ?? `Device ${index + 1}`;
     const id = String(device?.id ?? device?.deviceId ?? name);
     const sensorValues = mapSensorValues(sensorPayload);
@@ -101,7 +112,7 @@ const normalizeDevice = (device, index, sensorPayload) => {
         ...sensorValues,
         id,
         name,
-        status: normalizeDeviceStatus(device?.status),
+        status: normalizeDeviceStatus(device?.status, sensorPayload),
         water: {
             in: device?.water?.in ?? formatCombinedMetric(sensorValues.inletWaterTemp ?? device?.inletWaterTemp, '°C', sensorValues.inletWaterPressure ?? device?.inletWaterPressure, 'b'),
             out: device?.water?.out ?? formatCombinedMetric(sensorValues.outletWaterTemp ?? device?.outletWaterTemp, '°C', sensorValues.outletWaterPressure ?? device?.outletWaterPressure, 'b'),
@@ -411,6 +422,9 @@ export const Dashboard = ({onSelectDevice}) => {
         };
 
         fetchDevices();
+        const interval = setInterval(fetchDevices, 1000);
+
+        return () => clearInterval(interval);
     }, []);
 
     useEffect(() => {
@@ -428,7 +442,7 @@ export const Dashboard = ({onSelectDevice}) => {
         };
 
         fetchConnectionStatuses();
-        const interval = setInterval(fetchConnectionStatuses, 3000);
+        const interval = setInterval(fetchConnectionStatuses, 1000);
 
         return () => clearInterval(interval);
     }, []);

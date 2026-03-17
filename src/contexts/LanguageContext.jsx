@@ -352,6 +352,20 @@ const translations = {
     'config.groupNamePlaceholder': '例如：Group A',
     'config.apiHint': '目前建立群組 API 只需要群組名稱。設備綁定若需要，應由其他 API 或後續編輯流程處理。',
     'config.error.groupNameRequired': '請輸入群組名稱',
+
+    //ConnectSetting
+    'connectSetting.title': '設備參數設定',
+    'connectSetting.subtitle': '設定 {device} 相關參數',
+    'connectSetting.ipAddress': 'IP地址',
+    'connectSetting.samplingFrequency': '取樣頻率 (ms)',
+    'connectSetting.imformation': '請確保您的設備與網路參數相符。',
+    'connectSetting.apply': '套用',
+    'connectSetting.cancel': '取消',
+    'connectSetting.loadFailed': '載入設備參數失敗，請稍後再試。',
+    'connectSetting.applySuccess': '套用成功',
+    'connectSetting.applyFailed': '套用失敗，請稍後再試。',
+    'connectSetting.invalidFrequency': '請輸入大於 0 的取樣頻率。',
+    'connectSetting.ipUnavailable': '查無 IP 資訊',
     
     // Common
     'common.save': '儲存',
@@ -678,6 +692,20 @@ const translations = {
     'config.groupNamePlaceholder': 'Example: First Floor Cooling System',
     'config.apiHint': 'The current create-group API only requires a group name. If device binding is needed, it should be handled by another API or a later editing flow.',
     'config.error.groupNameRequired': 'Please enter a group name',
+
+    //ConnectSetting
+    'connectSetting.title': 'Device Parameter Setting',
+    'connectSetting.subtitle': 'Configure parameters related to {device}',
+    'connectSetting.ipAddress': 'IP Address',
+    'connectSetting.samplingFrequency': 'Sampling Frequency (ms)',
+    'connectSetting.imformation': 'Please ensure that your device and network parameters match.',
+    'connectSetting.apply': 'Apply',
+    'connectSetting.cancel': 'Cancel',
+    'connectSetting.loadFailed': 'Failed to load device settings. Please try again later.',
+    'connectSetting.applySuccess': 'Applied successfully',
+    'connectSetting.applyFailed': 'Failed to apply settings. Please try again later.',
+    'connectSetting.invalidFrequency': 'Please enter a sampling frequency greater than 0.',
+    'connectSetting.ipUnavailable': 'IP information unavailable',
     
     // Common
     'common.save': 'Save',
