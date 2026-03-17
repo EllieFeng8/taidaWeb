@@ -10,7 +10,9 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { formatApiNumber } from '../utils/formatApiNumber';
 
 import ConnectSetting from '../components/ConnectSetting.jsx';
+const API_HOST = '';
 const FALLBACK_VALUE = '--';
+const DEFAULT_POLLING_INTERVAL_MS = 30000;
 const TELEMETRY_SENSOR_ORDER = [
     'inletWaterTemp',
     'inletWaterPressure',
@@ -80,7 +82,51 @@ const buildAllFansTargetFromHolding = (holdingPayload) => {
     return fanSvValues.every((value) => value === fanSvValues[0]) ? fanSvValues[0] : '';
 };
 
-const POLLING_INTERVAL_MS = 30000;
+const normalizePollingIntervalMs = (payload) => {
+    if (typeof payload === 'number' && Number.isFinite(payload) && payload > 0) {
+        return payload;
+    }
+
+    if (typeof payload === 'string') {
+        const parsedValue = Number(payload);
+        return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : DEFAULT_POLLING_INTERVAL_MS;
+    }
+
+    if (payload && typeof payload === 'object') {
+        const candidateKeys = [
+            'POLLING_INTERVAL_MS',
+            'pollingIntervalMs',
+            'polling_interval_ms',
+            'frequency',
+            'samplingFrequency',
+            'value',
+        ];
+
+        for (const key of candidateKeys) {
+            const parsedValue = Number(payload[key]);
+            if (Number.isFinite(parsedValue) && parsedValue > 0) {
+                return parsedValue;
+            }
+        }
+    }
+
+    return DEFAULT_POLLING_INTERVAL_MS;
+};
+
+const parseFrequencyResponse = async (response) => {
+    const responseText = await response.text();
+
+    if (!responseText) {
+        return DEFAULT_POLLING_INTERVAL_MS;
+    }
+    console.log("responseText",responseText)
+    try {
+        return normalizePollingIntervalMs(JSON.parse(responseText));
+
+    } catch {
+        return normalizePollingIntervalMs(responseText);
+    }
+};
 
 const TelemetryCard = ({ data }) => (
     <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
@@ -384,6 +430,7 @@ const FanUnitCard = ({ fan, onSvChange, onSubmit, isSubmitting }) => {
 export function IndustrialControl({ device, onBack }) {
     const { t } = useLanguage();
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [pollingIntervalMs, setPollingIntervalMs] = useState(DEFAULT_POLLING_INTERVAL_MS);
     const [allFansEnabled, setAllFansEnabled] = useState(false);
     const [pidMonitoringEnabled, setPidMonitoringEnabled] = useState(true);
     const [fansCorrectionEnabled, setFansCorrectionEnabled] = useState(true);
@@ -461,6 +508,46 @@ export function IndustrialControl({ device, onBack }) {
     ];
 
     useEffect(() => {
+        let isActive = true;
+
+        if (!deviceIdentifier) {
+            setPollingIntervalMs(DEFAULT_POLLING_INTERVAL_MS);
+            return () => {
+                isActive = false;
+            };
+        }
+
+        const fetchPollingInterval = async () => {
+            try {
+                const response = await fetch(`${API_HOST}/api/settings/frequency/${encodeURIComponent(deviceIdentifier)}`, {
+                    method: 'GET',
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const nextPollingIntervalMs = await parseFrequencyResponse(response);
+
+                if (isActive) {
+                    setPollingIntervalMs(nextPollingIntervalMs);
+                }
+            } catch (error) {
+                console.error('取得取樣頻率失敗:', error);
+                if (isActive) {
+                    setPollingIntervalMs(DEFAULT_POLLING_INTERVAL_MS);
+                }
+            }
+        };
+
+        fetchPollingInterval();
+
+        return () => {
+            isActive = false;
+        };
+    }, [deviceIdentifier]);
+
+    useEffect(() => {
         if (!deviceIdentifier) {
             setSensorData({});
             return;
@@ -481,10 +568,10 @@ export function IndustrialControl({ device, onBack }) {
         };
 
         fetchDeviceSensor();
-        const intervalId = setInterval(fetchDeviceSensor, POLLING_INTERVAL_MS);
+        const intervalId = setInterval(fetchDeviceSensor, pollingIntervalMs);
 
         return () => clearInterval(intervalId);
-    }, [deviceIdentifier, t]);
+    }, [deviceIdentifier, pollingIntervalMs, t]);
 
     useEffect(() => {
         if (!deviceIdentifier) {
@@ -538,10 +625,10 @@ export function IndustrialControl({ device, onBack }) {
         };
 
         fetchFanHoldingData();
-        const intervalId = setInterval(fetchFanHoldingData, POLLING_INTERVAL_MS);
+        const intervalId = setInterval(fetchFanHoldingData, pollingIntervalMs);
 
         return () => clearInterval(intervalId);
-    }, [deviceIdentifier, t]);
+    }, [deviceIdentifier, pollingIntervalMs, t]);
 
     const handleToggleFan = (fanId) => {
         setFans((prev) =>
