@@ -45,7 +45,14 @@ const mapSensorValues = (sensorPayload) => {
 };
 
 const formatDisplayValue = (value) => {
-    return formatApiNumber(value, FALLBACK_VALUE);
+    const formattedValue = formatApiNumber(value, FALLBACK_VALUE);
+
+    if (formattedValue === FALLBACK_VALUE) {
+        return FALLBACK_VALUE;
+    }
+
+    const numericValue = Number(formattedValue);
+    return Number.isNaN(numericValue) ? FALLBACK_VALUE : numericValue.toFixed(1);
 };
 
 const buildFansFromHolding = (holdingPayload) => Array.from({ length: 9 }, (_, index) => {
@@ -66,6 +73,12 @@ const buildFansFromHolding = (holdingPayload) => Array.from({ length: 9 }, (_, i
         isActive,
     };
 });
+
+const buildAllFansTargetFromHolding = (holdingPayload) => {
+    const fanSvValues = Array.from({ length: 9 }, (_, index) => String(holdingPayload?.[`cooling_fan${index + 1}_sv`] ?? ''));
+
+    return fanSvValues.every((value) => value === fanSvValues[0]) ? fanSvValues[0] : '';
+};
 
 const POLLING_INTERVAL_MS = 30000;
 
@@ -233,7 +246,16 @@ const ReturnValveControl = ({ holdingData, openingRatio, onOpeningRatioChange, o
     );
 };
 
-const MotorControl = ({ sensorValues, holdingData, targetFrequency, onTargetFrequencyChange, onSubmit, isSubmitting }) => {
+const MotorControl = ({
+    sensorValues,
+    holdingData,
+    targetFrequency,
+    onTargetFrequencyChange,
+    onTargetFrequencyFocus,
+    onTargetFrequencyBlur,
+    onSubmit,
+    isSubmitting,
+}) => {
     const { t } = useLanguage();
     const [enabled, setEnabled] = useState(true);
 
@@ -255,8 +277,10 @@ const MotorControl = ({ sensorValues, holdingData, targetFrequency, onTargetFreq
                                 <input
                                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-3 text-lg font-bold focus:ring-2 focus:ring-primary/20 outline-none disabled:opacity-50"
                                     type="number"
-                                    value={targetFrequency}
+                                    value={targetFrequency ?? ''}
                                     onChange={(event) => onTargetFrequencyChange?.(event.target.value)}
+                                    onFocus={onTargetFrequencyFocus}
+                                    onBlur={onTargetFrequencyBlur}
                                     placeholder={FALLBACK_VALUE}
                                     disabled={!enabled}
                                 />
@@ -382,6 +406,8 @@ export function IndustrialControl({ device, onBack }) {
     const [isSubmittingPressureTarget, setIsSubmittingPressureTarget] = useState(false);
     const [isSubmittingReturnValveOpening, setIsSubmittingReturnValveOpening] = useState(false);
     const [isSubmittingPumpFrequency, setIsSubmittingPumpFrequency] = useState(false);
+    const isEditingAllFansRpmTargetRef = useRef(false);
+    const isEditingCirculatingPumpSvRef = useRef(false);
     const isEditingOutletTargetTempRef = useRef(false);
     const isEditingOutletValveOpeningRef = useRef(false);
     const isEditingPressureTargetRef = useRef(false);
@@ -475,11 +501,15 @@ export function IndustrialControl({ device, onBack }) {
                 .then((data) => {
                     setHoldingData(data ?? {});
                     setFans(buildFansFromHolding(data ?? {}));
-                    setAllFansRpmTarget(String(data?.circulating_pump_sv ?? ''));
+                    if (!isEditingAllFansRpmTargetRef.current) {
+                        setAllFansRpmTarget(buildAllFansTargetFromHolding(data ?? {}));
+                    }
                     if (!isEditingOutletTargetTempRef.current) {
                         setOutletTargetTempSv(String(data?.outlet_target_temp_sv ?? ''));
                     }
-                    setCirculatingPumpSv(String(data?.circulating_pump_sv ?? ''));
+                    if (!isEditingCirculatingPumpSvRef.current) {
+                        setCirculatingPumpSv(String(data?.circulating_pump_sv ?? ''));
+                    }
                     if (!isEditingOutletValveOpeningRef.current) {
                         setOutletValveOpening(String(data?.outlet_electric_valve_opening_sv ?? ''));
                     }
@@ -676,6 +706,7 @@ export function IndustrialControl({ device, onBack }) {
         } catch (error) {
             console.error('全部風扇 SV 設定失敗:', error);
         } finally {
+            isEditingAllFansRpmTargetRef.current = false;
             setIsSubmittingAllFans(false);
         }
     };
@@ -741,6 +772,7 @@ export function IndustrialControl({ device, onBack }) {
         } catch (error) {
             console.error('循環泵設定失敗:', error);
         } finally {
+            isEditingCirculatingPumpSvRef.current = false;
             setIsSubmittingPumpFrequency(false);
         }
     };
@@ -969,7 +1001,16 @@ export function IndustrialControl({ device, onBack }) {
                     sensorValues={sensorValues}
                     holdingData={holdingData}
                     targetFrequency={circulatingPumpSv}
-                    onTargetFrequencyChange={setCirculatingPumpSv}
+                    onTargetFrequencyChange={(value) => {
+                        isEditingCirculatingPumpSvRef.current = true;
+                        setCirculatingPumpSv(value);
+                    }}
+                    onTargetFrequencyFocus={() => {
+                        isEditingCirculatingPumpSvRef.current = true;
+                    }}
+                    onTargetFrequencyBlur={() => {
+                        isEditingCirculatingPumpSvRef.current = false;
+                    }}
                     onSubmit={handleSubmitPumpFrequency}
                     isSubmitting={isSubmittingPumpFrequency}
                 />
@@ -1002,8 +1043,17 @@ export function IndustrialControl({ device, onBack }) {
                                 <div className="relative flex-1">
                                     <input
                                         type="number"
-                                        value={allFansRpmTarget}
-                                        onChange={(event) => setAllFansRpmTarget(event.target.value)}
+                                        value={allFansRpmTarget ?? ''}
+                                        onChange={(event) => {
+                                            isEditingAllFansRpmTargetRef.current = true;
+                                            setAllFansRpmTarget(event.target.value);
+                                        }}
+                                        onFocus={() => {
+                                            isEditingAllFansRpmTargetRef.current = true;
+                                        }}
+                                        onBlur={() => {
+                                            isEditingAllFansRpmTargetRef.current = false;
+                                        }}
                                         placeholder={FALLBACK_VALUE}
                                         className="w-full bg-white border-none rounded-lg px-3 py-2 text-sm ring-1 ring-slate-200 focus:ring-primary outline-none"
                                     />
