@@ -106,7 +106,7 @@ export default function GroupSet({ group, onBack }) {
 
         const backTimer = setTimeout(() => {
             onBack();
-        }, 500);
+        }, 200);
 
         return () => clearTimeout(backTimer);
     }, [onBack, showSavedToast]);

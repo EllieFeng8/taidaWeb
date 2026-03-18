@@ -85,12 +85,13 @@ const buildAllFansTargetFromHolding = (holdingPayload) => {
 const TelemetryCard = ({ data }) => (
     <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
         <p className={`text-[16px] font-bold ${data.colorClass} mb-3`}>{data.label}</p>
-        <div className="grid grid-cols-1 gap-2 text-xs">
+        <div className="grid grid-cols-1 gap-2 text-[14px]">
             {data.metrics.map((metric) => (
                 <div key={metric.name} className="flex justify-between">
                     <span>{metric.name}:</span>
                     <span className="font-bold">
-                        {formatDisplayValue(metric.value)} <span className="text-slate-400">{metric.unit}</span>
+                        {formatDisplayValue(metric.value)}
+                        <span className="text-slate-400">{metric.unit}</span>
                     </span>
                 </div>
             ))}
@@ -111,17 +112,17 @@ const Toggle = ({ checked, onChange }) => (
 );
 
 const PVText = ({ value, unit = '' }) => (
-    <span className="text-xs font-normal text-slate-400">
+    <span className="text-[14px] text-slate-400 font-black">
         PV: {formatDisplayValue(value)} {unit}
     </span>
 );
 
 const PIDInput = ({ label, pvValue, value, onChange }) => (
     <div className="space-y-1.5 space-x-1.5">
-        <label className="text-s font-bold text-slate-500 uppercase">{label}</label>
+        <label className="text-[14px] font-bold text-slate-500 uppercase">{label}</label>
         <PVText value={pvValue} />
         <input
-            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+            className="text-center w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[12px] focus:ring-2 focus:ring-primary/20 outline-none text-center"
             step="0.1"
             type="number"
             value={value}
@@ -165,7 +166,7 @@ const ValveControl = ({
                     <PVText value={holdingData?.outlet_electric_valve_opening_pv} unit="%" />
                     <div className="relative">
                         <input
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                            className="text-center w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[14px] font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
                             type="number"
                             value={percentage}
                             onChange={(event) => onPercentageChange?.(event.target.value)}
@@ -222,7 +223,7 @@ const ReturnValveControl = ({ holdingData, openingRatio, onOpeningRatioChange, o
                         <PVText value={holdingData?.outlet_electric_valve_opening_pv} unit="%" />
                         <div className="relative">
                             <input
-                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                                className="text-center w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[14px] font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
                                 type="number"
                                 value={openingRatio}
                                 onChange={(event) => onOpeningRatioChange?.(event.target.value)}
@@ -275,7 +276,7 @@ const MotorControl = ({
                         <div className="flex flex-1 gap-2">
                             <div className="relative flex-1">
                                 <input
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-3 text-lg font-bold focus:ring-2 focus:ring-primary/20 outline-none disabled:opacity-50"
+                                    className="text-center w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-3 text-[14px] font-bold focus:ring-2 focus:ring-primary/20 outline-none disabled:opacity-50"
                                     type="number"
                                     value={targetFrequency ?? ''}
                                     onChange={(event) => onTargetFrequencyChange?.(event.target.value)}
@@ -298,13 +299,13 @@ const MotorControl = ({
                     </div>
                     <div className="px-6 py-3 bg-primary/5 rounded-xl border border-primary/10">
                         <p className="text-[12px] font-bold text-primary uppercase">{t('industrial.currentFlowRate')}</p>
-                        <p className="text-xl font-extrabold text-primary leading-tight">
+                        <p className="text-[14px] font-extrabold text-primary leading-tight">
                             {formatDisplayValue(sensorValues.flowRate)} <span className="text-xs font-medium">{t('industrial.flowUnit')}</span>
                         </p>
                     </div>
                     <div className="px-6 py-3 bg-primary/5 rounded-xl border border-primary/10">
                         <p className="text-[12px] font-bold text-primary uppercase">{t('industrial.currentHeatExchange')}</p>
-                        <p className="text-xl font-extrabold text-primary leading-tight">
+                        <p className="text-[14px] font-extrabold text-primary leading-tight">
                             {formatDisplayValue(sensorValues.heatExchange)} <span className="text-xs font-medium">kW</span>
                         </p>
                     </div>
@@ -331,7 +332,7 @@ const FanUnitCard = ({ fan, onSvChange, onSubmit, isSubmitting }) => {
         }`}>
             <div className="flex justify-between items-start mb-5">
                 <div>
-                    <h5 className="text-sm font-bold flex items-center gap-2">
+                    <h5 className="text-[14px] font-bold flex items-center gap-2">
                         {t('industrial.fanLabel')} <span className="text-slate-400">{fan.id}</span>
                         {fan.isPrimary && <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded ml-1">Primary</span>}
                     </h5>
@@ -348,13 +349,13 @@ const FanUnitCard = ({ fan, onSvChange, onSubmit, isSubmitting }) => {
                 <div className="space-y-2">
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">PV</p>
                     <div className="space-y-1.5">
-                        <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
-                            <span className="text-sm font-bold">{formatDisplayValue(fan.pvPercent)}</span>
-                            <span className="text-[10px] text-slate-400 font-bold">%</span>
+                        <div className="flex items-center justify-between  rounded-xl px-3 py-1.5 shadow-sm">
+                            <span className="flex-4/5 text-center text-[14px] font-bold">{formatDisplayValue(fan.pvPercent)}</span>
+                            <span className="flex-1/6 text-[10px] text-slate-400 font-bold">%</span>
                         </div>
-                        <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
-                            <span className="text-sm font-bold">{formatDisplayValue(fan.pvRpm)}</span>
-                            <span className="text-[10px] text-slate-400 font-bold">RPM</span>
+                        <div className="flex items-center justify-between  rounded-xl px-3 py-1.5 shadow-sm">
+                            <span className="flex-4/5 text-center text-[14px] font-bold">{formatDisplayValue(fan.pvRpm)}</span>
+                            <span className="flex-1/6 text-[10px] text-slate-400 font-bold">RPM</span>
                         </div>
                     </div>
                 </div>
@@ -365,7 +366,7 @@ const FanUnitCard = ({ fan, onSvChange, onSubmit, isSubmitting }) => {
                             type="number"
                             value={fan.svRpm}
                             onChange={(event) => onSvChange?.(fan.id, event.target.value)}
-                            className="w-full border-none bg-transparent text-lg font-bold px-3 focus:ring-0"
+                            className="text-center w-full border-none bg-transparent text-lg font-bold px-3 focus:ring-0"
                         />
                         <button
                             type="button"
@@ -933,19 +934,20 @@ export function IndustrialControl({ device, onBack }) {
                     <TelemetryCard key={item.label} data={item} />
                 ))}
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <p className="text-[18px] font-bold text-cyan-600 mb-3">{t('industrial.telemetry.outletAirTemperature')}</p>
+                    <p className="text-[16px] font-bold text-cyan-600 mb-3">{t('industrial.telemetry.outletAirTemperature')}</p>
                     <div className="flex justify-between items-center text-xs mb-2">
-                        <span className="text-slate-500">{t('industrial.temperature')}:</span>
-                        <span className="font-bold">
-                            {formatDisplayValue(sensorValues.outletAirTemp)} <span className="text-slate-400 font-normal">°C</span>
+                        <span className="text-[14px]">{t('industrial.temperature')}:</span>
+                        <span className="font-bold text-[14px]">
+                            {formatDisplayValue(sensorValues.outletAirTemp)}
+                            <span className="text-slate-400 font-normal">°C</span>
                         </span>
                     </div>
                     <div className="pt-2 border-t border-slate-100 space-y-2">
                         <PVText value={holdingData?.outlet_target_temp_pv} unit="°C" />
                         <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-500 shrink-0">{t('industrial.targetTemperature')}</span>
+                            <span className="text-[16px] font-bold text-slate-500 shrink-0">{t('industrial.targetTemperature')}</span>
                             <input
-                                className="w-full h-7 text-[12px] border border-slate-200 rounded px-1 focus:ring-1 focus:ring-primary outline-none"
+                                className="text-center w-full h-7 text-[12px] border border-slate-200 rounded px-1 focus:ring-1 focus:ring-primary outline-none"
                                 type="number"
                                 value={outletTargetTempSv}
                                 onChange={(event) => {
@@ -1054,7 +1056,7 @@ export function IndustrialControl({ device, onBack }) {
                                             isEditingAllFansRpmTargetRef.current = false;
                                         }}
                                         placeholder={FALLBACK_VALUE}
-                                        className="w-full bg-white border-none rounded-lg px-3 py-2 text-sm ring-1 ring-slate-200 focus:ring-primary outline-none"
+                                        className="text-center w-full bg-white border-none rounded-lg px-3 py-2 text-[14px] ring-1 ring-slate-200 focus:ring-primary outline-none"
                                     />
                                     <span className="absolute right-3 top-2.5 text-[10px] text-slate-400 font-bold">RPM</span>
                                 </div>
@@ -1095,7 +1097,7 @@ export function IndustrialControl({ device, onBack }) {
                                             isEditingPressureTargetRef.current = false;
                                         }}
                                         placeholder={FALLBACK_VALUE}
-                                        className="w-full bg-white border-none rounded-lg px-3 py-2 text-sm ring-1 ring-slate-200 focus:ring-primary outline-none"
+                                        className="text-center w-full bg-white border-none rounded-lg px-3 py-2 text-[14px] ring-1 ring-slate-200 focus:ring-primary outline-none"
                                     />
                                     <span className="absolute right-3 top-2.5 text-[10px] text-slate-400 font-bold">Pa</span>
                                 </div>
@@ -1142,7 +1144,7 @@ export function IndustrialControl({ device, onBack }) {
                                             }
                                             step="0.01"
                                             placeholder={FALLBACK_VALUE}
-                                            className="w-full bg-white border-none rounded-lg text-xs px-2 py-1.5 ring-1 ring-slate-200 focus:ring-primary outline-none"
+                                            className="text-center w-full bg-white border-none rounded-lg text-xs px-2 py-1.5 ring-1 ring-slate-200 focus:ring-primary outline-none"
                                         />
                                     </div>
                                 ))}
