@@ -32,10 +32,14 @@ export default function GroupSettings() {
   }, [t]);
 
   useEffect(() => {
+    if (view !== 'list') {
+      return undefined;
+    }
+
     fetchGroups();
     const interval = setInterval(fetchGroups, 1000); // 每 10 秒查詢一次
     return () => clearInterval(interval);
-  }, [fetchGroups]);
+  }, [fetchGroups, view]);
 
   const handleDeleteGroup = async (group) => {
     if (!group?.id) {
@@ -104,6 +108,7 @@ export default function GroupSettings() {
                 {groups.map((group) => (
                     <GroupCard
                         key={group.id}
+                        id={group.id}
                         name={group.name}
                         devices={group.devices}
                         onOpenSettings={() => {
