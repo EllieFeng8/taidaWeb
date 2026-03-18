@@ -4,10 +4,10 @@ import { motion } from 'motion/react';
 import GroupMenu from './GroupMenu';
 import { useLanguage } from '../contexts/LanguageContext';
 
-export function GroupCard({ name, devices, onOpenSettings, onOpenControl, onDelete, isDeleting = false }) {
+export function GroupCard({ id, name, devices, onOpenSettings, onOpenControl, onDelete, isDeleting = false }) {
     const { t } = useLanguage();
     const [showMenu, setShowMenu] = React.useState(false);
-    const group = { name,  devices };
+    const group = { id, name, devices };
     const safeDevices = Array.isArray(devices) ? devices : [];
     const openMenu = () => setShowMenu(true);
 
