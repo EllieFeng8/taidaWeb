@@ -197,7 +197,7 @@ export const GroupControl = ({ group, onBack }) => {
     }
 
     await Promise.all(groupDeviceIdentifiers.map(async (deviceIdentifier) => {
-      const response = await fetch(`${API_HOST}/api/modbus/sv/${encodeURIComponent(deviceIdentifier)}`, {
+      const response = await fetch(`${API_HOST}/api/modbus/sv-with-coils/${encodeURIComponent(deviceIdentifier)}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -420,11 +420,7 @@ export const GroupControl = ({ group, onBack }) => {
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-bold text-slate-500">{t('groupControl.targetTemperature')}</label>
                   <div className="flex items-center gap-3">
-                    <span className="text-[10px] font-black text-primary uppercase tracking-widest">{t('groupControl.currentTemperaturePv')}</span>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-2xl font-black text-slate-900">{formatDisplayValue(holdingData?.outlet_target_temp_pv)}</span>
-                      <span className="text-xs font-bold text-slate-400">°C</span>
-                    </div>
+
                   </div>
                 </div>
                 <div className="flex gap-3">
@@ -456,7 +452,7 @@ export const GroupControl = ({ group, onBack }) => {
             headerRight={<FansEmergencyStop active={fanEmergency} onToggle={setFanEmergency} />}
         >
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Status Card */}
               <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
                 <div>
@@ -466,16 +462,7 @@ export const GroupControl = ({ group, onBack }) => {
                 <Toggle checked={fanPidOn} onChange={setFanPidOn} />
               </div>
 
-              {/* Pressure Card */}
-              <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
-                <div>
-                  <h3 className="font-bold text-slate-700">{t('groupControl.pressure')}</h3>
-                </div>
-                <div className="text-right">
-                  <span className="text-3xl font-black text-primary">{formatDisplayValue(holdingData?.target_pressure_diff_pv)}</span>
-                  <span className="text-xs font-bold text-slate-400 ml-1">PA</span>
-                </div>
-              </div>
+
 
               {/* Target Pressure Card */}
               <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-3 hover:shadow-md transition-shadow">
@@ -520,13 +507,7 @@ export const GroupControl = ({ group, onBack }) => {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-10">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">{t('groupControl.realtimeSpeed')}</span>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-black text-slate-900">{formatDisplayValue(holdingData?.cooling_fan1_pv)}</span>
-                      <span className="text-sm font-bold text-slate-400">RPM</span>
-                    </div>
-                  </div>
+
 
                   <div className="flex flex-col gap-2">
                     <span className="text-[10px] font-black text-primary uppercase tracking-widest">{t('groupControl.controlOutput')}</span>

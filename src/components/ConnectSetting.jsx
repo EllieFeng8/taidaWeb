@@ -59,6 +59,8 @@ const parseFrequencyResponse = async (response) => {
 
 export default function ConnectSetting({ isOpen, onClose, device }) {
     const deviceIdentifier = device?.name ?? device?.deviceName ?? device?.id ?? device?.deviceId;
+    const deviceName = device?.name ?? device?.deviceName ?? '';
+    const deviceApiId = device?.id ?? device?.deviceId ?? 4;
     const [ipAddress, setIpAddress] = useState('');
     const [samplingFrequency, setSamplingFrequency] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -161,7 +163,7 @@ export default function ConnectSetting({ isOpen, onClose, device }) {
     const handleApply = async () => {
         setFeedback(null);
 
-        if (!deviceIdentifier) {
+        if (!deviceIdentifier || !deviceName) {
             onClose?.();
             return;
         }
@@ -177,13 +179,15 @@ export default function ConnectSetting({ isOpen, onClose, device }) {
         }
 
         const payload = {
+            name: deviceName,
+            ip: ipAddress,
             read_frequency: nextSamplingFrequency,
         };
 
         setIsSubmitting(true);
 
         try {
-            const response = await fetch(`${API_HOST}/api/settings/frequency/${encodeURIComponent(deviceIdentifier)}`, {
+            const response = await fetch(`${API_HOST}/api/devices/${encodeURIComponent(deviceApiId)}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -240,7 +244,7 @@ export default function ConnectSetting({ isOpen, onClose, device }) {
                                 <div>
                                     <h3 className="text-xl font-bold text-slate-800">{t('connectSetting.title')}</h3>
                                     <p className="text-sm text-slate-500">
-                                        {t('connectSetting.subtitle', { device: `${device?.name ?? device?.deviceName ?? ''}` })}
+                                        {t('connectSetting.subtitle', { device: deviceName })}
                                     </p>
                                 </div>
                             </div>

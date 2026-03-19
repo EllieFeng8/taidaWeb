@@ -64,7 +64,7 @@ const buildFansFromHolding = (holdingPayload) => Array.from({ length: 9 }, (_, i
     const svValue = Number(holdingPayload?.[`cooling_fan${fanNumber}_sv`] ?? 0);
     const safePvValue = Number.isNaN(pvValue) ? 0 : pvValue;
     const safeSvValue = Number.isNaN(svValue) ? 0 : svValue;
-    const isActive = safePvValue > 0 || safeSvValue > 0;
+    const isActive = safeSvValue > 0;
 
     return {
         id,
@@ -72,6 +72,7 @@ const buildFansFromHolding = (holdingPayload) => Array.from({ length: 9 }, (_, i
         pvPercent: safePvValue,
         pvRpm: safePvValue,
         svRpm: safeSvValue,
+        lastActiveSvRpm: safeSvValue > 0 ? safeSvValue : safePvValue,
         isActive,
     };
 });
@@ -166,7 +167,9 @@ const ValveControl = ({
                         <Toggle checked={outletPidMonitoringEnabled} onChange={setOutletPidMonitoringEnabled} />
                     </div>
                     <div className="flex items-center gap-3">
-                        <span className="text-xs font-bold text-slate-500 uppercase">{t('industrial.forwardCorrection')}</span>
+                        <span className="text-xs font-bold text-slate-500 uppercase">
+                            {t(outletCorrectionEnabled ? 'industrial.forwardCorrection' : 'industrial.reverseCorrection')}
+                        </span>
                         <Toggle checked={outletCorrectionEnabled} onChange={setOutletCorrectionEnabled} />
                     </div>
                 </div>
@@ -331,7 +334,7 @@ const MotorControl = ({
     );
 };
 
-const FanUnitCard = ({ fan, onSvChange, onSubmit, isSubmitting }) => {
+const FanUnitCard = ({ fan, onSvChange, onSubmit, onToggle, isSubmitting }) => {
     const { t } = useLanguage();
     const statusColors = {
         running: 'text-emerald-500',
@@ -356,7 +359,12 @@ const FanUnitCard = ({ fan, onSvChange, onSubmit, isSubmitting }) => {
                         {t(`industrial.status.${fan.status}Short`)}
                     </p>
                 </div>
-                <button className={`w-10 h-5 rounded-full relative transition-colors ${fan.isActive ? 'bg-blue-600' : 'bg-slate-300'}`}>
+                <button
+                    type="button"
+                    onClick={() => onToggle?.(fan.id)}
+                    disabled={isSubmitting}
+                    className={`w-10 h-5 rounded-full relative transition-colors disabled:opacity-50 ${fan.isActive ? 'bg-blue-600' : 'bg-slate-300'}`}
+                >
                     <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${fan.isActive ? 'left-5.5' : 'left-0.5'}`} />
                 </button>
             </div>
@@ -429,6 +437,7 @@ export function IndustrialControl({ device, onBack }) {
     const isEditingOutletValveOpeningRef = useRef(false);
     const isEditingPressureTargetRef = useRef(false);
     const isEditingReturnValveOpeningRef = useRef(false);
+    const editingFanIdsRef = useRef(new Set());
 
     const deviceIdentifier = device?.name ?? device?.deviceName ?? device?.id ?? device?.deviceId;
     const sensorValues = mapSensorValues(sensorData);
@@ -478,6 +487,10 @@ export function IndustrialControl({ device, onBack }) {
     ];
 
     useEffect(() => {
+        setAllFansEnabled(fans.length > 0 && fans.every((fan) => fan.status === 'fault' || fan.isActive));
+    }, [fans]);
+
+    useEffect(() => {
         if (!deviceIdentifier) {
             setSensorData({});
             return;
@@ -517,7 +530,32 @@ export function IndustrialControl({ device, onBack }) {
                 .then((response) => response.json())
                 .then((data) => {
                     setHoldingData(data ?? {});
-                    setFans(buildFansFromHolding(data ?? {}));
+                    setFans((prev) => {
+                        const nextFans = buildFansFromHolding(data ?? {});
+
+                        return nextFans.map((nextFan) => {
+                            const currentFan = prev.find((fan) => fan.id === nextFan.id);
+                            const isEditingFan = editingFanIdsRef.current.has(nextFan.id);
+                            const isSubmittingFan = submittingFanId === nextFan.id;
+                            const shouldPreserveInactiveSv = Boolean(
+                                currentFan && !nextFan.isActive && currentFan.lastActiveSvRpm
+                            );
+
+                            if (!currentFan) {
+                                return nextFan;
+                            }
+
+                            return {
+                                ...nextFan,
+                                svRpm: isEditingFan || isSubmittingFan || shouldPreserveInactiveSv
+                                    ? currentFan.svRpm
+                                    : nextFan.svRpm,
+                                lastActiveSvRpm: currentFan.lastActiveSvRpm ?? nextFan.lastActiveSvRpm,
+                                isActive: currentFan.isActive,
+                                status: currentFan.status,
+                            };
+                        });
+                    });
                     if (!isEditingAllFansRpmTargetRef.current) {
                         setAllFansRpmTarget(buildAllFansTargetFromHolding(data ?? {}));
                     }
@@ -558,31 +596,143 @@ export function IndustrialControl({ device, onBack }) {
         const intervalId = setInterval(fetchFanHoldingData, DEFAULT_POLLING_INTERVAL_MS);
 
         return () => clearInterval(intervalId);
-    }, [deviceIdentifier, t]);
+    }, [deviceIdentifier, submittingFanId, t]);
 
-    const handleToggleFan = (fanId) => {
-        setFans((prev) =>
-            prev.map((fan) =>
-                fan.id === fanId && fan.status !== 'fault'
-                    ? { ...fan, isOn: !fan.isOn }
-                    : fan
-            )
-        );
+    const handleToggleFan = async (fanId) => {
+        if (!deviceIdentifier) {
+            return;
+        }
+
+        const fanNumber = Number(fanId);
+        if (Number.isNaN(fanNumber)) {
+            return;
+        }
+
+        const targetFan = fans.find((fan) => fan.id === fanId);
+        if (!targetFan || targetFan.status === 'fault') {
+            return;
+        }
+
+        const fallbackRestoreValue = Number(allFansRpmTarget) || Number(targetFan.pvRpm) || 0;
+        const restoredValue = Number(targetFan.lastActiveSvRpm) || fallbackRestoreValue;
+        const nextIsActive = !targetFan.isActive;
+        const nextValue = nextIsActive ? restoredValue : 0;
+        const normalizedValue = Number.isNaN(nextValue) ? 0 : nextValue;
+
+        setSubmittingFanId(fanId);
+
+        try {
+            const response = await fetch(
+                `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent(`cooling_fan${fanNumber}_sv`)}`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        value: normalizedValue,
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            setFans((prev) =>
+                prev.map((fan) => (
+                    fan.id === fanId
+                        ? {
+                            ...fan,
+                            svRpm: normalizedValue,
+                            lastActiveSvRpm: nextIsActive ? normalizedValue : (fan.lastActiveSvRpm || restoredValue),
+                            isActive: nextIsActive,
+                            status: nextIsActive ? 'running' : 'stopped',
+                        }
+                        : fan
+                ))
+            );
+        } catch (error) {
+            console.error(`風扇 ${fanId} 開關設定失敗:`, error);
+        } finally {
+            setSubmittingFanId(null);
+        }
     };
 
-    const handleToggleAllFans = (enabled) => {
-        setAllFansEnabled(enabled);
-        setFans((prev) =>
-            prev.map((fan) =>
-                fan.status === 'fault' ? fan : { ...fan, isOn: enabled }
-            )
+    const handleToggleAllFans = async (enabled) => {
+        if (!deviceIdentifier) {
+            return;
+        }
+
+        const normalizedAllFansTarget = Number(allFansRpmTarget);
+        const nextFans = fans.map((fan) =>
+            fan.status === 'fault'
+                ? fan
+                : {
+                    ...fan,
+                    svRpm: enabled
+                        ? (Number.isNaN(normalizedAllFansTarget) ? (fan.lastActiveSvRpm || fan.svRpm || fan.pvRpm || 0) : normalizedAllFansTarget)
+                        : 0,
+                    lastActiveSvRpm: enabled
+                        ? (Number.isNaN(normalizedAllFansTarget) ? (fan.lastActiveSvRpm || fan.svRpm || fan.pvRpm || 0) : normalizedAllFansTarget)
+                        : (fan.lastActiveSvRpm || fan.svRpm || fan.pvRpm || 0),
+                    isActive: enabled,
+                    status: enabled ? 'running' : 'stopped',
+                }
         );
+        const nextFanPayloadValue = enabled
+            ? (Number.isNaN(normalizedAllFansTarget) ? 0 : normalizedAllFansTarget)
+            : 0;
+
+        setIsSubmittingAllFans(true);
+
+        try {
+            const response = await fetch(`/api/modbus/sv/${encodeURIComponent(deviceIdentifier)}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    circulating_pump_sv: Number(circulatingPumpSv) || 0,
+                    cooling_fan1_sv: nextFanPayloadValue,
+                    cooling_fan2_sv: nextFanPayloadValue,
+                    cooling_fan3_sv: nextFanPayloadValue,
+                    cooling_fan4_sv: nextFanPayloadValue,
+                    cooling_fan5_sv: nextFanPayloadValue,
+                    cooling_fan6_sv: nextFanPayloadValue,
+                    cooling_fan7_sv: nextFanPayloadValue,
+                    cooling_fan8_sv: nextFanPayloadValue,
+                    cooling_fan9_sv: nextFanPayloadValue,
+                    return_electric_valve_opening_sv: Number(returnValveOpening) || 0,
+                    group1_pid_p_sv: Number(pidValues.p) || 0,
+                    group1_pid_i_sv: Number(pidValues.i) || 0,
+                    group1_pid_d_sv: Number(pidValues.d) || 0,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            setFans(nextFans);
+        } catch (error) {
+            console.error('全部風扇開關設定失敗:', error);
+        } finally {
+            setIsSubmittingAllFans(false);
+        }
     };
 
     const handleFanSvChange = (fanId, value) => {
+        editingFanIdsRef.current.add(fanId);
         setFans((prev) =>
             prev.map((fan) => (
-                fan.id === fanId ? { ...fan, svRpm: value } : fan
+                fan.id === fanId
+                    ? {
+                        ...fan,
+                        svRpm: value,
+                        lastActiveSvRpm: Number(value) > 0 ? Number(value) : fan.lastActiveSvRpm,
+                    }
+                    : fan
             ))
         );
     };
@@ -623,10 +773,17 @@ export function IndustrialControl({ device, onBack }) {
             setFans((prev) =>
                 prev.map((fan) => (
                     fan.id === fanId
-                        ? { ...fan, svRpm: Number.isNaN(nextValue) ? 0 : nextValue }
+                        ? {
+                            ...fan,
+                            svRpm: Number.isNaN(nextValue) ? 0 : nextValue,
+                            lastActiveSvRpm: Number.isNaN(nextValue) || nextValue <= 0 ? fan.lastActiveSvRpm : nextValue,
+                            isActive: !Number.isNaN(nextValue) && nextValue > 0,
+                            status: !Number.isNaN(nextValue) && nextValue > 0 ? 'running' : 'stopped',
+                        }
                         : fan
                 ))
             );
+            editingFanIdsRef.current.delete(fanId);
         } catch (error) {
             console.error(`風扇 ${fanId} SV 設定失敗:`, error);
         } finally {
@@ -662,7 +819,7 @@ export function IndustrialControl({ device, onBack }) {
         setIsSubmittingPid(true);
 
         try {
-            const response = await fetch(`/api/modbus/sv/${encodeURIComponent(deviceIdentifier)}`, {
+            const response = await fetch(`/api/modbus/sv-with-coils/${encodeURIComponent(deviceIdentifier)}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -687,12 +844,18 @@ export function IndustrialControl({ device, onBack }) {
 
         const nextValue = Number(allFansRpmTarget);
         const normalizedValue = Number.isNaN(nextValue) ? 0 : nextValue;
-        const nextFans = fans.map((fan) => ({ ...fan, svRpm: normalizedValue }));
+        const nextFans = fans.map((fan) => ({
+            ...fan,
+            svRpm: normalizedValue,
+            lastActiveSvRpm: normalizedValue > 0 ? normalizedValue : fan.lastActiveSvRpm,
+            isActive: normalizedValue > 0,
+            status: normalizedValue > 0 ? 'running' : 'stopped',
+        }));
 
         setIsSubmittingAllFans(true);
 
         try {
-            const response = await fetch(`/api/modbus/sv/${encodeURIComponent(deviceIdentifier)}`, {
+            const response = await fetch(`/api/modbus/sv-with-coils/${encodeURIComponent(deviceIdentifier)}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -803,7 +966,7 @@ export function IndustrialControl({ device, onBack }) {
         setIsSubmittingOutletValveOpening(true);
 
         try {
-            const response = await fetch(`/api/modbus/sv/${encodeURIComponent(deviceIdentifier)}`, {
+            const response = await fetch(`/api/modbus/sv-with-coils/${encodeURIComponent(deviceIdentifier)}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1042,7 +1205,9 @@ export function IndustrialControl({ device, onBack }) {
                             <Toggle checked={pidMonitoringEnabled} onChange={setPidMonitoringEnabled} />
                         </div>
                         <div className="flex items-center gap-3">
-                            <span className="text-xs font-bold text-slate-500 uppercase">{t('industrial.forwardCorrection')}</span>
+                            <span className="text-xs font-bold text-slate-500 uppercase">
+                                {t(fansCorrectionEnabled ? 'industrial.forwardCorrection' : 'industrial.reverseCorrection')}
+                            </span>
                             <Toggle checked={fansCorrectionEnabled} onChange={setFansCorrectionEnabled} />
                         </div>
                         <div className="ml-auto flex items-center justify-between gap-4 bg-red-50 px-5 py-2.5 rounded-xl border border-red-100 shadow-sm">
@@ -1195,6 +1360,7 @@ export function IndustrialControl({ device, onBack }) {
                             fan={fan}
                             onSvChange={handleFanSvChange}
                             onSubmit={handleSubmitFanSv}
+                            onToggle={handleToggleFan}
                             isSubmitting={submittingFanId === fan.id}
                         />
                     ))}
