@@ -326,17 +326,19 @@ export const GroupControl = ({ group, onBack }) => {
   const EmergencyStop = ({ active, onToggle }) => (
     <div className="flex items-center gap-3">
       <button className="px-4 py-2 bg-white/50 dark:bg-red-900/40 text-red-600 dark:text-red-400 hover:bg-white hover:text-red-700 hover:border-red-200 hover:shadow-sm active:scale-95 active:bg-red-100 active:shadow-none rounded-lg font-bold text-sm transition-all border border-red-100 dark:border-red-900/30">
-        重設
+        {t('groupControl.reset')}
       </button>
       <div className="flex items-center gap-3 px-4 py-1.5 bg-red-50 dark:bg-red-900/20 rounded-full border border-red-100 dark:border-red-900/30">
-        <span className="text-xs font-bold text-red-600 dark:text-red-400">緊急關閉</span>
+        <span className="text-xs font-bold text-red-600 dark:text-red-400">
+          {active ? t('groupControl.emergencyOn') : t('groupControl.emergencyOff')}
+        </span>
         <ToggleSwitch checked={active} onChange={onToggle} color="bg-red-600" />
       </div>
     </div>
   );
   const FansEmergencyStop = ({ active, onToggle }) => (
       <div className="flex items-center gap-3 px-4 py-1.5 bg-red-50 dark:bg-red-900/20 rounded-full border border-red-100 dark:border-red-900/30">
-        <span className="text-xs font-bold text-red-600 dark:text-red-400">緊急關閉</span>
+        <span className="text-xs font-bold text-red-600 dark:text-red-400">{active ? t('groupControl.emergencyOn') : t('groupControl.emergencyOff')}</span>
         <ToggleSwitch checked={active} onChange={onToggle} color="bg-red-600" />
       </div>
   );

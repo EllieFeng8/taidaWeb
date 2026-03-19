@@ -302,6 +302,14 @@ const translations = {
     'industrial.targetSpeed': '目標轉速',
     'industrial.rpmUnit': 'RPM',
     'industrial.fanLabel': '風扇',
+    'industrial.primary': '主風扇',
+    'industrial.emergencySwitch': '緊急開關',
+    'industrial.pvLabel': 'PV',
+    'industrial.svLabel': 'SV',
+    'industrial.status.runningShort': '運轉中',
+    'industrial.status.stoppedShort': '已停止',
+    'industrial.status.warningShort': '警告',
+    'industrial.status.optimalShort': '最佳',
     'industrial.error.fetchSensor': '設備感測資料獲取失敗:',
     
     // Group Control
@@ -349,6 +357,9 @@ const translations = {
     'groupControl.enableAllDescription': '同步控制所有陣列風扇',
     'groupControl.realtimeSpeed': '即時轉速',
     'groupControl.controlOutput': '控制輸出',
+    'groupControl.reset': '重設',
+    'groupControl.emergencyOn': '緊急開啟',
+    'groupControl.emergencyOff': '緊急關閉',
     
     // Configuration Panel
     'config.title': '配置面板',
@@ -656,6 +667,14 @@ const translations = {
     'industrial.targetSpeed': 'Target Speed',
     'industrial.rpmUnit': 'RPM',
     'industrial.fanLabel': 'Fan',
+    'industrial.primary': 'Primary',
+    'industrial.emergencySwitch': 'Emergency Switch',
+    'industrial.pvLabel': 'PV',
+    'industrial.svLabel': 'SV',
+    'industrial.status.runningShort': 'Running',
+    'industrial.status.stoppedShort': 'Stopped',
+    'industrial.status.warningShort': 'Warning',
+    'industrial.status.optimalShort': 'Optimal',
     'industrial.error.fetchSensor': 'Failed to fetch device sensor data:',
     
     // Group Control
@@ -703,6 +722,9 @@ const translations = {
     'groupControl.enableAllDescription': 'Synchronize control for all array fans',
     'groupControl.realtimeSpeed': 'Realtime Speed',
     'groupControl.controlOutput': 'Control Output (CV)',
+    'groupControl.reset': 'Reset',
+    'groupControl.emergencyOn': 'Emergency On',
+    'groupControl.emergencyOff': 'Emergency Off',
     
     // Configuration Panel
     'config.title': 'Configuration Panel',

@@ -68,7 +68,7 @@ const buildFansFromHolding = (holdingPayload) => Array.from({ length: 9 }, (_, i
 
     return {
         id,
-        status: isActive ? 'Running' : 'Stopped',
+        status: isActive ? 'running' : 'stopped',
         pvPercent: safePvValue,
         pvRpm: safePvValue,
         svRpm: safeSvValue,
@@ -278,7 +278,7 @@ const MotorControl = ({
                     <h2 className="text-[16px] font-bold flex items-center gap-2">{t('industrial.mixingPumpControl')}</h2>
                     <div className="flex items-center gap-3">
                     <button className="px-3 py-1 bg-red-50 border border-red-100 rounded-lg text-[10px] font-bold text-red-600 hover:bg-red-100 transition-all shadow-sm">
-                        Reset
+                        {t('industrial.reset')}
                     </button>
                     <ToggleEmer checked={enabled} onChange={setEnabled} />
                     </div>
@@ -334,10 +334,10 @@ const MotorControl = ({
 const FanUnitCard = ({ fan, onSvChange, onSubmit, isSubmitting }) => {
     const { t } = useLanguage();
     const statusColors = {
-        Running: 'text-emerald-500',
-        Stopped: 'text-rose-500',
-        Warning: 'text-amber-500',
-        Optimal: 'text-blue-500',
+        running: 'text-emerald-500',
+        stopped: 'text-rose-500',
+        warning: 'text-amber-500',
+        optimal: 'text-blue-500',
     };
 
     return (
@@ -350,10 +350,10 @@ const FanUnitCard = ({ fan, onSvChange, onSubmit, isSubmitting }) => {
                 <div>
                     <h5 className="text-[14px] font-bold flex items-center gap-2">
                         {t('industrial.fanLabel')} <span className="text-slate-400">{fan.id}</span>
-                        {fan.isPrimary && <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded ml-1">Primary</span>}
+                        {fan.isPrimary && <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded ml-1">{t('industrial.primary')}</span>}
                     </h5>
                     <p className={`text-[10px] font-bold uppercase tracking-wider mt-1 ${statusColors[fan.status]}`}>
-                        {fan.status}
+                        {t(`industrial.status.${fan.status}Short`)}
                     </p>
                 </div>
                 <button className={`w-10 h-5 rounded-full relative transition-colors ${fan.isActive ? 'bg-blue-600' : 'bg-slate-300'}`}>
@@ -363,7 +363,7 @@ const FanUnitCard = ({ fan, onSvChange, onSubmit, isSubmitting }) => {
 
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">PV</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">{t('industrial.pvLabel')}</p>
                     <div className="space-y-1.5">
                         <div className="flex text-left justify-between  rounded-xl px-3 py-1.5 shadow-sm">
                             <span className="flex-4/5 text-left text-[14px] font-bold">{formatDisplayValue(fan.pvPercent)}</span>
@@ -376,7 +376,7 @@ const FanUnitCard = ({ fan, onSvChange, onSubmit, isSubmitting }) => {
                     </div>
                 </div>
                 <div className="space-y-2">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">SV</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">{t('industrial.svLabel')}</p>
                     <div className="flex h-full max-h-[72px] border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm focus-within:ring-2 focus-within:ring-blue-100 transition-all">
                         <input
                             type="number"
@@ -1046,7 +1046,7 @@ export function IndustrialControl({ device, onBack }) {
                             <Toggle checked={fansCorrectionEnabled} onChange={setFansCorrectionEnabled} />
                         </div>
                         <div className="ml-auto flex items-center justify-between gap-4 bg-red-50 px-5 py-2.5 rounded-xl border border-red-100 shadow-sm">
-                            <span className="text-sm font-black text-red-600 uppercase tracking-tight">緊急開關</span>
+                            <span className="text-sm font-black text-red-600 uppercase tracking-tight">{t('industrial.emergencySwitch')}</span>
                             <label className="relative inline-flex items-center cursor-pointer ml-auto">
                                 <input type="checkbox" className="sr-only peer" />
                                 <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500"></div>
