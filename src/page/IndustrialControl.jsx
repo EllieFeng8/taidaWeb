@@ -110,6 +110,17 @@ const Toggle = ({ checked, onChange }) => (
         <div className="relative h-5 w-10 rounded-full bg-slate-200 transition-colors duration-200 peer-checked:bg-primary after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform after:duration-200 peer-checked:after:translate-x-5"></div>
     </label>
 );
+const ToggleEmer = ({ checked, onChange }) => (
+    <label className="relative inline-flex items-center cursor-pointer">
+        <input
+            type="checkbox"
+            className="sr-only peer"
+            checked={checked}
+            onChange={(event) => onChange?.(event.target.checked)}
+        />
+        <div className="w-9 h-5 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-500"></div>
+    </label>
+);
 
 const PVText = ({ value, unit = '' }) => (
     <span className="text-[14px] text-slate-400 font-black">
@@ -122,7 +133,7 @@ const PIDInput = ({ label, pvValue, value, onChange }) => (
         <label className="text-[14px] font-bold text-slate-500 uppercase">{label}</label>
         <PVText value={pvValue} />
         <input
-            className="text-center w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[12px] focus:ring-2 focus:ring-primary/20 outline-none text-center"
+            className="text-left w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[12px] focus:ring-2 focus:ring-primary/20 outline-none"
             step="0.1"
             type="number"
             value={value}
@@ -166,7 +177,7 @@ const ValveControl = ({
                     <PVText value={holdingData?.outlet_electric_valve_opening_pv} unit="%" />
                     <div className="relative">
                         <input
-                            className="text-center w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[14px] font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                            className="text-left w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[14px] font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
                             type="number"
                             value={percentage}
                             onChange={(event) => onPercentageChange?.(event.target.value)}
@@ -223,7 +234,7 @@ const ReturnValveControl = ({ holdingData, openingRatio, onOpeningRatioChange, o
                         <PVText value={holdingData?.outlet_electric_valve_opening_pv} unit="%" />
                         <div className="relative">
                             <input
-                                className="text-center w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[14px] font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                                className="text-left w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[14px] font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
                                 type="number"
                                 value={openingRatio}
                                 onChange={(event) => onOpeningRatioChange?.(event.target.value)}
@@ -265,7 +276,12 @@ const MotorControl = ({
             <div className="p-5 border-b border-slate-100">
                 <div className="flex justify-between items-center w-full">
                     <h2 className="text-[16px] font-bold flex items-center gap-2">{t('industrial.mixingPumpControl')}</h2>
-                    <Toggle checked={enabled} onChange={setEnabled} />
+                    <div className="flex items-center gap-3">
+                    <button className="px-3 py-1 bg-red-50 border border-red-100 rounded-lg text-[10px] font-bold text-red-600 hover:bg-red-100 transition-all shadow-sm">
+                        Reset
+                    </button>
+                    <ToggleEmer checked={enabled} onChange={setEnabled} />
+                    </div>
                 </div>
             </div>
             <div className="p-6">
@@ -276,7 +292,7 @@ const MotorControl = ({
                         <div className="flex flex-1 gap-2">
                             <div className="relative flex-1">
                                 <input
-                                    className="text-center w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-3 text-[14px] font-bold focus:ring-2 focus:ring-primary/20 outline-none disabled:opacity-50"
+                                    className="text-left w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-3 text-[14px] font-bold focus:ring-2 focus:ring-primary/20 outline-none disabled:opacity-50"
                                     type="number"
                                     value={targetFrequency ?? ''}
                                     onChange={(event) => onTargetFrequencyChange?.(event.target.value)}
@@ -349,12 +365,12 @@ const FanUnitCard = ({ fan, onSvChange, onSubmit, isSubmitting }) => {
                 <div className="space-y-2">
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">PV</p>
                     <div className="space-y-1.5">
-                        <div className="flex items-center justify-between  rounded-xl px-3 py-1.5 shadow-sm">
-                            <span className="flex-4/5 text-center text-[14px] font-bold">{formatDisplayValue(fan.pvPercent)}</span>
+                        <div className="flex text-left justify-between  rounded-xl px-3 py-1.5 shadow-sm">
+                            <span className="flex-4/5 text-left text-[14px] font-bold">{formatDisplayValue(fan.pvPercent)}</span>
                             <span className="flex-1/6 text-[10px] text-slate-400 font-bold">%</span>
                         </div>
                         <div className="flex items-center justify-between  rounded-xl px-3 py-1.5 shadow-sm">
-                            <span className="flex-4/5 text-center text-[14px] font-bold">{formatDisplayValue(fan.pvRpm)}</span>
+                            <span className="flex-4/5 text-left text-[14px] font-bold">{formatDisplayValue(fan.pvRpm)}</span>
                             <span className="flex-1/6 text-[10px] text-slate-400 font-bold">RPM</span>
                         </div>
                     </div>
@@ -366,7 +382,7 @@ const FanUnitCard = ({ fan, onSvChange, onSubmit, isSubmitting }) => {
                             type="number"
                             value={fan.svRpm}
                             onChange={(event) => onSvChange?.(fan.id, event.target.value)}
-                            className="text-center w-full border-none bg-transparent text-lg font-bold px-3 focus:ring-0"
+                            className="text-left w-full border-none bg-transparent text-lg font-bold px-3 focus:ring-0"
                         />
                         <button
                             type="button"
@@ -947,7 +963,7 @@ export function IndustrialControl({ device, onBack }) {
                         <div className="flex items-center gap-2">
                             <span className="text-[16px] font-bold text-slate-500 shrink-0">{t('industrial.targetTemperature')}</span>
                             <input
-                                className="text-center w-full h-7 text-[12px] border border-slate-200 rounded px-1 focus:ring-1 focus:ring-primary outline-none"
+                                className="text-left w-full h-7 text-[12px] border border-slate-200 rounded px-1 focus:ring-1 focus:ring-primary outline-none"
                                 type="number"
                                 value={outletTargetTempSv}
                                 onChange={(event) => {
@@ -1019,7 +1035,7 @@ export function IndustrialControl({ device, onBack }) {
 
             <section className="space-y-6">
                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-8">
+                    <div className="flex w-full items-center gap-8">
                         <h2 className="text-[20px] font-bold flex items-center gap-2">{t('industrial.fanControl')}</h2>
                         <div className="flex items-center gap-3">
                             <span className="text-xs font-bold text-slate-500 uppercase">{t('industrial.pidStartMonitoring')}</span>
@@ -1028,6 +1044,13 @@ export function IndustrialControl({ device, onBack }) {
                         <div className="flex items-center gap-3">
                             <span className="text-xs font-bold text-slate-500 uppercase">{t('industrial.forwardCorrection')}</span>
                             <Toggle checked={fansCorrectionEnabled} onChange={setFansCorrectionEnabled} />
+                        </div>
+                        <div className="ml-auto flex items-center justify-between gap-4 bg-red-50 px-5 py-2.5 rounded-xl border border-red-100 shadow-sm">
+                            <span className="text-sm font-black text-red-600 uppercase tracking-tight">緊急開關</span>
+                            <label className="relative inline-flex items-center cursor-pointer ml-auto">
+                                <input type="checkbox" className="sr-only peer" />
+                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500"></div>
+                            </label>
                         </div>
                     </div>
                 </div>
@@ -1056,7 +1079,7 @@ export function IndustrialControl({ device, onBack }) {
                                             isEditingAllFansRpmTargetRef.current = false;
                                         }}
                                         placeholder={FALLBACK_VALUE}
-                                        className="text-center w-full bg-white border-none rounded-lg px-3 py-2 text-[14px] ring-1 ring-slate-200 focus:ring-primary outline-none"
+                                        className="text-left w-full bg-white border-none rounded-lg px-3 py-2 text-[14px] ring-1 ring-slate-200 focus:ring-primary outline-none"
                                     />
                                     <span className="absolute right-3 top-2.5 text-[10px] text-slate-400 font-bold">RPM</span>
                                 </div>
@@ -1097,7 +1120,7 @@ export function IndustrialControl({ device, onBack }) {
                                             isEditingPressureTargetRef.current = false;
                                         }}
                                         placeholder={FALLBACK_VALUE}
-                                        className="text-center w-full bg-white border-none rounded-lg px-3 py-2 text-[14px] ring-1 ring-slate-200 focus:ring-primary outline-none"
+                                        className="text-left w-full bg-white border-none rounded-lg px-3 py-2 text-[14px] ring-1 ring-slate-200 focus:ring-primary outline-none"
                                     />
                                     <span className="absolute right-3 top-2.5 text-[10px] text-slate-400 font-bold">Pa</span>
                                 </div>
@@ -1144,7 +1167,7 @@ export function IndustrialControl({ device, onBack }) {
                                             }
                                             step="0.01"
                                             placeholder={FALLBACK_VALUE}
-                                            className="text-center w-full bg-white border-none rounded-lg text-xs px-2 py-1.5 ring-1 ring-slate-200 focus:ring-primary outline-none"
+                                            className="text-left w-full bg-white border-none rounded-lg text-xs px-2 py-1.5 ring-1 ring-slate-200 focus:ring-primary outline-none"
                                         />
                                     </div>
                                 ))}

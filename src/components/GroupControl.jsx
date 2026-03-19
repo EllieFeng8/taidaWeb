@@ -41,6 +41,8 @@ export const GroupControl = ({ group, onBack }) => {
   const cvOutputInputRef = useRef(null);
   const toastRef = useRef(null);
   const toastTimeoutRef = useRef(null);
+  const [valveEmergency, setValveEmergency] = useState(false);
+  const [fanEmergency, setFanEmergency] = useState(false);
 
   useEffect(() => () => {
     if (toastTimeoutRef.current) {
@@ -307,13 +309,47 @@ export const GroupControl = ({ group, onBack }) => {
       />
     </button>
   );
+  const ToggleSwitch = ({ checked, onChange, color = 'bg-blue-600' }) => (
+      <button
+          onClick={() => onChange(!checked)}
+          className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none ${
+              checked ? color : 'bg-slate-200 dark:bg-slate-700'
+          }`}
+      >
+        <div
+            className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform duration-200 ${
+                checked ? 'translate-x-5' : 'translate-x-0'
+            }`}
+        />
+      </button>
+  );
+  const EmergencyStop = ({ active, onToggle }) => (
+    <div className="flex items-center gap-3">
+      <button className="px-4 py-2 bg-white/50 dark:bg-red-900/40 text-red-600 dark:text-red-400 hover:bg-white hover:text-red-700 hover:border-red-200 hover:shadow-sm active:scale-95 active:bg-red-100 active:shadow-none rounded-lg font-bold text-sm transition-all border border-red-100 dark:border-red-900/30">
+        重設
+      </button>
+      <div className="flex items-center gap-3 px-4 py-1.5 bg-red-50 dark:bg-red-900/20 rounded-full border border-red-100 dark:border-red-900/30">
+        <span className="text-xs font-bold text-red-600 dark:text-red-400">緊急關閉</span>
+        <ToggleSwitch checked={active} onChange={onToggle} color="bg-red-600" />
+      </div>
+    </div>
+  );
+  const FansEmergencyStop = ({ active, onToggle }) => (
+      <div className="flex items-center gap-3 px-4 py-1.5 bg-red-50 dark:bg-red-900/20 rounded-full border border-red-100 dark:border-red-900/30">
+        <span className="text-xs font-bold text-red-600 dark:text-red-400">緊急關閉</span>
+        <ToggleSwitch checked={active} onChange={onToggle} color="bg-red-600" />
+      </div>
+  );
 
-  const ControlSection = ({ title, icon: Icon, children }) => (
+  const ControlSection = ({ title, icon: Icon, headerRight = null, children }) => (
     <section className="space-y-4">
-      <h3 className="flex items-center gap-2 text-lg font-bold text-slate-800">
-        <Icon size={20} className="text-primary" />
-        {title}
-      </h3>
+      <div className="flex items-center justify-between gap-4">
+        <h3 className="flex items-center gap-2 text-lg font-bold text-slate-800">
+          <Icon size={20} className="text-primary" />
+          {title}
+        </h3>
+        {headerRight}
+      </div>
       {children}
     </section>
   );
@@ -359,7 +395,13 @@ export const GroupControl = ({ group, onBack }) => {
 
       <div className="p-8 space-y-10 max-w-6xl mx-auto w-full">
         {/* Outlet Valve Control */}
-        <ControlSection title={t('industrial.outletValveControl')} icon={Droplets}>
+
+        <ControlSection
+          title={t('industrial.outletValveControl')}
+          icon={Droplets}
+
+          headerRight={<EmergencyStop active={valveEmergency} onToggle={setValveEmergency} />}
+        >
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <div className="flex flex-col gap-6">
               <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
@@ -406,7 +448,11 @@ export const GroupControl = ({ group, onBack }) => {
         </ControlSection>
 
         {/* Fan Matrix Control */}
-        <ControlSection title={t('groupControl.fanMatrixControl')} icon={Wind}>
+        <ControlSection
+            title={t('groupControl.fanMatrixControl')}
+            icon={Wind}
+            headerRight={<FansEmergencyStop active={fanEmergency} onToggle={setFanEmergency} />}
+        >
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Status Card */}
