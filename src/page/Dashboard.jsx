@@ -488,33 +488,33 @@ export const Dashboard = ({onSelectDevice}) => {
                         {/*  </div>*/}
                         {/*</div>*/}
 
-                        <div
-                            className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{t('dashboard.groupTitle')}</p>
-                                <p className="mt-1 text-sm text-slate-500">
-                                    {t('dashboard.groupDescription1')} <span
-                                    className="font-bold text-slate-700">{selectedGroup.name}</span> {t('dashboard.groupDescription2')}
-                                </p>
-                            </div>
-                            <div className="relative w-full sm:w-64">
-                                <select
-                                    value={selectedGroupId}
-                                    onChange={(e) => setSelectedGroupId(e.target.value)}
-                                    className="w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-sm font-semibold text-slate-700 outline-none transition-all hover:border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/20"
-                                >
-                                    {groupOptions.map((group) => (
-                                        <option key={group.id} value={String(group.id)}>
-                                            {group.name}
-                                        </option>
-                                    ))}
-                                </select>
-                                <ChevronDown
-                                    size={18}
-                                    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-                                />
-                            </div>
-                        </div>
+                        {/*<div*/}
+                        {/*    className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">*/}
+                        {/*    <div>*/}
+                        {/*        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{t('dashboard.groupTitle')}</p>*/}
+                        {/*        <p className="mt-1 text-sm text-slate-500">*/}
+                        {/*            {t('dashboard.groupDescription1')} <span*/}
+                        {/*            className="font-bold text-slate-700">{selectedGroup.name}</span> {t('dashboard.groupDescription2')}*/}
+                        {/*        </p>*/}
+                        {/*    </div>*/}
+                        {/*    <div className="relative w-full sm:w-64">*/}
+                        {/*        <select*/}
+                        {/*            value={selectedGroupId}*/}
+                        {/*            onChange={(e) => setSelectedGroupId(e.target.value)}*/}
+                        {/*            className="w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-sm font-semibold text-slate-700 outline-none transition-all hover:border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/20"*/}
+                        {/*        >*/}
+                        {/*            {groupOptions.map((group) => (*/}
+                        {/*                <option key={group.id} value={String(group.id)}>*/}
+                        {/*                    {group.name}*/}
+                        {/*                </option>*/}
+                        {/*            ))}*/}
+                        {/*        </select>*/}
+                        {/*        <ChevronDown*/}
+                        {/*            size={18}*/}
+                        {/*            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"*/}
+                        {/*        />*/}
+                        {/*    </div>*/}
+                        {/*</div>*/}
 
                         {/* Grid */}
                         <motion.div

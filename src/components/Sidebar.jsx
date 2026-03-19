@@ -1,7 +1,6 @@
 import React from 'react';
 import {
     LayoutDashboard,
-    Users,
     Bell,
     Factory,
     History
@@ -12,7 +11,7 @@ export const Sidebar = ({activeTab, setActiveTab}) => {
     const {language, toggleLanguage, t} = useLanguage();
     const navItems = [
         {id: 'dashboard', label: t('tab.dashboard') , icon: LayoutDashboard},
-        {id: 'groups', label: t('tab.groups'), icon: Users},
+        // {id: 'groups', label: t('tab.groups'), icon: Users},
         {id: 'alerts', label: t('tab.alerts'), icon: Bell},
         {id: 'history', label: t('tab.history'), icon: History},
     ];
