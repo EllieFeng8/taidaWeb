@@ -111,13 +111,14 @@ const Toggle = ({ checked, onChange }) => (
         <div className="relative h-5 w-10 rounded-full bg-slate-200 transition-colors duration-200 peer-checked:bg-primary after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform after:duration-200 peer-checked:after:translate-x-5"></div>
     </label>
 );
-const ToggleEmer = ({ checked, onChange }) => (
-    <label className="relative inline-flex items-center cursor-pointer">
+const ToggleEmer = ({ checked, onChange, disabled = false }) => (
+    <label className={`relative inline-flex items-center ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
         <input
             type="checkbox"
             className="sr-only peer"
             checked={checked}
             onChange={(event) => onChange?.(event.target.checked)}
+            disabled={disabled}
         />
         <div className="w-9 h-5 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-500"></div>
     </label>
@@ -262,6 +263,7 @@ const ReturnValveControl = ({ holdingData, openingRatio, onOpeningRatioChange, o
 };
 
 const MotorControl = ({
+    deviceIdentifier,
     sensorValues,
     holdingData,
     targetFrequency,
@@ -273,6 +275,91 @@ const MotorControl = ({
 }) => {
     const { t } = useLanguage();
     const [enabled, setEnabled] = useState(true);
+    const [isSubmittingPumpStart, setIsSubmittingPumpStart] = useState(false);
+    const [isSubmittingAbnormalReset, setIsSubmittingAbnormalReset] = useState(false);
+
+    const handleTogglePumpStart = async (checked) => {
+        if (!deviceIdentifier || isSubmittingPumpStart) {
+            return;
+        }
+
+        const previousValue = enabled;
+        const payload = {
+            pump_start: checked ? 1 : 0,
+        };
+
+        setEnabled(checked);
+        setIsSubmittingPumpStart(true);
+
+        try {
+            console.log('Pump start request:', {
+                deviceIdentifier,
+                payload,
+            });
+
+            const response = await fetch(`/api/modbus/sv-with-coils/${encodeURIComponent(deviceIdentifier)}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+
+            console.log('Pump start response:', {
+                status: response.status,
+                ok: response.ok,
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+        } catch (error) {
+            console.error('泵浦啟停設定失敗:', error);
+            setEnabled(previousValue);
+        } finally {
+            setIsSubmittingPumpStart(false);
+        }
+    };
+
+    const handleAbnormalReset = async () => {
+        if (!deviceIdentifier || isSubmittingAbnormalReset) {
+            return;
+        }
+
+        const payload = {
+            abnormal_reset: 1,
+        };
+
+        setIsSubmittingAbnormalReset(true);
+
+        try {
+            console.log('Abnormal reset request:', {
+                deviceIdentifier,
+                payload,
+            });
+
+            const response = await fetch(`/api/modbus/sv-with-coils/${encodeURIComponent(deviceIdentifier)}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+
+            console.log('Abnormal reset response:', {
+                status: response.status,
+                ok: response.ok,
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+        } catch (error) {
+            console.error('異常復歸設定失敗:', error);
+        } finally {
+            setIsSubmittingAbnormalReset(false);
+        }
+    };
 
     return (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
@@ -280,10 +367,15 @@ const MotorControl = ({
                 <div className="flex justify-between items-center w-full">
                     <h2 className="text-[16px] font-bold flex items-center gap-2">{t('industrial.mixingPumpControl')}</h2>
                     <div className="flex items-center gap-3">
-                    <button className="px-3 py-1 bg-red-50 border border-red-100 rounded-lg text-[10px] font-bold text-red-600 hover:bg-red-100 transition-all shadow-sm">
+                    <button
+                        type="button"
+                        onClick={handleAbnormalReset}
+                        disabled={isSubmittingAbnormalReset}
+                        className="px-3 py-1 bg-red-50 border border-red-100 rounded-lg text-[10px] font-bold text-red-600 hover:bg-red-100 transition-all shadow-sm disabled:opacity-50"
+                    >
                         {t('industrial.reset')}
                     </button>
-                    <ToggleEmer checked={enabled} onChange={setEnabled} />
+                    <ToggleEmer checked={enabled} onChange={handleTogglePumpStart} disabled={isSubmittingPumpStart} />
                     </div>
                 </div>
             </div>
@@ -431,6 +523,9 @@ export function IndustrialControl({ device, onBack }) {
     const [isSubmittingPressureTarget, setIsSubmittingPressureTarget] = useState(false);
     const [isSubmittingReturnValveOpening, setIsSubmittingReturnValveOpening] = useState(false);
     const [isSubmittingPumpFrequency, setIsSubmittingPumpFrequency] = useState(false);
+    const [isEmergencyEnabled, setIsEmergencyEnabled] = useState(false);
+    const [isSubmittingEmergency, setIsSubmittingEmergency] = useState(false);
+    const emergencyOverrideRef = useRef(null);
     const isEditingAllFansRpmTargetRef = useRef(false);
     const isEditingCirculatingPumpSvRef = useRef(false);
     const isEditingOutletTargetTempRef = useRef(false);
@@ -491,6 +586,22 @@ export function IndustrialControl({ device, onBack }) {
     }, [fans]);
 
     useEffect(() => {
+        const nextEmergencyValue = Number(holdingData?.fan_power_start);
+
+        if (emergencyOverrideRef.current !== null) {
+            return;
+        }
+
+        if (!Number.isFinite(nextEmergencyValue)) {
+            return;
+        }
+
+        if (!isSubmittingEmergency) {
+            setIsEmergencyEnabled(nextEmergencyValue === 1);
+        }
+    }, [holdingData, isSubmittingEmergency]);
+
+    useEffect(() => {
         if (!deviceIdentifier) {
             setSensorData({});
             return;
@@ -520,6 +631,8 @@ export function IndustrialControl({ device, onBack }) {
         if (!deviceIdentifier) {
             setFans([]);
             setHoldingData({});
+            emergencyOverrideRef.current = null;
+            setIsEmergencyEnabled(false);
             return;
         }
 
@@ -1057,6 +1170,53 @@ export function IndustrialControl({ device, onBack }) {
         }
     };
 
+    const handleToggleEmergency = async (enabled) => {
+        if (!deviceIdentifier || isSubmittingEmergency) {
+            return;
+        }
+
+        const nextValue = enabled ? 1 : 0;
+        const previousValue = isEmergencyEnabled;
+        const payload = {
+            fan_power_start: nextValue,
+        };
+
+        emergencyOverrideRef.current = nextValue;
+        setIsEmergencyEnabled(enabled);
+        setIsSubmittingEmergency(true);
+
+        try {
+            console.log('Emergency switch request:', {
+                deviceIdentifier,
+                enabled,
+                payload,
+            });
+
+            const response = await fetch(`/api/modbus/sv-with-coils/${encodeURIComponent(deviceIdentifier)}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+
+            console.log('Emergency switch response:', {
+                status: response.status,
+                ok: response.ok,
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+        } catch (error) {
+            console.error('緊急開關設定失敗:', error);
+            emergencyOverrideRef.current = null;
+            setIsEmergencyEnabled(previousValue);
+        } finally {
+            setIsSubmittingEmergency(false);
+        }
+    };
+
     const statusText = {
         running: t('industrial.status.normal'),
         alert: t('industrial.status.alert'),
@@ -1178,6 +1338,7 @@ export function IndustrialControl({ device, onBack }) {
                     isSubmitting={isSubmittingReturnValveOpening}
                 />
                 <MotorControl
+                    deviceIdentifier={deviceIdentifier}
                     sensorValues={sensorValues}
                     holdingData={holdingData}
                     targetFrequency={circulatingPumpSv}
@@ -1212,10 +1373,13 @@ export function IndustrialControl({ device, onBack }) {
                         </div>
                         <div className="ml-auto flex items-center justify-between gap-4 bg-red-50 px-5 py-2.5 rounded-xl border border-red-100 shadow-sm">
                             <span className="text-sm font-black text-red-600 uppercase tracking-tight">{t('industrial.emergencySwitch')}</span>
-                            <label className="relative inline-flex items-center cursor-pointer ml-auto">
-                                <input type="checkbox" className="sr-only peer" />
-                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500"></div>
-                            </label>
+                            <div className="ml-auto">
+                                <ToggleEmer
+                                    checked={isEmergencyEnabled}
+                                    onChange={handleToggleEmergency}
+                                    disabled={isSubmittingEmergency}
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
