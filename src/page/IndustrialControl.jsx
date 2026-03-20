@@ -57,6 +57,12 @@ const formatDisplayValue = (value) => {
     return Number.isNaN(numericValue) ? FALLBACK_VALUE : numericValue.toFixed(1);
 };
 
+const getDirectionToggleValue = (holdingPayload, primaryKey, fallbackKey) => {
+    const numericValue = Number(holdingPayload?.[primaryKey] ?? holdingPayload?.[fallbackKey]);
+
+    return Number.isFinite(numericValue) ? numericValue === 1 : null;
+};
+
 const buildFansFromHolding = (holdingPayload) => Array.from({ length: 9 }, (_, index) => {
     const fanNumber = index + 1;
     const id = String(fanNumber).padStart(2, '0');
@@ -100,13 +106,14 @@ const TelemetryCard = ({ data }) => (
     </div>
 );
 
-const Toggle = ({ checked, onChange }) => (
-    <label className="relative inline-flex items-center cursor-pointer">
+const Toggle = ({ checked, onChange, disabled = false }) => (
+    <label className={`relative inline-flex items-center ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
         <input
             type="checkbox"
             className="sr-only peer"
             checked={checked}
             onChange={(event) => onChange?.(event.target.checked)}
+            disabled={disabled}
         />
         <div className="relative h-5 w-10 rounded-full bg-slate-200 transition-colors duration-200 peer-checked:bg-primary after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform after:duration-200 peer-checked:after:translate-x-5"></div>
     </label>
@@ -159,10 +166,12 @@ const ValveControl = ({
     onPidChange,
     onPidFocus,
     onPidBlur,
+    outletCorrectionEnabled,
+    onOutletCorrectionChange,
+    isSubmittingOutletCorrection,
 }) => {
     const {t} = useLanguage();
     const [outletPidMonitoringEnabled, setOutletPidMonitoringEnabled] = useState(true);
-    const [outletCorrectionEnabled, setOutletCorrectionEnabled] = useState(true);
 
     return (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm h-full flex flex-col">
@@ -177,7 +186,11 @@ const ValveControl = ({
                         <span className="text-xs font-bold text-slate-500 uppercase">
                             {t(outletCorrectionEnabled ? 'industrial.forwardCorrection' : 'industrial.reverseCorrection')}
                         </span>
-                        <Toggle checked={outletCorrectionEnabled} onChange={setOutletCorrectionEnabled} />
+                        <Toggle
+                            checked={outletCorrectionEnabled}
+                            onChange={onOutletCorrectionChange}
+                            disabled={isSubmittingOutletCorrection}
+                        />
                     </div>
                 </div>
             </div>
@@ -585,6 +598,7 @@ export function IndustrialControl({ device, onBack }) {
     const [allFansEnabled, setAllFansEnabled] = useState(false);
     const [pidMonitoringEnabled, setPidMonitoringEnabled] = useState(true);
     const [fansCorrectionEnabled, setFansCorrectionEnabled] = useState(true);
+    const [outletCorrectionEnabled, setOutletCorrectionEnabled] = useState(true);
     const [sensorData, setSensorData] = useState({});
     const [holdingData, setHoldingData] = useState({});
     const [fans, setFans] = useState([]);
@@ -605,8 +619,12 @@ export function IndustrialControl({ device, onBack }) {
     const [isSubmittingReturnValveOpening, setIsSubmittingReturnValveOpening] = useState(false);
     const [isSubmittingPumpFrequency, setIsSubmittingPumpFrequency] = useState(false);
     const [isEmergencyEnabled, setIsEmergencyEnabled] = useState(false);
+    const [isSubmittingFansCorrection, setIsSubmittingFansCorrection] = useState(false);
+    const [isSubmittingOutletCorrection, setIsSubmittingOutletCorrection] = useState(false);
     const [isSubmittingEmergency, setIsSubmittingEmergency] = useState(false);
     const emergencyOverrideRef = useRef(null);
+    const fansCorrectionOverrideRef = useRef(null);
+    const outletCorrectionOverrideRef = useRef(null);
     const isEditingAllFansRpmTargetRef = useRef(false);
     const isEditingCirculatingPumpSvRef = useRef(false);
     const isEditingOutletTargetTempRef = useRef(false);
@@ -685,6 +703,50 @@ export function IndustrialControl({ device, onBack }) {
     }, [holdingData, isSubmittingEmergency]);
 
     useEffect(() => {
+        const nextFansCorrectionEnabled = getDirectionToggleValue(holdingData, 'pid1_direction', 'group1_pid_direction_sv');
+
+        if (nextFansCorrectionEnabled === null) {
+            return;
+        }
+
+        const nextValue = nextFansCorrectionEnabled ? 1 : 0;
+
+        if (fansCorrectionOverrideRef.current !== null) {
+            if (fansCorrectionOverrideRef.current === nextValue) {
+                fansCorrectionOverrideRef.current = null;
+            } else {
+                return;
+            }
+        }
+
+        if (!isSubmittingFansCorrection) {
+            setFansCorrectionEnabled(nextFansCorrectionEnabled);
+        }
+    }, [holdingData, isSubmittingFansCorrection]);
+
+    useEffect(() => {
+        const nextOutletCorrectionEnabled = getDirectionToggleValue(holdingData, 'pid2_direction', 'group2_pid_direction_sv');
+
+        if (nextOutletCorrectionEnabled === null) {
+            return;
+        }
+
+        const nextValue = nextOutletCorrectionEnabled ? 1 : 0;
+
+        if (outletCorrectionOverrideRef.current !== null) {
+            if (outletCorrectionOverrideRef.current === nextValue) {
+                outletCorrectionOverrideRef.current = null;
+            } else {
+                return;
+            }
+        }
+
+        if (!isSubmittingOutletCorrection) {
+            setOutletCorrectionEnabled(nextOutletCorrectionEnabled);
+        }
+    }, [holdingData, isSubmittingOutletCorrection]);
+
+    useEffect(() => {
         if (!deviceIdentifier) {
             setSensorData({});
             return;
@@ -715,7 +777,11 @@ export function IndustrialControl({ device, onBack }) {
             setFans([]);
             setHoldingData({});
             emergencyOverrideRef.current = null;
+            fansCorrectionOverrideRef.current = null;
+            outletCorrectionOverrideRef.current = null;
             setIsEmergencyEnabled(false);
+            setFansCorrectionEnabled(true);
+            setOutletCorrectionEnabled(true);
             return;
         }
 
@@ -797,6 +863,83 @@ export function IndustrialControl({ device, onBack }) {
 
         return () => clearInterval(intervalId);
     }, [deviceIdentifier, submittingFanId, t]);
+
+    const handleToggleDirection = async ({
+        enabled,
+        currentValue,
+        setValue,
+        setSubmitting,
+        overrideRef,
+        apiKey,
+        errorMessage,
+    }) => {
+        if (!deviceIdentifier) {
+            return;
+        }
+
+        const nextValue = enabled ? 1 : 0;
+
+        overrideRef.current = nextValue;
+        setValue(enabled);
+        setSubmitting(true);
+
+        try {
+            const response = await fetch(
+                `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent(apiKey)}`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        value: nextValue,
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+        } catch (error) {
+            console.error(errorMessage, error);
+            overrideRef.current = null;
+            setValue(currentValue);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleToggleFansCorrection = async (enabled) => {
+        if (isSubmittingFansCorrection) {
+            return;
+        }
+
+        await handleToggleDirection({
+            enabled,
+            currentValue: fansCorrectionEnabled,
+            setValue: setFansCorrectionEnabled,
+            setSubmitting: setIsSubmittingFansCorrection,
+            overrideRef: fansCorrectionOverrideRef,
+            apiKey: 'pid1_direction',
+            errorMessage: '風扇修正方向設定失敗:',
+        });
+    };
+
+    const handleToggleOutletCorrection = async (enabled) => {
+        if (isSubmittingOutletCorrection) {
+            return;
+        }
+
+        await handleToggleDirection({
+            enabled,
+            currentValue: outletCorrectionEnabled,
+            setValue: setOutletCorrectionEnabled,
+            setSubmitting: setIsSubmittingOutletCorrection,
+            overrideRef: outletCorrectionOverrideRef,
+            apiKey: 'pid2_direction',
+            errorMessage: '出水閥修正方向設定失敗:',
+        });
+    };
 
     const handleToggleFan = async (fanId) => {
         if (!deviceIdentifier) {
@@ -1442,6 +1585,9 @@ export function IndustrialControl({ device, onBack }) {
                     onPidBlur={() => {
                         isEditingValvePidValuesRef.current = false;
                     }}
+                    outletCorrectionEnabled={outletCorrectionEnabled}
+                    onOutletCorrectionChange={handleToggleOutletCorrection}
+                    isSubmittingOutletCorrection={isSubmittingOutletCorrection}
                 />
                 <ReturnValveControl
                     holdingData={holdingData}
@@ -1491,7 +1637,11 @@ export function IndustrialControl({ device, onBack }) {
                             <span className="text-xs font-bold text-slate-500 uppercase">
                                 {t(fansCorrectionEnabled ? 'industrial.forwardCorrection' : 'industrial.reverseCorrection')}
                             </span>
-                            <Toggle checked={fansCorrectionEnabled} onChange={setFansCorrectionEnabled} />
+                            <Toggle
+                                checked={fansCorrectionEnabled}
+                                onChange={handleToggleFansCorrection}
+                                disabled={isSubmittingFansCorrection}
+                            />
                         </div>
                         <div className="ml-auto flex items-center justify-between gap-4 bg-red-50 px-5 py-2.5 rounded-xl border border-red-100 shadow-sm">
                             <span className="text-sm font-black text-red-600 uppercase tracking-tight">{t('industrial.emergencySwitch')}</span>
