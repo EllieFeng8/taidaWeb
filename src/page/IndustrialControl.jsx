@@ -130,7 +130,7 @@ const PVText = ({ value, unit = '' }) => (
     </span>
 );
 
-const PIDInput = ({ label, pvValue, value, onChange }) => (
+const PIDInput = ({ label, pvValue, value, onChange, onFocus, onBlur }) => (
     <div className="space-y-1.5 space-x-1.5">
         <label className="text-[14px] font-bold text-slate-500 uppercase">{label}</label>
         <PVText value={pvValue} />
@@ -140,6 +140,8 @@ const PIDInput = ({ label, pvValue, value, onChange }) => (
             type="number"
             value={value}
             onChange={onChange}
+            onFocus={onFocus}
+            onBlur={onBlur}
             placeholder={FALLBACK_VALUE}
         />
     </div>
@@ -149,10 +151,14 @@ const ValveControl = ({
     holdingData,
     percentage,
     onPercentageChange,
+    onPercentageFocus,
+    onPercentageBlur,
     onSubmit,
     isSubmitting,
     pidValues,
     onPidChange,
+    onPidFocus,
+    onPidBlur,
 }) => {
     const {t} = useLanguage();
     const [outletPidMonitoringEnabled, setOutletPidMonitoringEnabled] = useState(true);
@@ -185,6 +191,8 @@ const ValveControl = ({
                             type="number"
                             value={percentage}
                             onChange={(event) => onPercentageChange?.(event.target.value)}
+                            onFocus={onPercentageFocus}
+                            onBlur={onPercentageBlur}
                             placeholder={FALLBACK_VALUE}
                         />
                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-slate-400 font-bold">%</span>
@@ -196,18 +204,24 @@ const ValveControl = ({
                         pvValue={holdingData?.group2_pid_p_pv}
                         value={pidValues.p}
                         onChange={(event) => onPidChange?.('p', event.target.value)}
+                        onFocus={() => onPidFocus?.('p')}
+                        onBlur={() => onPidBlur?.('p')}
                     />
                     <PIDInput
                         label="I:"
                         pvValue={holdingData?.group2_pid_i_pv}
                         value={pidValues.i}
                         onChange={(event) => onPidChange?.('i', event.target.value)}
+                        onFocus={() => onPidFocus?.('i')}
+                        onBlur={() => onPidBlur?.('i')}
                     />
                     <PIDInput
                         label="D:"
                         pvValue={holdingData?.group2_pid_d_pv}
                         value={pidValues.d}
                         onChange={(event) => onPidChange?.('d', event.target.value)}
+                        onFocus={() => onPidFocus?.('d')}
+                        onBlur={() => onPidBlur?.('d')}
                     />
                 </div>
                 <button
@@ -223,7 +237,15 @@ const ValveControl = ({
     );
 };
 
-const ReturnValveControl = ({ holdingData, openingRatio, onOpeningRatioChange, onSubmit, isSubmitting }) => {
+const ReturnValveControl = ({
+    holdingData,
+    openingRatio,
+    onOpeningRatioChange,
+    onOpeningRatioFocus,
+    onOpeningRatioBlur,
+    onSubmit,
+    isSubmitting,
+}) => {
     const { t } = useLanguage();
 
     return (
@@ -242,6 +264,8 @@ const ReturnValveControl = ({ holdingData, openingRatio, onOpeningRatioChange, o
                                 type="number"
                                 value={openingRatio}
                                 onChange={(event) => onOpeningRatioChange?.(event.target.value)}
+                                onFocus={onOpeningRatioFocus}
+                                onBlur={onOpeningRatioBlur}
                                 placeholder={FALLBACK_VALUE}
                             />
                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">%</span>
@@ -274,9 +298,62 @@ const MotorControl = ({
     isSubmitting,
 }) => {
     const { t } = useLanguage();
-    const [enabled, setEnabled] = useState(true);
+    const [enabled, setEnabled] = useState(false);
     const [isSubmittingPumpStart, setIsSubmittingPumpStart] = useState(false);
     const [isSubmittingAbnormalReset, setIsSubmittingAbnormalReset] = useState(false);
+    const pumpStartOverrideRef = useRef(null);
+
+    useEffect(() => {
+        if (!deviceIdentifier) {
+            pumpStartOverrideRef.current = null;
+            setEnabled(false);
+            return;
+        }
+
+        const fetchPumpStartStatus = async () => {
+            try {
+                const response = await fetch(`/api/modbus/holding/${encodeURIComponent(deviceIdentifier)}`, {
+                    method: 'GET',
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                if (pumpStartOverrideRef.current !== null) {
+                    return;
+                }
+                setEnabled(Number(data?.pump_start) === 1);
+            } catch (error) {
+                console.error('取得泵浦啟停狀態失敗:', error);
+            }
+        };
+
+        fetchPumpStartStatus();
+    }, [deviceIdentifier]);
+
+    useEffect(() => {
+        const nextPumpStartValue = Number(holdingData?.pump_start);
+
+        if (!Number.isFinite(nextPumpStartValue)) {
+            return;
+        }
+
+        if (pumpStartOverrideRef.current !== null) {
+            if (pumpStartOverrideRef.current === nextPumpStartValue) {
+                pumpStartOverrideRef.current = null;
+            } else {
+                return;
+            }
+        }
+
+        if (isSubmittingPumpStart) {
+            return;
+        }
+
+        setEnabled(nextPumpStartValue === 1);
+    }, [holdingData, isSubmittingPumpStart]);
 
     const handleTogglePumpStart = async (checked) => {
         if (!deviceIdentifier || isSubmittingPumpStart) {
@@ -288,6 +365,7 @@ const MotorControl = ({
             pump_start: checked ? 1 : 0,
         };
 
+        pumpStartOverrideRef.current = checked ? 1 : 0;
         setEnabled(checked);
         setIsSubmittingPumpStart(true);
 
@@ -315,6 +393,7 @@ const MotorControl = ({
             }
         } catch (error) {
             console.error('泵浦啟停設定失敗:', error);
+            pumpStartOverrideRef.current = null;
             setEnabled(previousValue);
         } finally {
             setIsSubmittingPumpStart(false);
@@ -426,7 +505,7 @@ const MotorControl = ({
     );
 };
 
-const FanUnitCard = ({ fan, onSvChange, onSubmit, onToggle, isSubmitting }) => {
+const FanUnitCard = ({ fan, onSvChange, onSvFocus, onSvBlur, onSubmit, onToggle, isSubmitting }) => {
     const { t } = useLanguage();
     const statusColors = {
         running: 'text-emerald-500',
@@ -482,6 +561,8 @@ const FanUnitCard = ({ fan, onSvChange, onSubmit, onToggle, isSubmitting }) => {
                             type="number"
                             value={fan.svRpm}
                             onChange={(event) => onSvChange?.(fan.id, event.target.value)}
+                            onFocus={() => onSvFocus?.(fan.id)}
+                            onBlur={() => onSvBlur?.(fan.id)}
                             className="text-left w-full border-none bg-transparent text-lg font-bold px-3 focus:ring-0"
                         />
                         <button
@@ -532,6 +613,8 @@ export function IndustrialControl({ device, onBack }) {
     const isEditingOutletValveOpeningRef = useRef(false);
     const isEditingPressureTargetRef = useRef(false);
     const isEditingReturnValveOpeningRef = useRef(false);
+    const isEditingPidValuesRef = useRef(false);
+    const isEditingValvePidValuesRef = useRef(false);
     const editingFanIdsRef = useRef(new Set());
 
     const deviceIdentifier = device?.name ?? device?.deviceName ?? device?.id ?? device?.deviceId;
@@ -687,16 +770,20 @@ export function IndustrialControl({ device, onBack }) {
                     if (!isEditingPressureTargetRef.current) {
                         setPressureTarget(String(data?.target_pressure_diff_sv ?? ''));
                     }
-                    setPidValues({
-                        p: String(data?.group1_pid_p_sv ?? ''),
-                        i: String(data?.group1_pid_i_sv ?? ''),
-                        d: String(data?.group1_pid_d_sv ?? ''),
-                    });
-                    setValvePidValues({
-                        p: String(data?.group2_pid_p_sv ?? ''),
-                        i: String(data?.group2_pid_i_sv ?? ''),
-                        d: String(data?.group2_pid_d_sv ?? ''),
-                    });
+                    if (!isEditingPidValuesRef.current) {
+                        setPidValues({
+                            p: String(data?.group1_pid_p_sv ?? ''),
+                            i: String(data?.group1_pid_i_sv ?? ''),
+                            d: String(data?.group1_pid_d_sv ?? ''),
+                        });
+                    }
+                    if (!isEditingValvePidValuesRef.current) {
+                        setValvePidValues({
+                            p: String(data?.group2_pid_p_sv ?? ''),
+                            i: String(data?.group2_pid_i_sv ?? ''),
+                            d: String(data?.group2_pid_d_sv ?? ''),
+                        });
+                    }
                 })
                 .catch((error) => {
                     console.error(t('industrial.error.fetchSensor'), error);
@@ -850,6 +937,14 @@ export function IndustrialControl({ device, onBack }) {
         );
     };
 
+    const handleFanSvFocus = (fanId) => {
+        editingFanIdsRef.current.add(fanId);
+    };
+
+    const handleFanSvBlur = (fanId) => {
+        editingFanIdsRef.current.delete(fanId);
+    };
+
     const handleSubmitFanSv = async (fanId) => {
         if (!deviceIdentifier) {
             return;
@@ -946,6 +1041,7 @@ export function IndustrialControl({ device, onBack }) {
         } catch (error) {
             console.error('PID 設定失敗:', error);
         } finally {
+            isEditingPidValuesRef.current = false;
             setIsSubmittingPid(false);
         }
     };
@@ -1100,6 +1196,7 @@ export function IndustrialControl({ device, onBack }) {
             console.error('出水閥開度設定失敗:', error);
         } finally {
             isEditingOutletValveOpeningRef.current = false;
+            isEditingValvePidValuesRef.current = false;
             setIsSubmittingOutletValveOpening(false);
         }
     };
@@ -1289,6 +1386,12 @@ export function IndustrialControl({ device, onBack }) {
                                 className="text-left w-full h-7 text-[12px] border border-slate-200 rounded px-1 focus:ring-1 focus:ring-primary outline-none"
                                 type="number"
                                 value={outletTargetTempSv}
+                                onFocus={() => {
+                                    isEditingOutletTargetTempRef.current = true;
+                                }}
+                                onBlur={() => {
+                                    isEditingOutletTargetTempRef.current = false;
+                                }}
                                 onChange={(event) => {
                                     isEditingOutletTargetTempRef.current = true;
                                     setOutletTargetTempSv(event.target.value);
@@ -1317,15 +1420,28 @@ export function IndustrialControl({ device, onBack }) {
                         isEditingOutletValveOpeningRef.current = true;
                         setOutletValveOpening(value);
                     }}
+                    onPercentageFocus={() => {
+                        isEditingOutletValveOpeningRef.current = true;
+                    }}
+                    onPercentageBlur={() => {
+                        isEditingOutletValveOpeningRef.current = false;
+                    }}
                     onSubmit={handleSubmitOutletValveOpening}
                     isSubmitting={isSubmittingOutletValveOpening}
                     pidValues={valvePidValues}
-                    onPidChange={(key, value) =>
+                    onPidChange={(key, value) => {
+                        isEditingValvePidValuesRef.current = true;
                         setValvePidValues((prev) => ({
                             ...prev,
                             [key]: value,
                         }))
-                    }
+                    }}
+                    onPidFocus={() => {
+                        isEditingValvePidValuesRef.current = true;
+                    }}
+                    onPidBlur={() => {
+                        isEditingValvePidValuesRef.current = false;
+                    }}
                 />
                 <ReturnValveControl
                     holdingData={holdingData}
@@ -1333,6 +1449,12 @@ export function IndustrialControl({ device, onBack }) {
                     onOpeningRatioChange={(value) => {
                         isEditingReturnValveOpeningRef.current = true;
                         setReturnValveOpening(value);
+                    }}
+                    onOpeningRatioFocus={() => {
+                        isEditingReturnValveOpeningRef.current = true;
+                    }}
+                    onOpeningRatioBlur={() => {
+                        isEditingReturnValveOpeningRef.current = false;
                     }}
                     onSubmit={handleSubmitReturnValveOpening}
                     isSubmitting={isSubmittingReturnValveOpening}
@@ -1488,12 +1610,19 @@ export function IndustrialControl({ device, onBack }) {
                                         <input
                                             type="number"
                                             value={pidValues[item.key]}
-                                            onChange={(event) =>
+                                            onFocus={() => {
+                                                isEditingPidValuesRef.current = true;
+                                            }}
+                                            onBlur={() => {
+                                                isEditingPidValuesRef.current = false;
+                                            }}
+                                            onChange={(event) => {
+                                                isEditingPidValuesRef.current = true;
                                                 setPidValues((prev) => ({
                                                     ...prev,
                                                     [item.key]: event.target.value,
                                                 }))
-                                            }
+                                            }}
                                             step="0.01"
                                             placeholder={FALLBACK_VALUE}
                                             className="text-left w-full bg-white border-none rounded-lg text-xs px-2 py-1.5 ring-1 ring-slate-200 focus:ring-primary outline-none"
@@ -1523,6 +1652,8 @@ export function IndustrialControl({ device, onBack }) {
                             key={fan.id}
                             fan={fan}
                             onSvChange={handleFanSvChange}
+                            onSvFocus={handleFanSvFocus}
+                            onSvBlur={handleFanSvBlur}
                             onSubmit={handleSubmitFanSv}
                             onToggle={handleToggleFan}
                             isSubmitting={submittingFanId === fan.id}
