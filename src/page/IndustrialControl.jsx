@@ -19,6 +19,7 @@ const MAX_VALVE_100 = 100;
 const MAX_TEMP_100 = 100;
 const MAX_FREQ_60 = 60;
 const MAX_PID_100 = 100;
+const MAX_PID_10 = 10;
 const MAX_PRESSURE_1000 = 1000;
 const FAN_MAX_RPM_3570 = 3570;
 
@@ -35,6 +36,21 @@ const toModbus = (displayValue, maxRange) => {
     const val = Number(displayValue);
     if (Number.isNaN(val)) return 0;
     return Math.round((val / maxRange) * SCALE_4096);
+};
+
+const toPidDisplay = (modbusValue) => {
+    if (modbusValue === undefined || modbusValue === null || Number.isNaN(Number(modbusValue))) {
+        return 0;
+    }
+    const val = Number(modbusValue) / 1000;
+    // 確保數值最多只有兩位小數 (因為 step=0.01)
+    return parseFloat(val.toFixed(2));
+};
+
+const toPidModbus = (displayValue) => {
+    const val = Number(displayValue);
+    if (Number.isNaN(val)) return 0;
+    return Math.round(val * 1000);
 };
 // const TELEMETRY_SENSOR_ORDER = [
 //     'inletWaterTemp',
@@ -186,7 +202,7 @@ const PVText = ({ value, unit = '' }) => (
 const PIDInput = ({ label, pvValue, value, onChange, onFocus, onBlur, isModified, error }) => (
     <div className="space-y-1.5 space-x-1.5">
         <label className="text-[14px] font-bold text-slate-500 uppercase">{label}</label>
-        <PVText value={pvValue} />
+        <PVText value={toPidDisplay(pvValue)} />
         <div className="relative">
             <input
                 className={`text-left w-full border rounded-lg px-3 py-2 text-[12px] focus:ring-2 focus:ring-primary/20 outline-none transition-colors ${
@@ -194,7 +210,9 @@ const PIDInput = ({ label, pvValue, value, onChange, onFocus, onBlur, isModified
                         ? 'bg-red-50 border-red-500'
                         : 'bg-slate-50 border-slate-200'
                 }`}
-                step="1"
+                step="0.01"
+                min="0"
+                max="10.00"
                 type="number"
                 value={value}
                 onChange={onChange}
@@ -725,10 +743,24 @@ export function IndustrialControl({ device, onBack }) {
     const isEditingReturnValveOpeningRef = useRef(false);
     const isEditingPidValuesRef = useRef(false);
     const isEditingValvePidValuesRef = useRef(false);
+    const isSubmittingPidRef = useRef(false);
+    const isSubmittingValvePidRef = useRef(false);
+    const isSubmittingOutletValveOpeningRef = useRef(false);
+    const isSubmittingPidSwitchRef = useRef(false);
+    const modifiedPidFieldsRef = useRef({ p: false, i: false, d: false });
+    const modifiedValvePidFieldsRef = useRef({ p: false, i: false, d: false, opening: false });
     const editingFanIdsRef = useRef(new Set());
 
     const deviceIdentifier = device?.name ?? device?.deviceName ?? device?.id ?? device?.deviceId;
     const sensorValues = mapSensorValues(sensorData);
+
+    useEffect(() => { isSubmittingPidRef.current = isSubmittingPid; }, [isSubmittingPid]);
+    useEffect(() => { isSubmittingValvePidRef.current = isSubmittingValvePid; }, [isSubmittingValvePid]);
+    useEffect(() => { isSubmittingOutletValveOpeningRef.current = isSubmittingOutletValveOpening; }, [isSubmittingOutletValveOpening]);
+    useEffect(() => { isSubmittingPidSwitchRef.current = isSubmittingPidSwitch; }, [isSubmittingPidSwitch]);
+    useEffect(() => { modifiedPidFieldsRef.current = modifiedPidFields; }, [modifiedPidFields]);
+    useEffect(() => { modifiedValvePidFieldsRef.current = modifiedValvePidFields; }, [modifiedValvePidFields]);
+
     const telemetry = [
         {
             label: t('industrial.telemetry.inletWaterData'),
@@ -871,7 +903,7 @@ export function IndustrialControl({ device, onBack }) {
                 if (!isEditingCirculatingPumpSvRef.current) {
                     setCirculatingPumpSv(String(toDisplay(data?.circulating_pump_sv, MAX_FREQ_60) || ''));
                 }
-                if (!isEditingOutletValveOpeningRef.current && !isSubmittingOutletValveOpening && !modifiedValvePidFields.opening) {
+                if (!isEditingOutletValveOpeningRef.current && !isSubmittingOutletValveOpeningRef.current && !modifiedValvePidFieldsRef.current.opening) {
                     setOutletValveOpening(String(toDisplay(data?.outlet_electric_valve_opening_sv, MAX_VALVE_100) || ''));
                 }
                 if (!isEditingReturnValveOpeningRef.current) {
@@ -880,21 +912,21 @@ export function IndustrialControl({ device, onBack }) {
                 if (!isEditingPressureTargetRef.current) {
                     setPressureTarget(String(toDisplay(data?.target_pressure_diff_sv, MAX_PRESSURE_1000) || ''));
                 }
-                if (!isEditingPidValuesRef.current && !isSubmittingPid && !Object.values(modifiedPidFields).some(Boolean)) {
+                if (!isEditingPidValuesRef.current && !isSubmittingPidRef.current && !Object.values(modifiedPidFieldsRef.current).some(Boolean)) {
                     setPidValues({
-                        p: String(data?.group1_pid_p_sv ?? ''),
-                        i: String(data?.group1_pid_i_sv ?? ''),
-                        d: String(data?.group1_pid_d_sv ?? ''),
+                        p: String(toPidDisplay(data?.group1_pid_p_sv) || ''),
+                        i: String(toPidDisplay(data?.group1_pid_i_sv) || ''),
+                        d: String(toPidDisplay(data?.group1_pid_d_sv) || ''),
                     });
                 }
-                if (!isEditingValvePidValuesRef.current && !isSubmittingValvePid && !Object.values(modifiedValvePidFields).some(Boolean)) {
+                if (!isEditingValvePidValuesRef.current && !isSubmittingValvePidRef.current && !Object.values(modifiedValvePidFieldsRef.current).some(Boolean)) {
                     setValvePidValues({
-                        p: String(data?.group2_pid_p_sv ?? ''),
-                        i: String(data?.group2_pid_i_sv ?? ''),
-                        d: String(data?.group2_pid_d_sv ?? ''),
+                        p: String(toPidDisplay(data?.group2_pid_p_sv) || ''),
+                        i: String(toPidDisplay(data?.group2_pid_i_sv) || ''),
+                        d: String(toPidDisplay(data?.group2_pid_d_sv) || ''),
                     });
                 }
-                if (!isSubmittingPidSwitch) {
+                if (!isSubmittingPidSwitchRef.current) {
                     setOutletPidMonitoringEnabled(data?.pid2_switch === 1);
                     setOutletCorrectionEnabled(data?.pid2_direction === 1);
                     setPidMonitoringEnabled(data?.pid1_switch === 1);
@@ -925,8 +957,9 @@ export function IndustrialControl({ device, onBack }) {
         }
 
         const value = enabled ? 1 : 0;
-        console.log(`[PID Switch] 開始更新 ${key} 為 ${value} (enabled: ${enabled})`);
+        console.log('[PID Switch] 開始更新 ${key} 為 ${value} (enabled: ${enabled})');
         setIsSubmittingPidSwitch(true);
+        isSubmittingPidSwitchRef.current = true;
 
         try {
             const response = await fetch(`/api/modbus/sv-with-coils/${encodeURIComponent(deviceIdentifier)}`, {
@@ -957,6 +990,7 @@ export function IndustrialControl({ device, onBack }) {
             console.error(`更新 ${key} 失敗:`, error);
         } finally {
             setIsSubmittingPidSwitch(false);
+            isSubmittingPidSwitchRef.current = false;
         }
     };
 
@@ -1055,7 +1089,7 @@ export function IndustrialControl({ device, onBack }) {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    circulating_pump_sv: Number(circulatingPumpSv) || 0,
+                    // circulating_pump_sv: Number(circulatingPumpSv) || 0,
                     cooling_fan1_sv: nextFanPayloadValue,
                     cooling_fan2_sv: nextFanPayloadValue,
                     cooling_fan3_sv: nextFanPayloadValue,
@@ -1065,10 +1099,10 @@ export function IndustrialControl({ device, onBack }) {
                     cooling_fan7_sv: nextFanPayloadValue,
                     cooling_fan8_sv: nextFanPayloadValue,
                     cooling_fan9_sv: nextFanPayloadValue,
-                    return_electric_valve_opening_sv: Number(returnValveOpening) || 0,
-                    group1_pid_p_sv: Number(pidValues.p) || 0,
-                    group1_pid_i_sv: Number(pidValues.i) || 0,
-                    group1_pid_d_sv: Number(pidValues.d) || 0,
+                    // return_electric_valve_opening_sv: Number(returnValveOpening) || 0,
+                    // group1_pid_p_sv: Number(pidValues.p) || 0,
+                    // group1_pid_i_sv: Number(pidValues.i) || 0,
+                    // group1_pid_d_sv: Number(pidValues.d) || 0,
                 }),
             });
 
@@ -1167,24 +1201,24 @@ export function IndustrialControl({ device, onBack }) {
         }
     };
 
-    const buildSvPayload = () => ({
-        circulating_pump_sv: toModbus(circulatingPumpSv, MAX_FREQ_60),
-        cooling_fan1_sv: toModbus(fans.find((fan) => fan.id === '01')?.svRpm, 100),
-        cooling_fan2_sv: toModbus(fans.find((fan) => fan.id === '02')?.svRpm, 100),
-        cooling_fan3_sv: toModbus(fans.find((fan) => fan.id === '03')?.svRpm, 100),
-        cooling_fan4_sv: toModbus(fans.find((fan) => fan.id === '04')?.svRpm, 100),
-        cooling_fan5_sv: toModbus(fans.find((fan) => fan.id === '05')?.svRpm, 100),
-        cooling_fan6_sv: toModbus(fans.find((fan) => fan.id === '06')?.svRpm, 100),
-        cooling_fan7_sv: toModbus(fans.find((fan) => fan.id === '07')?.svRpm, 100),
-        cooling_fan8_sv: toModbus(fans.find((fan) => fan.id === '08')?.svRpm, 100),
-        cooling_fan9_sv: toModbus(fans.find((fan) => fan.id === '09')?.svRpm, 100),
-        return_electric_valve_opening_sv: toModbus(returnValveOpening, MAX_VALVE_100),
-        group1_pid_p_sv: Number(pidValues.p),
-        group1_pid_i_sv: Number(pidValues.i),
-        group1_pid_d_sv: Number(pidValues.d),
-        group2_pid_p_sv: Number(valvePidValues.p),
-        group2_pid_i_sv: Number(valvePidValues.i),
-        group2_pid_d_sv: Number(valvePidValues.d),
+    const buildSvPayload = (currentFans, currentPidValues, currentValvePidValues, currentPumpSv, currentReturnValveOpening) => ({
+        circulating_pump_sv: toModbus(currentPumpSv ?? circulatingPumpSv, MAX_FREQ_60),
+        cooling_fan1_sv: toModbus((currentFans ?? fans).find((fan) => fan.id === '01')?.svRpm, 100),
+        cooling_fan2_sv: toModbus((currentFans ?? fans).find((fan) => fan.id === '02')?.svRpm, 100),
+        cooling_fan3_sv: toModbus((currentFans ?? fans).find((fan) => fan.id === '03')?.svRpm, 100),
+        cooling_fan4_sv: toModbus((currentFans ?? fans).find((fan) => fan.id === '04')?.svRpm, 100),
+        cooling_fan5_sv: toModbus((currentFans ?? fans).find((fan) => fan.id === '05')?.svRpm, 100),
+        cooling_fan6_sv: toModbus((currentFans ?? fans).find((fan) => fan.id === '06')?.svRpm, 100),
+        cooling_fan7_sv: toModbus((currentFans ?? fans).find((fan) => fan.id === '07')?.svRpm, 100),
+        cooling_fan8_sv: toModbus((currentFans ?? fans).find((fan) => fan.id === '08')?.svRpm, 100),
+        cooling_fan9_sv: toModbus((currentFans ?? fans).find((fan) => fan.id === '09')?.svRpm, 100),
+        return_electric_valve_opening_sv: toModbus(currentReturnValveOpening ?? returnValveOpening, MAX_VALVE_100),
+        group1_pid_p_sv: toPidModbus((currentPidValues ?? pidValues).p),
+        group1_pid_i_sv: toPidModbus((currentPidValues ?? pidValues).i),
+        group1_pid_d_sv: toPidModbus((currentPidValues ?? pidValues).d),
+        group2_pid_p_sv: toPidModbus((currentValvePidValues ?? valvePidValues).p),
+        group2_pid_i_sv: toPidModbus((currentValvePidValues ?? valvePidValues).i),
+        group2_pid_d_sv: toPidModbus((currentValvePidValues ?? valvePidValues).d),
     });
 
     const handlePidChange = (key, value) => {
@@ -1193,10 +1227,14 @@ export function IndustrialControl({ device, onBack }) {
             ...prev,
             [key]: value,
         }));
-        setModifiedPidFields((prev) => ({
-            ...prev,
-            [key]: true,
-        }));
+        setModifiedPidFields((prev) => {
+            const next = {
+                ...prev,
+                [key]: true,
+            };
+            modifiedPidFieldsRef.current = next;
+            return next;
+        });
     };
 
     const handleValvePidChange = (key, value) => {
@@ -1205,19 +1243,27 @@ export function IndustrialControl({ device, onBack }) {
             ...prev,
             [key]: value,
         }));
-        setModifiedValvePidFields((prev) => ({
-            ...prev,
-            [key]: true,
-        }));
+        setModifiedValvePidFields((prev) => {
+            const next = {
+                ...prev,
+                [key]: true,
+            };
+            modifiedValvePidFieldsRef.current = next;
+            return next;
+        });
     };
 
     const handleOutletValveOpeningChange = (value) => {
         isEditingOutletValveOpeningRef.current = true;
         setOutletValveOpening(value);
-        setModifiedValvePidFields((prev) => ({
-            ...prev,
-            opening: true,
-        }));
+        setModifiedValvePidFields((prev) => {
+            const next = {
+                ...prev,
+                opening: true,
+            };
+            modifiedValvePidFieldsRef.current = next;
+            return next;
+        });
     };
 
     const handleSubmitPidValues = async () => {
@@ -1225,15 +1271,35 @@ export function IndustrialControl({ device, onBack }) {
             return;
         }
 
-        const vals = [pidValues.p, pidValues.i, pidValues.d].map(Number);
-        if (vals.some(v => v < 0 || v > 10000)) {
-            setPidError('0 ~ 10000');
+        const pVal = Number(pidValues.p);
+        const iVal = Number(pidValues.i);
+        const dVal = Number(pidValues.d);
+
+        if ([pVal, iVal, dVal].some(v => v < 0 || v > 10)) {
+            setPidError('0 ~ 10.00');
             return;
         }
         setPidError('');
 
         setIsSubmittingPid(true);
-        const payload = buildSvPayload();
+        isSubmittingPidRef.current = true;
+
+        const pValLatest = Number(pidValues.p);
+        const iValLatest = Number(pidValues.i);
+        const dValLatest = Number(pidValues.d);
+
+        const currentPidValues = {
+            p: String(pValLatest),
+            i: String(iValLatest),
+            d: String(dValLatest),
+        };
+
+        const payload = {
+            ...buildSvPayload(null, currentPidValues),
+            group1_pid_p_sv: toPidModbus(pValLatest),
+            group1_pid_i_sv: toPidModbus(iValLatest),
+            group1_pid_d_sv: toPidModbus(dValLatest),
+        };
         console.log('[PID Fans] 開始更新 PID 數值, payload:', payload);
 
         try {
@@ -1254,11 +1320,12 @@ export function IndustrialControl({ device, onBack }) {
 
             // 同步本地狀態，確保在輪詢更新前 UI 保持一致
             setPidValues({
-                p: String(pidValues.p),
-                i: String(pidValues.i),
-                d: String(pidValues.d),
+                p: String(pValLatest),
+                i: String(iValLatest),
+                d: String(dValLatest),
             });
             setModifiedPidFields({ p: false, i: false, d: false });
+            modifiedPidFieldsRef.current = { p: false, i: false, d: false };
             isEditingPidValuesRef.current = false;
             fetchFanHoldingData();
             console.log('[PID Fans] 更新成功');
@@ -1266,6 +1333,7 @@ export function IndustrialControl({ device, onBack }) {
             console.error('PID 設定失敗:', error);
         } finally {
             setIsSubmittingPid(false);
+            isSubmittingPidRef.current = false;
         }
     };
 
@@ -1292,28 +1360,26 @@ export function IndustrialControl({ device, onBack }) {
 
         setIsSubmittingAllFans(true);
 
+        const payload = {
+            ...buildSvPayload(nextFans),
+            cooling_fan1_sv: toModbus(normalizedValue, 100),
+            cooling_fan2_sv: toModbus(normalizedValue, 100),
+            cooling_fan3_sv: toModbus(normalizedValue, 100),
+            cooling_fan4_sv: toModbus(normalizedValue, 100),
+            cooling_fan5_sv: toModbus(normalizedValue, 100),
+            cooling_fan6_sv: toModbus(normalizedValue, 100),
+            cooling_fan7_sv: toModbus(normalizedValue, 100),
+            cooling_fan8_sv: toModbus(normalizedValue, 100),
+            cooling_fan9_sv: toModbus(normalizedValue, 100),
+        };
+
         try {
             const response = await fetch(`/api/modbus/sv-with-coils/${encodeURIComponent(deviceIdentifier)}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    circulating_pump_sv: toModbus(circulatingPumpSv, MAX_FREQ_60),
-                    cooling_fan1_sv: toModbus(normalizedValue, 100),
-                    cooling_fan2_sv: toModbus(normalizedValue, 100),
-                    cooling_fan3_sv: toModbus(normalizedValue, 100),
-                    cooling_fan4_sv: toModbus(normalizedValue, 100),
-                    cooling_fan5_sv: toModbus(normalizedValue, 100),
-                    cooling_fan6_sv: toModbus(normalizedValue, 100),
-                    cooling_fan7_sv: toModbus(normalizedValue, 100),
-                    cooling_fan8_sv: toModbus(normalizedValue, 100),
-                    cooling_fan9_sv: toModbus(normalizedValue, 100),
-                    return_electric_valve_opening_sv: toModbus(returnValveOpening, MAX_VALVE_100),
-                    group1_pid_p_sv: toModbus(pidValues.p, MAX_PID_100),
-                    group1_pid_i_sv: toModbus(pidValues.i, MAX_PID_100),
-                    group1_pid_d_sv: toModbus(pidValues.d, MAX_PID_100),
-                }),
+                body: JSON.stringify(payload),
             });
 
             if (!response.ok) {
@@ -1362,6 +1428,7 @@ export function IndustrialControl({ device, onBack }) {
                 throw new Error(`HTTP ${response.status}`);
             }
 
+            setOutletTargetTempSv(String(nextValue));
             isEditingOutletTargetTempRef.current = false;
             fetchFanHoldingData();
         } catch (error) {
@@ -1403,6 +1470,7 @@ export function IndustrialControl({ device, onBack }) {
                 throw new Error(`HTTP ${response.status}`);
             }
 
+            setCirculatingPumpSv(String(nextValue));
             isEditingCirculatingPumpSvRef.current = false;
             fetchFanHoldingData();
         } catch (error) {
@@ -1422,23 +1490,31 @@ export function IndustrialControl({ device, onBack }) {
         const iVal = Number(valvePidValues.i);
         const dVal = Number(valvePidValues.d);
 
-        if (nextValue < 0 || nextValue > 100 || pVal < 0 || pVal > 10000 || iVal < 0 || iVal > 10000 || dVal < 0 || dVal > 10000) {
-            setValvePidError(nextValue < 0 || nextValue > 100 ? '0 ~ 100' : '0 ~ 10000');
+        if (nextValue < 0 || nextValue > 100 || pVal < 0 || pVal > 10 || iVal < 0 || iVal > 10 || dVal < 0 || dVal > 10) {
+            setValvePidError(nextValue < 0 || nextValue > 100 ? '0 ~ 100' : '0 ~ 10.00');
             return;
         }
         setValvePidError('');
 
+        const currentValvePidValues = {
+            p: String(pVal),
+            i: String(iVal),
+            d: String(dVal),
+        };
+
         const payload = {
-            ...buildSvPayload(),
+            ...buildSvPayload(null, null, currentValvePidValues),
             outlet_electric_valve_opening_sv: toModbus(nextValue, MAX_VALVE_100),
-            group2_pid_p_sv: pVal,
-            group2_pid_i_sv: iVal,
-            group2_pid_d_sv: dVal,
+            group2_pid_p_sv: toPidModbus(pVal),
+            group2_pid_i_sv: toPidModbus(iVal),
+            group2_pid_d_sv: toPidModbus(dVal),
         };
 
         console.log('[PID Outlet] 開始更新出水閥開度及 PID, payload:', payload);
         setIsSubmittingOutletValveOpening(true);
+        isSubmittingOutletValveOpeningRef.current = true;
         setIsSubmittingValvePid(true);
+        isSubmittingValvePidRef.current = true;
 
         try {
             const response = await fetch(`/api/modbus/sv-with-coils/${encodeURIComponent(deviceIdentifier)}`, {
@@ -1458,12 +1534,13 @@ export function IndustrialControl({ device, onBack }) {
 
             // 同步本地狀態
             setValvePidValues({
-                p: String(valvePidValues.p),
-                i: String(valvePidValues.i),
-                d: String(valvePidValues.d),
+                p: String(pVal),
+                i: String(iVal),
+                d: String(dVal),
             });
             setOutletValveOpening(String(nextValue));
             setModifiedValvePidFields({ p: false, i: false, d: false, opening: false });
+            modifiedValvePidFieldsRef.current = { p: false, i: false, d: false, opening: false };
             console.log('[PID Outlet] 更新成功');
 
             isEditingOutletValveOpeningRef.current = false;
@@ -1473,7 +1550,9 @@ export function IndustrialControl({ device, onBack }) {
             console.error('出水閥開度及 PID 設定失敗:', error);
         } finally {
             setIsSubmittingOutletValveOpening(false);
+            isSubmittingOutletValveOpeningRef.current = false;
             setIsSubmittingValvePid(false);
+            isSubmittingValvePidRef.current = false;
         }
     };
 
@@ -1509,6 +1588,7 @@ export function IndustrialControl({ device, onBack }) {
                 throw new Error(`HTTP ${response.status}`);
             }
 
+            setPressureTarget(String(nextValue));
             isEditingPressureTargetRef.current = false;
             fetchFanHoldingData();
         } catch (error) {
@@ -1903,13 +1983,13 @@ export function IndustrialControl({ device, onBack }) {
                                     <div key={item.key}>
                                         <label className="text-slate-400 block mb-1 font-bold">{item.label}</label>
                                         <PVText
-                                            value={
+                                            value={toPidDisplay(
                                                 item.key === 'p'
                                                     ? holdingData?.group1_pid_p_pv
                                                     : item.key === 'i'
                                                         ? holdingData?.group1_pid_i_pv
                                                         : holdingData?.group1_pid_d_pv
-                                            }
+                                            )}
                                         />
                                         <div className="relative">
                                             <input
@@ -1921,8 +2001,13 @@ export function IndustrialControl({ device, onBack }) {
                                                 onBlur={() => {
                                                     isEditingPidValuesRef.current = false;
                                                 }}
-                                                onChange={(event) => handlePidChange(item.key, event.target.value)}
-                                                step="1"
+                                                onChange={(event) => {
+                                                    isEditingPidValuesRef.current = true;
+                                                    handlePidChange(item.key, event.target.value);
+                                                }}
+                                                step="0.01"
+                                                min="0"
+                                                max="10.00"
                                                 placeholder={FALLBACK_VALUE}
                                                 className={`text-left w-full border-none rounded-lg text-xs px-2 py-1.5 ring-1 outline-none transition-colors ${
                                                     modifiedPidFields[item.key] || pidError
