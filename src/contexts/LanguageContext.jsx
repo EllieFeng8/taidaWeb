@@ -39,16 +39,16 @@ export const LanguageProvider = ({ children }) => {
       }
 
       return Object.entries(params).reduce(
-        (result, [paramKey, paramValue]) => result.split(`{${paramKey}}`).join(String(paramValue ?? '')),
-        template
+          (result, [paramKey, paramValue]) => result.split(`{${paramKey}}`).join(String(paramValue ?? '')),
+          template
       );
     }
   };
 
   return (
-    <LanguageContext.Provider value={value}>
-      {children}
-    </LanguageContext.Provider>
+      <LanguageContext.Provider value={value}>
+        {children}
+      </LanguageContext.Provider>
   );
 };
 
@@ -58,7 +58,7 @@ const translations = {
     // Header
     'system.title': '台達設備監控系統',
     'language.switch': '切換語言',
-    
+
     // Tabs
     'tab.dashboard': '設備總覽',
     'tab.groups': '群組設定',
@@ -67,14 +67,14 @@ const translations = {
     'tab.logs': '系統紀錄',
     'tab.control': '群組控制',
     'tab.industrialControl': '工業控制',
-    
+
     // Sidebar
     'sidebar.dashboard': '設備總覽',
     'sidebar.groups': '群組設定',
     'sidebar.alerts': '警報',
     'sidebar.history': '歷史數據',
     'sidebar.logs': '系統紀錄',
-    
+
     // Dashboard
     'dashboard.title': '設備總覽',
     'dashboard.totalDevices': '總設備數',
@@ -125,7 +125,7 @@ const translations = {
     'dashboard.deviceCard.powerSection.rpm': '轉速',
     'dashboard.deviceCard.powerSection.hz': '頻率',
     'dashboard.noMatchingDevices': '目前沒有符合條件的設備。',
-    
+
     // Group Settings
     'groups.title': '群組設定',
     'groups.createNew': '建立新群組',
@@ -172,7 +172,7 @@ const translations = {
     'groups.log.deleteFailed': '群組刪除失敗:',
     'groups.log.saveDevicesFailed': '群組設備保存失敗:',
     'groups.log.saveGroupFailed': '群組保存失敗:',
-    
+
     // Alarm
     'alarm.title': '警報管理',
     'alarm.filter.all': '全部',
@@ -200,7 +200,7 @@ const translations = {
     'alarm.fetchError': '載入警報資料失敗: {message}',
     'alarm.paginationSummary': '顯示第 {start} 到 {end} 筆，共 {total} 筆結果',
     'alarm.pageSummary': '每頁 {size} 筆，共 {total} 筆',
-    
+
     // History
     'history.title': '歷史數據',
     'history.device': '設備',
@@ -214,7 +214,7 @@ const translations = {
     'history.noData': '沒有數據',
     'history.loading': '載入中...',
     'history.error': '載入失敗',
-    
+
     // HistoryList specific
     'filter_conditions': '篩選條件',
     'select_device': '選擇設備',
@@ -246,7 +246,7 @@ const translations = {
     'items': '筆',
     'jump_to_page': '跳至頁數',
     'go': '前往',
-    
+
     // Industrial Control
     'industrial.title': '工業控制',
     'industrial.deviceSelect': '設備選擇',
@@ -291,7 +291,7 @@ const translations = {
     'industrial.reverseCorrection': '反向修正',
     'industrial.openingRatio': '開度比例',
     'industrial.setValue': '設定數值',
-    'industrial.targetFrequency': '目標頻率',
+    'industrial.targetFrequency': '現在頻率',
     'industrial.targetTemperature': '目標溫度',
     'industrial.currentFlowRate': '當前水流量',
     'industrial.currentHeatExchange': '當前熱交換',
@@ -312,7 +312,7 @@ const translations = {
     'industrial.status.warningShort': '警告',
     'industrial.status.optimalShort': '最佳',
     'industrial.error.fetchSensor': '設備感測資料獲取失敗:',
-    
+
     // Group Control
     'groupControl.title': '群組控制',
     'groupControl.back': '返回',
@@ -361,7 +361,7 @@ const translations = {
     'groupControl.reset': '重設',
     'groupControl.emergencyOn': '緊急開啟',
     'groupControl.emergencyOff': '緊急關閉',
-    
+
     // Configuration Panel
     'config.title': '配置面板',
     'config.device': '設備',
@@ -392,7 +392,7 @@ const translations = {
     'connectSetting.applyFailed': '套用失敗，請稍後再試。',
     'connectSetting.invalidFrequency': '請輸入大於 0 的取樣頻率。',
     'connectSetting.ipUnavailable': '查無 IP 資訊',
-    
+
     // Common
     'common.save': '儲存',
     'common.cancel': '取消',
@@ -424,7 +424,7 @@ const translations = {
     // Header
     'system.title': 'Delta Device Monitoring System',
     'language.switch': 'Switch Language',
-    
+
     // Tabs
     'tab.dashboard': 'Dashboard',
     'tab.groups': 'Group Settings',
@@ -433,14 +433,14 @@ const translations = {
     'tab.logs': 'System Logs',
     'tab.control': 'Group Control',
     'tab.industrialControl': 'Industrial Control',
-    
+
     // Sidebar
     'sidebar.dashboard': 'Dashboard',
     'sidebar.groups': 'Group Settings',
     'sidebar.alerts': 'Alerts',
     'sidebar.history': 'History',
     'sidebar.logs': 'System Logs',
-    
+
     // Dashboard
     'dashboard.title': 'Device Dashboard',
     'dashboard.totalDevices': 'Total Devices',
@@ -491,7 +491,7 @@ const translations = {
     'dashboard.deviceCard.powerSection.rpm': 'Speed',
     'dashboard.deviceCard.powerSection.hz': 'Frequency',
     'dashboard.noMatchingDevices': 'No devices match the current filters.',
-    
+
     // Group Settings
     'groups.title': 'Group Settings',
     'groups.createNew': 'Create New Group',
@@ -538,7 +538,7 @@ const translations = {
     'groups.log.deleteFailed': 'Failed to delete group:',
     'groups.log.saveDevicesFailed': 'Failed to save group devices:',
     'groups.log.saveGroupFailed': 'Failed to save group:',
-    
+
     // Alarm
     'alarm.title': 'Alarm Management',
     'alarm.filter.all': 'All',
@@ -566,7 +566,7 @@ const translations = {
     'alarm.fetchError': 'Failed to load alarm data: {message}',
     'alarm.paginationSummary': 'Showing {start} to {end} of {total} results',
     'alarm.pageSummary': '{size} per page, {total} total',
-    
+
     // History
     'history.title': 'History Data',
     'history.device': 'Device',
@@ -580,7 +580,7 @@ const translations = {
     'history.noData': 'No Data',
     'history.loading': 'Loading...',
     'history.error': 'Failed to Load',
-    
+
     // HistoryList specific
     'filter_conditions': 'Filter Conditions',
     'select_device': 'Select Device',
@@ -612,7 +612,7 @@ const translations = {
     'items': 'items',
     'jump_to_page': 'Jump to page',
     'go': 'Go',
-    
+
     // Industrial Control
     'industrial.title': 'Industrial Control',
     'industrial.deviceSelect': 'Device Selection',
@@ -657,7 +657,7 @@ const translations = {
     'industrial.reverseCorrection': 'Reverse Correction',
     'industrial.openingRatio': 'Opening Ratio',
     'industrial.setValue': 'Set Value',
-    'industrial.targetFrequency': 'Target Frequency',
+    'industrial.targetFrequency': 'Frequency',
     'industrial.targetTemperature': 'Target Temperature',
     'industrial.currentFlowRate': 'Current Flow Rate',
     'industrial.currentHeatExchange': 'Current Heat Exchange',
@@ -678,7 +678,7 @@ const translations = {
     'industrial.status.warningShort': 'Warning',
     'industrial.status.optimalShort': 'Optimal',
     'industrial.error.fetchSensor': 'Failed to fetch device sensor data:',
-    
+
     // Group Control
     'groupControl.title': 'Group Control',
     'groupControl.back': 'Back',
@@ -727,7 +727,7 @@ const translations = {
     'groupControl.reset': 'Reset',
     'groupControl.emergencyOn': 'Emergency On',
     'groupControl.emergencyOff': 'Emergency Off',
-    
+
     // Configuration Panel
     'config.title': 'Configuration Panel',
     'config.device': 'Device',
@@ -758,7 +758,7 @@ const translations = {
     'connectSetting.applyFailed': 'Failed to apply settings. Please try again later.',
     'connectSetting.invalidFrequency': 'Please enter a sampling frequency greater than 0.',
     'connectSetting.ipUnavailable': 'IP information unavailable',
-    
+
     // Common
     'common.save': 'Save',
     'common.cancel': 'Cancel',
