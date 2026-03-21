@@ -882,16 +882,16 @@ export function IndustrialControl({ device, onBack }) {
                 }
                 if (!isEditingPidValuesRef.current && !isSubmittingPid && !Object.values(modifiedPidFields).some(Boolean)) {
                     setPidValues({
-                        p: String(toDisplay(data?.group1_pid_p_sv, MAX_PID_100) || ''),
-                        i: String(toDisplay(data?.group1_pid_i_sv, MAX_PID_100) || ''),
-                        d: String(toDisplay(data?.group1_pid_d_sv, MAX_PID_100) || ''),
+                        p: String(data?.group1_pid_p_sv ?? ''),
+                        i: String(data?.group1_pid_i_sv ?? ''),
+                        d: String(data?.group1_pid_d_sv ?? ''),
                     });
                 }
                 if (!isEditingValvePidValuesRef.current && !isSubmittingValvePid && !Object.values(modifiedValvePidFields).some(Boolean)) {
                     setValvePidValues({
-                        p: String(toDisplay(data?.group2_pid_p_sv, MAX_PID_100) || ''),
-                        i: String(toDisplay(data?.group2_pid_i_sv, MAX_PID_100) || ''),
-                        d: String(toDisplay(data?.group2_pid_d_sv, MAX_PID_100) || ''),
+                        p: String(data?.group2_pid_p_sv ?? ''),
+                        i: String(data?.group2_pid_i_sv ?? ''),
+                        d: String(data?.group2_pid_d_sv ?? ''),
                     });
                 }
                 if (!isSubmittingPidSwitch) {
@@ -1179,12 +1179,12 @@ export function IndustrialControl({ device, onBack }) {
         cooling_fan8_sv: toModbus(fans.find((fan) => fan.id === '08')?.svRpm, 100),
         cooling_fan9_sv: toModbus(fans.find((fan) => fan.id === '09')?.svRpm, 100),
         return_electric_valve_opening_sv: toModbus(returnValveOpening, MAX_VALVE_100),
-        group1_pid_p_sv: toModbus(pidValues.p, MAX_PID_100),
-        group1_pid_i_sv: toModbus(pidValues.i, MAX_PID_100),
-        group1_pid_d_sv: toModbus(pidValues.d, MAX_PID_100),
-        group2_pid_p_sv: toModbus(valvePidValues.p, MAX_PID_100),
-        group2_pid_i_sv: toModbus(valvePidValues.i, MAX_PID_100),
-        group2_pid_d_sv: toModbus(valvePidValues.d, MAX_PID_100),
+        group1_pid_p_sv: Number(pidValues.p),
+        group1_pid_i_sv: Number(pidValues.i),
+        group1_pid_d_sv: Number(pidValues.d),
+        group2_pid_p_sv: Number(valvePidValues.p),
+        group2_pid_i_sv: Number(valvePidValues.i),
+        group2_pid_d_sv: Number(valvePidValues.d),
     });
 
     const handlePidChange = (key, value) => {
@@ -1226,8 +1226,8 @@ export function IndustrialControl({ device, onBack }) {
         }
 
         const vals = [pidValues.p, pidValues.i, pidValues.d].map(Number);
-        if (vals.some(v => v < 0 || v > 100)) {
-            setPidError('0 ~ 100');
+        if (vals.some(v => v < 0 || v > 10000)) {
+            setPidError('0 ~ 10000');
             return;
         }
         setPidError('');
@@ -1422,8 +1422,8 @@ export function IndustrialControl({ device, onBack }) {
         const iVal = Number(valvePidValues.i);
         const dVal = Number(valvePidValues.d);
 
-        if (nextValue < 0 || nextValue > 100 || pVal < 0 || pVal > 100 || iVal < 0 || iVal > 100 || dVal < 0 || dVal > 100) {
-            setValvePidError('0 ~ 100');
+        if (nextValue < 0 || nextValue > 100 || pVal < 0 || pVal > 10000 || iVal < 0 || iVal > 10000 || dVal < 0 || dVal > 10000) {
+            setValvePidError(nextValue < 0 || nextValue > 100 ? '0 ~ 100' : '0 ~ 10000');
             return;
         }
         setValvePidError('');
@@ -1431,9 +1431,9 @@ export function IndustrialControl({ device, onBack }) {
         const payload = {
             ...buildSvPayload(),
             outlet_electric_valve_opening_sv: toModbus(nextValue, MAX_VALVE_100),
-            group2_pid_p_sv: toModbus(pVal, MAX_PID_100),
-            group2_pid_i_sv: toModbus(iVal, MAX_PID_100),
-            group2_pid_d_sv: toModbus(dVal, MAX_PID_100),
+            group2_pid_p_sv: pVal,
+            group2_pid_i_sv: iVal,
+            group2_pid_d_sv: dVal,
         };
 
         console.log('[PID Outlet] 開始更新出水閥開度及 PID, payload:', payload);
@@ -1930,7 +1930,7 @@ export function IndustrialControl({ device, onBack }) {
                                                         : 'bg-white ring-slate-200 focus:ring-primary'
                                                 }`}
                                             />
-                                            {pidError && <span className="absolute -top-4 right-0 text-[8px] font-bold text-red-500">{pidError}</span>}
+                                            {pidError && <span className="absolute -top-4 right-0 text-[10px] font-bold text-red-500">{pidError}</span>}
                                         </div>
                                     </div>
                                 ))}
