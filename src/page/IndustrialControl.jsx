@@ -13,27 +13,51 @@ import ConnectSetting from '../components/ConnectSetting.jsx';
 const API_HOST = '';
 const FALLBACK_VALUE = '--';
 const DEFAULT_POLLING_INTERVAL_MS = 1000;
+// const TELEMETRY_SENSOR_ORDER = [
+//     'inletWaterTemp',
+//     'inletWaterPressure',
+//     'outletWaterTemp',
+//     'outletWaterPressure',
+//     'returnWaterTemp',
+//     'returnWaterPressure',
+//     'inletAirTemp',
+//     'inletAirHumidity',
+//     'outletAirTemp',
+//     'outletAirHumidity',
+//     'coolingL1',
+//     'coolingL2',
+//     'coolingR1',
+//     'coolingR2',
+//     'rpm',
+//     'hz',
+//     'flowRate',
+//     'heatExchange',
+//     'pidP',
+//     'pidI',
+// ];
+
+
 const TELEMETRY_SENSOR_ORDER = [
-    'inletWaterTemp',
-    'inletWaterPressure',
-    'outletWaterTemp',
-    'outletWaterPressure',
-    'returnWaterTemp',
-    'returnWaterPressure',
-    'inletAirTemp',
-    'inletAirHumidity',
-    'outletAirTemp',
-    'outletAirHumidity',
-    'coolingL1',
-    'coolingL2',
-    'coolingR1',
-    'coolingR2',
-    'rpm',
-    'hz',
-    'flowRate',
-    'heatExchange',
-    'pidP',
-    'pidI',
+    'inletWaterTemp', //S1
+    'inletWaterPressure', //S2
+    'returnWaterTemp', //S3
+    'returnWaterPressure', //S4
+    'outletWaterTemp', //S5
+    'outletWaterPressure', //S6
+    'coolingL1', //S7
+    'coolingL2', //S8
+    'coolingR1', //S9
+    'coolingR2', //S10
+    'inletAirTemp', //S11
+    'inletAirHumidity', //S12
+    'flowRate', //S13
+    'outletWaterPV', //S14
+    'returnWaterPV', //S15
+    'fanAutoSpeed', //S16 no show on UI
+    'outletAirTemp', //S17
+    'pressureDifference', //S18
+    'TBD', //S19 to be defined
+    'heatExchange', //S20
 ];
 
 const mapSensorValues = (sensorPayload) => {
@@ -130,13 +154,17 @@ const PVText = ({ value, unit = '' }) => (
     </span>
 );
 
-const PIDInput = ({ label, pvValue, value, onChange, onFocus, onBlur }) => (
+const PIDInput = ({ label, pvValue, value, onChange, onFocus, onBlur, isModified }) => (
     <div className="space-y-1.5 space-x-1.5">
         <label className="text-[14px] font-bold text-slate-500 uppercase">{label}</label>
         <PVText value={pvValue} />
         <input
-            className="text-left w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[12px] focus:ring-2 focus:ring-primary/20 outline-none"
-            step="0.1"
+            className={`text-left w-full border rounded-lg px-3 py-2 text-[12px] focus:ring-2 focus:ring-primary/20 outline-none transition-colors ${
+                isModified 
+                    ? 'bg-red-50 border-red-500' 
+                    : 'bg-slate-50 border-slate-200'
+            }`}
+            step="1"
             type="number"
             value={value}
             onChange={onChange}
@@ -148,6 +176,7 @@ const PIDInput = ({ label, pvValue, value, onChange, onFocus, onBlur }) => (
 );
 
 const ValveControl = ({
+                          sensorValues,
                           holdingData,
                           percentage,
                           onPercentageChange,
@@ -159,6 +188,7 @@ const ValveControl = ({
                           onPidChange,
                           onPidFocus,
                           onPidBlur,
+                          modifiedPidFields,
                           pidMonitoringEnabled,
                           onPidMonitoringChange,
                           correctionEnabled,
@@ -186,10 +216,14 @@ const ValveControl = ({
             <div className="p-6 flex-1 flex flex-col gap-6">
                 <div className="space-y-2 space-x-1.5">
                     <label className="text-xs text-[14px] font-semibold text-slate-600 ">{t('industrial.openingRatio')}</label>
-                    <PVText value={holdingData?.outlet_electric_valve_opening_pv} unit="%" />
+                    <PVText value={sensorValues.outletWaterPV} unit="%" />
                     <div className="relative">
                         <input
-                            className="text-left w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[14px] font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                            className={`text-left w-full border rounded-lg px-3 py-2 text-[14px] font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors ${
+                                modifiedPidFields?.opening 
+                                    ? 'bg-red-50 border-red-500' 
+                                    : 'bg-slate-50 border-slate-200'
+                            }`}
                             type="number"
                             value={percentage}
                             onChange={(event) => onPercentageChange?.(event.target.value)}
@@ -208,6 +242,7 @@ const ValveControl = ({
                         onChange={(event) => onPidChange?.('p', event.target.value)}
                         onFocus={() => onPidFocus?.('p')}
                         onBlur={() => onPidBlur?.('p')}
+                        isModified={modifiedPidFields?.p}
                     />
                     <PIDInput
                         label="I:"
@@ -216,6 +251,7 @@ const ValveControl = ({
                         onChange={(event) => onPidChange?.('i', event.target.value)}
                         onFocus={() => onPidFocus?.('i')}
                         onBlur={() => onPidBlur?.('i')}
+                        isModified={modifiedPidFields?.i}
                     />
                     <PIDInput
                         label="D:"
@@ -224,6 +260,7 @@ const ValveControl = ({
                         onChange={(event) => onPidChange?.('d', event.target.value)}
                         onFocus={() => onPidFocus?.('d')}
                         onBlur={() => onPidBlur?.('d')}
+                        isModified={modifiedPidFields?.d}
                     />
                 </div>
                 <button
@@ -240,6 +277,7 @@ const ValveControl = ({
 };
 
 const ReturnValveControl = ({
+                                sensorValues,
                                 holdingData,
                                 openingRatio,
                                 onOpeningRatioChange,
@@ -259,7 +297,7 @@ const ReturnValveControl = ({
                 <div className="grid grid-cols-1 gap-4">
                     <div className="space-y-1.5 space-x-1.5">
                         <label className="text-[14px] font-bold text-slate-500 uppercase">{t('industrial.openingRatio')}</label>
-                        <PVText value={holdingData?.outlet_electric_valve_opening_pv} unit="%" />
+                        <PVText value={sensorValues.returnWaterPV} unit="%" />
                         <div className="relative">
                             <input
                                 className="text-left w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[14px] font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
@@ -475,14 +513,15 @@ const MotorControl = ({
                                     onFocus={onTargetFrequencyFocus}
                                     onBlur={onTargetFrequencyBlur}
                                     placeholder={FALLBACK_VALUE}
-                                    disabled={!enabled}
+                                    // disabled={!enabled}
                                 />
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 font-bold text-slate-400">Hz</span>
                             </div>
                             <button
                                 type="button"
                                 onClick={onSubmit}
-                                disabled={!enabled || isSubmitting}
+                                // disabled={!enabled || isSubmitting}
+                                disabled={isSubmitting}
                                 className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold border border-primary/20 hover:bg-primary hover:text-white transition-all disabled:opacity-50"
                             >
                                 {t('common.confirm')}
@@ -589,6 +628,7 @@ export function IndustrialControl({ device, onBack }) {
     const [outletCorrectionEnabled, setOutletCorrectionEnabled] = useState(false);
     const [pidMonitoringEnabled, setPidMonitoringEnabled] = useState(false);
     const [fansCorrectionEnabled, setFansCorrectionEnabled] = useState(false);
+    const [isSubmittingPidSwitch, setIsSubmittingPidSwitch] = useState(false);
     const [sensorData, setSensorData] = useState({});
     const [holdingData, setHoldingData] = useState({});
     const [fans, setFans] = useState([]);
@@ -600,8 +640,11 @@ export function IndustrialControl({ device, onBack }) {
     const [returnValveOpening, setReturnValveOpening] = useState('');
     const [pidValues, setPidValues] = useState({ p: '', i: '', d: '' });
     const [valvePidValues, setValvePidValues] = useState({ p: '', i: '', d: '' });
+    const [modifiedPidFields, setModifiedPidFields] = useState({ p: false, i: false, d: false });
+    const [modifiedValvePidFields, setModifiedValvePidFields] = useState({ p: false, i: false, d: false, opening: false });
     const [submittingFanId, setSubmittingFanId] = useState(null);
     const [isSubmittingPid, setIsSubmittingPid] = useState(false);
+    const [isSubmittingValvePid, setIsSubmittingValvePid] = useState(false);
     const [isSubmittingAllFans, setIsSubmittingAllFans] = useState(false);
     const [isSubmittingOutletTargetTemp, setIsSubmittingOutletTargetTemp] = useState(false);
     const [isSubmittingOutletValveOpening, setIsSubmittingOutletValveOpening] = useState(false);
@@ -765,7 +808,7 @@ export function IndustrialControl({ device, onBack }) {
                     if (!isEditingCirculatingPumpSvRef.current) {
                         setCirculatingPumpSv(String(data?.circulating_pump_sv ?? ''));
                     }
-                    if (!isEditingOutletValveOpeningRef.current) {
+                    if (!isEditingOutletValveOpeningRef.current && !isSubmittingOutletValveOpening && !modifiedValvePidFields.opening) {
                         setOutletValveOpening(String(data?.outlet_electric_valve_opening_sv ?? ''));
                     }
                     if (!isEditingReturnValveOpeningRef.current) {
@@ -774,24 +817,26 @@ export function IndustrialControl({ device, onBack }) {
                     if (!isEditingPressureTargetRef.current) {
                         setPressureTarget(String(data?.target_pressure_diff_sv ?? ''));
                     }
-                    if (!isEditingPidValuesRef.current) {
+                    if (!isEditingPidValuesRef.current && !isSubmittingPid && !Object.values(modifiedPidFields).some(Boolean)) {
                         setPidValues({
                             p: String(data?.group1_pid_p_sv ?? ''),
                             i: String(data?.group1_pid_i_sv ?? ''),
                             d: String(data?.group1_pid_d_sv ?? ''),
                         });
                     }
-                    if (!isEditingValvePidValuesRef.current) {
+                    if (!isEditingValvePidValuesRef.current && !isSubmittingValvePid && !Object.values(modifiedValvePidFields).some(Boolean)) {
                         setValvePidValues({
                             p: String(data?.group2_pid_p_sv ?? ''),
                             i: String(data?.group2_pid_i_sv ?? ''),
                             d: String(data?.group2_pid_d_sv ?? ''),
                         });
                     }
-                    setOutletPidMonitoringEnabled(data?.pid2_switch === 1);
-                    setOutletCorrectionEnabled(data?.pid2_direction === 1);
-                    setPidMonitoringEnabled(data?.pid1_switch === 1);
-                    setFansCorrectionEnabled(data?.pid1_direction === 1);
+                    if (!isSubmittingPidSwitch) {
+                        setOutletPidMonitoringEnabled(data?.pid2_switch === 1);
+                        setOutletCorrectionEnabled(data?.pid2_direction === 1);
+                        setPidMonitoringEnabled(data?.pid1_switch === 1);
+                        setFansCorrectionEnabled(data?.pid1_direction === 1);
+                    }
                 })
                 .catch((error) => {
                     console.error(t('industrial.error.fetchSensor'), error);
@@ -812,6 +857,9 @@ export function IndustrialControl({ device, onBack }) {
         }
 
         const value = enabled ? 1 : 0;
+        console.log(`[PID Switch] 開始更新 ${key} 為 ${value} (enabled: ${enabled})`);
+        setIsSubmittingPidSwitch(true);
+
         try {
             const response = await fetch(`/api/modbus/sv-with-coils/${encodeURIComponent(deviceIdentifier)}`, {
                 method: 'POST',
@@ -823,8 +871,11 @@ export function IndustrialControl({ device, onBack }) {
                 }),
             });
 
+            console.log(`[PID Switch] 收到回應: ${response.status} ${response.statusText}`);
+
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
             }
 
             // Update local state immediately for better UX
@@ -832,9 +883,15 @@ export function IndustrialControl({ device, onBack }) {
             if (key === 'pid2_direction') setOutletCorrectionEnabled(enabled);
             if (key === 'pid1_switch') setPidMonitoringEnabled(enabled);
             if (key === 'pid1_direction') setFansCorrectionEnabled(enabled);
+            console.log(`[PID Switch] ${key} 更新成功`);
 
         } catch (error) {
             console.error(`更新 ${key} 失敗:`, error);
+        } finally {
+            // 延遲重置，確保輪詢不會立即覆蓋
+            setTimeout(() => {
+                setIsSubmittingPidSwitch(false);
+            }, 3000);
         }
     };
 
@@ -1059,12 +1116,47 @@ export function IndustrialControl({ device, onBack }) {
         group2_pid_d_sv: Number(valvePidValues.d) || 0,
     });
 
+    const handlePidChange = (key, value) => {
+        isEditingPidValuesRef.current = true;
+        setPidValues((prev) => ({
+            ...prev,
+            [key]: value,
+        }));
+        setModifiedPidFields((prev) => ({
+            ...prev,
+            [key]: true,
+        }));
+    };
+
+    const handleValvePidChange = (key, value) => {
+        isEditingValvePidValuesRef.current = true;
+        setValvePidValues((prev) => ({
+            ...prev,
+            [key]: value,
+        }));
+        setModifiedValvePidFields((prev) => ({
+            ...prev,
+            [key]: true,
+        }));
+    };
+
+    const handleOutletValveOpeningChange = (value) => {
+        isEditingOutletValveOpeningRef.current = true;
+        setOutletValveOpening(value);
+        setModifiedValvePidFields((prev) => ({
+            ...prev,
+            opening: true,
+        }));
+    };
+
     const handleSubmitPidValues = async () => {
         if (!deviceIdentifier) {
             return;
         }
 
         setIsSubmittingPid(true);
+        const payload = buildSvPayload();
+        console.log('[PID Fans] 開始更新 PID 數值, payload:', payload);
 
         try {
             const response = await fetch(`/api/modbus/sv-with-coils/${encodeURIComponent(deviceIdentifier)}`, {
@@ -1072,17 +1164,32 @@ export function IndustrialControl({ device, onBack }) {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(buildSvPayload()),
+                body: JSON.stringify(payload),
             });
 
+            console.log(`[PID Fans] 收到回應: ${response.status} ${response.statusText}`);
+
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
             }
+
+            // 同步本地狀態，確保在輪詢更新前 UI 保持一致
+            setPidValues({
+                p: String(payload.group1_pid_p_sv),
+                i: String(payload.group1_pid_i_sv),
+                d: String(payload.group1_pid_d_sv),
+            });
+            setModifiedPidFields({ p: false, i: false, d: false });
+            console.log('[PID Fans] 更新成功');
         } catch (error) {
             console.error('PID 設定失敗:', error);
         } finally {
-            isEditingPidValuesRef.current = false;
-            setIsSubmittingPid(false);
+            // 延遲重置，給予設備響應時間
+            setTimeout(() => {
+                setIsSubmittingPid(false);
+                isEditingPidValuesRef.current = false;
+            }, 3000);
         }
     };
 
@@ -1212,7 +1319,17 @@ export function IndustrialControl({ device, onBack }) {
         }
 
         const nextValue = Number(outletValveOpening);
+        const payload = {
+            ...buildSvPayload(),
+            outlet_electric_valve_opening_sv: Number.isNaN(nextValue) ? 0 : nextValue,
+            group2_pid_p_sv: Number(valvePidValues.p) || 0,
+            group2_pid_i_sv: Number(valvePidValues.i) || 0,
+            group2_pid_d_sv: Number(valvePidValues.d) || 0,
+        };
+
+        console.log('[PID Outlet] 開始更新出水閥開度及 PID, payload:', payload);
         setIsSubmittingOutletValveOpening(true);
+        setIsSubmittingValvePid(true);
 
         try {
             const response = await fetch(`/api/modbus/sv-with-coils/${encodeURIComponent(deviceIdentifier)}`, {
@@ -1220,24 +1337,34 @@ export function IndustrialControl({ device, onBack }) {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    ...buildSvPayload(),
-                    outlet_electric_valve_opening_sv: Number.isNaN(nextValue) ? 0 : nextValue,
-                    group2_pid_p_sv: Number(valvePidValues.p) || 0,
-                    group2_pid_i_sv: Number(valvePidValues.i) || 0,
-                    group2_pid_d_sv: Number(valvePidValues.d) || 0,
-                }),
+                body: JSON.stringify(payload),
             });
 
+            console.log(`[PID Outlet] 收到回應: ${response.status} ${response.statusText}`);
+
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
             }
+
+            // 同步本地狀態
+            setValvePidValues({
+                p: String(valvePidValues.p),
+                i: String(valvePidValues.i),
+                d: String(valvePidValues.d),
+            });
+            setOutletValveOpening(String(nextValue));
+            setModifiedValvePidFields({ p: false, i: false, d: false, opening: false });
+            console.log('[PID Outlet] 更新成功');
         } catch (error) {
-            console.error('出水閥開度設定失敗:', error);
+            console.error('出水閥開度及 PID 設定失敗:', error);
         } finally {
-            isEditingOutletValveOpeningRef.current = false;
-            isEditingValvePidValuesRef.current = false;
-            setIsSubmittingOutletValveOpening(false);
+            setTimeout(() => {
+                setIsSubmittingOutletValveOpening(false);
+                setIsSubmittingValvePid(false);
+                isEditingOutletValveOpeningRef.current = false;
+                isEditingValvePidValuesRef.current = false;
+            }, 3000);
         }
     };
 
@@ -1454,12 +1581,10 @@ export function IndustrialControl({ device, onBack }) {
 
             <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
                 <ValveControl
+                    sensorValues={sensorValues}
                     holdingData={holdingData}
                     percentage={outletValveOpening}
-                    onPercentageChange={(value) => {
-                        isEditingOutletValveOpeningRef.current = true;
-                        setOutletValveOpening(value);
-                    }}
+                    onPercentageChange={handleOutletValveOpeningChange}
                     onPercentageFocus={() => {
                         isEditingOutletValveOpeningRef.current = true;
                     }}
@@ -1469,25 +1594,21 @@ export function IndustrialControl({ device, onBack }) {
                     onSubmit={handleSubmitOutletValveOpening}
                     isSubmitting={isSubmittingOutletValveOpening}
                     pidValues={valvePidValues}
-                    onPidChange={(key, value) => {
-                        isEditingValvePidValuesRef.current = true;
-                        setValvePidValues((prev) => ({
-                            ...prev,
-                            [key]: value,
-                        }))
-                    }}
+                    onPidChange={handleValvePidChange}
                     onPidFocus={() => {
                         isEditingValvePidValuesRef.current = true;
                     }}
                     onPidBlur={() => {
                         isEditingValvePidValuesRef.current = false;
                     }}
+                    modifiedPidFields={modifiedValvePidFields}
                     pidMonitoringEnabled={outletPidMonitoringEnabled}
                     onPidMonitoringChange={(enabled) => handleUpdatePidSwitch('pid2_switch', enabled)}
                     correctionEnabled={outletCorrectionEnabled}
                     onCorrectionChange={(enabled) => handleUpdatePidSwitch('pid2_direction', enabled)}
                 />
                 <ReturnValveControl
+                    sensorValues={sensorValues}
                     holdingData={holdingData}
                     openingRatio={returnValveOpening}
                     onOpeningRatioChange={(value) => {
@@ -1596,7 +1717,7 @@ export function IndustrialControl({ device, onBack }) {
                             <div className="flex flex-col">
                                 <span className="text-[12px] text-slate-400 font-bold">PV</span>
                                 <span className="text-s font-bold text-slate-700">
-                                    {formatDisplayValue(holdingData?.target_pressure_diff_pv)} Pa
+                                    {formatDisplayValue(sensorValues.pressureDifference)} Pa
                                 </span>
                             </div>
                             <div className="flex-1 flex gap-2">
@@ -1660,16 +1781,14 @@ export function IndustrialControl({ device, onBack }) {
                                             onBlur={() => {
                                                 isEditingPidValuesRef.current = false;
                                             }}
-                                            onChange={(event) => {
-                                                isEditingPidValuesRef.current = true;
-                                                setPidValues((prev) => ({
-                                                    ...prev,
-                                                    [item.key]: event.target.value,
-                                                }))
-                                            }}
-                                            step="0.01"
+                                            onChange={(event) => handlePidChange(item.key, event.target.value)}
+                                            step="1"
                                             placeholder={FALLBACK_VALUE}
-                                            className="text-left w-full bg-white border-none rounded-lg text-xs px-2 py-1.5 ring-1 ring-slate-200 focus:ring-primary outline-none"
+                                            className={`text-left w-full border-none rounded-lg text-xs px-2 py-1.5 ring-1 outline-none transition-colors ${
+                                                modifiedPidFields[item.key]
+                                                    ? 'bg-red-50 ring-red-500'
+                                                    : 'bg-white ring-slate-200 focus:ring-primary'
+                                            }`}
                                         />
                                     </div>
                                 ))}
