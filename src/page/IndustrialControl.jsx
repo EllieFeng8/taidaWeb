@@ -13,6 +13,29 @@ import ConnectSetting from '../components/ConnectSetting.jsx';
 const API_HOST = '';
 const FALLBACK_VALUE = '--';
 const DEFAULT_POLLING_INTERVAL_MS = 1000;
+
+const SCALE_4096 = 4096;
+const MAX_VALVE_100 = 100;
+const MAX_TEMP_100 = 100;
+const MAX_FREQ_60 = 60;
+const MAX_PID_100 = 100;
+const MAX_PRESSURE_1000 = 1000;
+const FAN_MAX_RPM_3570 = 3570;
+
+const toDisplay = (modbusValue, maxRange) => {
+    if (modbusValue === undefined || modbusValue === null || Number.isNaN(Number(modbusValue))) {
+        return 0;
+    }
+    const val = (Number(modbusValue) / SCALE_4096) * maxRange;
+    // 確保數值最多只有一位小數
+    return parseFloat(val.toFixed(1));
+};
+
+const toModbus = (displayValue, maxRange) => {
+    const val = Number(displayValue);
+    if (Number.isNaN(val)) return 0;
+    return Math.round((val / maxRange) * SCALE_4096);
+};
 // const TELEMETRY_SENSOR_ORDER = [
 //     'inletWaterTemp',
 //     'inletWaterPressure',
@@ -78,25 +101,31 @@ const formatDisplayValue = (value) => {
     }
 
     const numericValue = Number(formattedValue);
-    return Number.isNaN(numericValue) ? FALLBACK_VALUE : numericValue.toFixed(1);
+    if (Number.isNaN(numericValue)) return FALLBACK_VALUE;
+
+    // 格式化為最多一位小數，並移除末尾不必要的零
+    return parseFloat(numericValue.toFixed(1)).toString();
 };
 
 const buildFansFromHolding = (holdingPayload) => Array.from({ length: 9 }, (_, index) => {
     const fanNumber = index + 1;
     const id = String(fanNumber).padStart(2, '0');
-    const pvValue = Number(holdingPayload?.[`cooling_fan${fanNumber}_pv`] ?? 0);
-    const svValue = Number(holdingPayload?.[`cooling_fan${fanNumber}_sv`] ?? 0);
-    const safePvValue = Number.isNaN(pvValue) ? 0 : pvValue;
-    const safeSvValue = Number.isNaN(svValue) ? 0 : svValue;
-    const isActive = safeSvValue > 0;
+    const modbusPv = Number(holdingPayload?.[`cooling_fan${fanNumber}_pv`] ?? 0);
+    const modbusSv = Number(holdingPayload?.[`cooling_fan${fanNumber}_sv`] ?? 0);
+    
+    const displayPvPercent = toDisplay(modbusPv, 100);
+    const displaySvPercent = toDisplay(modbusSv, 100);
+    const displayPvRpm = toDisplay(modbusPv, FAN_MAX_RPM_3570);
+
+    const isActive = modbusSv > 0;
 
     return {
         id,
         status: isActive ? 'running' : 'stopped',
-        pvPercent: safePvValue,
-        pvRpm: safePvValue,
-        svRpm: safeSvValue,
-        lastActiveSvRpm: safeSvValue > 0 ? safeSvValue : safePvValue,
+        pvPercent: displayPvPercent,
+        pvRpm: displayPvRpm,
+        svRpm: displaySvPercent,
+        lastActiveSvRpm: displaySvPercent > 0 ? displaySvPercent : displayPvPercent,
         isActive,
     };
 });
@@ -154,24 +183,27 @@ const PVText = ({ value, unit = '' }) => (
     </span>
 );
 
-const PIDInput = ({ label, pvValue, value, onChange, onFocus, onBlur, isModified }) => (
+const PIDInput = ({ label, pvValue, value, onChange, onFocus, onBlur, isModified, error }) => (
     <div className="space-y-1.5 space-x-1.5">
         <label className="text-[14px] font-bold text-slate-500 uppercase">{label}</label>
         <PVText value={pvValue} />
-        <input
-            className={`text-left w-full border rounded-lg px-3 py-2 text-[12px] focus:ring-2 focus:ring-primary/20 outline-none transition-colors ${
-                isModified 
-                    ? 'bg-red-50 border-red-500' 
-                    : 'bg-slate-50 border-slate-200'
-            }`}
-            step="1"
-            type="number"
-            value={value}
-            onChange={onChange}
-            onFocus={onFocus}
-            onBlur={onBlur}
-            placeholder={FALLBACK_VALUE}
-        />
+        <div className="relative">
+            <input
+                className={`text-left w-full border rounded-lg px-3 py-2 text-[12px] focus:ring-2 focus:ring-primary/20 outline-none transition-colors ${
+                    isModified || error
+                        ? 'bg-red-50 border-red-500' 
+                        : 'bg-slate-50 border-slate-200'
+                }`}
+                step="1"
+                type="number"
+                value={value}
+                onChange={onChange}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                placeholder={FALLBACK_VALUE}
+            />
+            {error && <span className="absolute -top-4 right-0 text-[10px] font-bold text-red-500">{error}</span>}
+        </div>
     </div>
 );
 
@@ -193,6 +225,7 @@ const ValveControl = ({
                           onPidMonitoringChange,
                           correctionEnabled,
                           onCorrectionChange,
+                          error,
                       }) => {
     const {t} = useLanguage();
 
@@ -220,7 +253,7 @@ const ValveControl = ({
                     <div className="relative">
                         <input
                             className={`text-left w-full border rounded-lg px-3 py-2 text-[14px] font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors ${
-                                modifiedPidFields?.opening 
+                                (modifiedPidFields?.opening || error)
                                     ? 'bg-red-50 border-red-500' 
                                     : 'bg-slate-50 border-slate-200'
                             }`}
@@ -232,6 +265,7 @@ const ValveControl = ({
                             placeholder={FALLBACK_VALUE}
                         />
                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-slate-400 font-bold">%</span>
+                        {error && <span className="absolute -top-4 right-0 text-[10px] font-bold text-red-500">{error}</span>}
                     </div>
                 </div>
                 <div className="grid grid-cols-3 gap-4 text-[14px]">
@@ -243,6 +277,7 @@ const ValveControl = ({
                         onFocus={() => onPidFocus?.('p')}
                         onBlur={() => onPidBlur?.('p')}
                         isModified={modifiedPidFields?.p}
+                        error={error}
                     />
                     <PIDInput
                         label="I:"
@@ -252,6 +287,7 @@ const ValveControl = ({
                         onFocus={() => onPidFocus?.('i')}
                         onBlur={() => onPidBlur?.('i')}
                         isModified={modifiedPidFields?.i}
+                        error={error}
                     />
                     <PIDInput
                         label="D:"
@@ -261,6 +297,7 @@ const ValveControl = ({
                         onFocus={() => onPidFocus?.('d')}
                         onBlur={() => onPidBlur?.('d')}
                         isModified={modifiedPidFields?.d}
+                        error={error}
                     />
                 </div>
                 <button
@@ -285,6 +322,7 @@ const ReturnValveControl = ({
                                 onOpeningRatioBlur,
                                 onSubmit,
                                 isSubmitting,
+                                error,
                             }) => {
     const { t } = useLanguage();
 
@@ -300,7 +338,9 @@ const ReturnValveControl = ({
                         <PVText value={sensorValues.returnWaterPV} unit="%" />
                         <div className="relative">
                             <input
-                                className="text-left w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-[14px] font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                                className={`text-left w-full border rounded-lg px-3 py-2 text-[14px] font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors ${
+                                    error ? 'bg-red-50 border-red-500' : 'bg-slate-50 border-slate-200'
+                                }`}
                                 type="number"
                                 value={openingRatio}
                                 onChange={(event) => onOpeningRatioChange?.(event.target.value)}
@@ -309,6 +349,7 @@ const ReturnValveControl = ({
                                 placeholder={FALLBACK_VALUE}
                             />
                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">%</span>
+                            {error && <span className="absolute -top-4 right-0 text-[10px] font-bold text-red-500">{error}</span>}
                         </div>
                     </div>
 
@@ -336,6 +377,7 @@ const MotorControl = ({
                           onTargetFrequencyBlur,
                           onSubmit,
                           isSubmitting,
+                          error,
                       }) => {
     const { t } = useLanguage();
     const [enabled, setEnabled] = useState(false);
@@ -506,7 +548,9 @@ const MotorControl = ({
                         <div className="flex flex-1 gap-2">
                             <div className="relative flex-1">
                                 <input
-                                    className="text-left w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-3 text-[14px] font-bold focus:ring-2 focus:ring-primary/20 outline-none disabled:opacity-50"
+                                    className={`text-left w-full border rounded-lg px-3 py-3 text-[14px] font-bold focus:ring-2 focus:ring-primary/20 outline-none disabled:opacity-50 transition-colors ${
+                                        error ? 'bg-red-50 border-red-500' : 'bg-slate-50 border-slate-200'
+                                    }`}
                                     type="number"
                                     value={targetFrequency ?? ''}
                                     onChange={(event) => onTargetFrequencyChange?.(event.target.value)}
@@ -516,6 +560,7 @@ const MotorControl = ({
                                     // disabled={!enabled}
                                 />
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 font-bold text-slate-400">Hz</span>
+                                {error && <span className="absolute -top-4 right-0 text-[10px] font-bold text-red-500">{error}</span>}
                             </div>
                             <button
                                 type="button"
@@ -546,7 +591,7 @@ const MotorControl = ({
     );
 };
 
-const FanUnitCard = ({ fan, onSvChange, onSvFocus, onSvBlur, onSubmit, onToggle, isSubmitting }) => {
+const FanUnitCard = ({ fan, onSvChange, onSvFocus, onSvBlur, onSubmit, onToggle, isSubmitting, error }) => {
     const { t } = useLanguage();
     const statusColors = {
         running: 'text-emerald-500',
@@ -596,25 +641,34 @@ const FanUnitCard = ({ fan, onSvChange, onSvFocus, onSvBlur, onSubmit, onToggle,
                     </div>
                 </div>
                 <div className="space-y-2">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">{t('industrial.svLabel')}</p>
-                    <div className="flex h-full max-h-[72px] border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm focus-within:ring-2 focus-within:ring-blue-100 transition-all">
-                        <input
-                            type="number"
-                            value={fan.svRpm}
-                            onChange={(event) => onSvChange?.(fan.id, event.target.value)}
-                            onFocus={() => onSvFocus?.(fan.id)}
-                            onBlur={() => onSvBlur?.(fan.id)}
-                            className="text-left w-full border-none bg-transparent text-lg font-bold px-3 focus:ring-0"
-                        />
-                        <button
-                            type="button"
-                            onClick={() => onSubmit?.(fan.id)}
-                            disabled={isSubmitting}
-                            className="bg-slate-50 px-3 flex items-center justify-center border-l border-slate-100 transition-colors disabled:opacity-50"
-                        >
-                            <Check size={18} className="text-slate-400" />
-                        </button>
-                    </div>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">{t('industrial.svLabel')} (%) </p>
+
+                    {/*<div className="flex flex-col gap-1">*/}
+                        <div className={`flex h-full max-h-[72px] border rounded-xl overflow-hidden bg-white shadow-sm focus-within:ring-2 focus-within:ring-blue-100 transition-all ${error ? 'border-red-500 ring-2 ring-red-100' : 'border-slate-200'}`}>
+
+                            <input
+                                type="number"
+                                value={fan.svRpm}
+                                onChange={(event) => onSvChange?.(fan.id, event.target.value)}
+                                onFocus={() => onSvFocus?.(fan.id)}
+                                onBlur={() => onSvBlur?.(fan.id)}
+                                className="text-left w-full border-none bg-transparent text-lg font-bold px-3 focus:ring-0"
+
+                            />
+
+                            <button
+                                type="button"
+                                onClick={() => onSubmit?.(fan.id)}
+                                disabled={isSubmitting}
+                                className="bg-slate-50 px-3 flex items-center justify-center border-l border-slate-100 transition-colors disabled:opacity-50"
+                            >
+                                <Check size={18} className="text-slate-400" />
+                            </button>
+                            {error && <span className="self-center px-3 text-right text-[10px] font-bold text-red-500 bg-transparent whitespace-nowrap">{error}</span>}
+                        </div>
+
+
+                    {/*</div>*/}
                 </div>
             </div>
         </div>
@@ -643,6 +697,13 @@ export function IndustrialControl({ device, onBack }) {
     const [modifiedPidFields, setModifiedPidFields] = useState({ p: false, i: false, d: false });
     const [modifiedValvePidFields, setModifiedValvePidFields] = useState({ p: false, i: false, d: false, opening: false });
     const [submittingFanId, setSubmittingFanId] = useState(null);
+    const [tempError, setTempError] = useState('');
+    const [pumpError, setPumpError] = useState('');
+    const [outletValveError, setOutletValveError] = useState('');
+    const [returnValveError, setReturnValveError] = useState('');
+    const [pressureError, setPressureError] = useState('');
+    const [pidError, setPidError] = useState('');
+    const [valvePidError, setValvePidError] = useState('');
     const [isSubmittingPid, setIsSubmittingPid] = useState(false);
     const [isSubmittingValvePid, setIsSubmittingValvePid] = useState(false);
     const [isSubmittingAllFans, setIsSubmittingAllFans] = useState(false);
@@ -651,6 +712,8 @@ export function IndustrialControl({ device, onBack }) {
     const [isSubmittingPressureTarget, setIsSubmittingPressureTarget] = useState(false);
     const [isSubmittingReturnValveOpening, setIsSubmittingReturnValveOpening] = useState(false);
     const [isSubmittingPumpFrequency, setIsSubmittingPumpFrequency] = useState(false);
+    const [allFansError, setAllFansError] = useState('');
+    const [fanErrors, setFanErrors] = useState({});
     const [isEmergencyEnabled, setIsEmergencyEnabled] = useState(false);
     const [isSubmittingEmergency, setIsSubmittingEmergency] = useState(false);
     const emergencyOverrideRef = useRef(null);
@@ -799,35 +862,36 @@ export function IndustrialControl({ device, onBack }) {
                     });
                 });
                 if (!isEditingAllFansRpmTargetRef.current) {
-                    setAllFansRpmTarget(buildAllFansTargetFromHolding(data ?? {}));
+                    const allFansDisplay = toDisplay(buildAllFansTargetFromHolding(data ?? {}), MAX_VALVE_100);
+                    setAllFansRpmTarget(allFansDisplay > 0 ? String(allFansDisplay) : '');
                 }
                 if (!isEditingOutletTargetTempRef.current) {
-                    setOutletTargetTempSv(String(data?.outlet_target_temp_sv ?? ''));
+                    setOutletTargetTempSv(String(toDisplay(data?.outlet_target_temp_sv, MAX_TEMP_100) || ''));
                 }
                 if (!isEditingCirculatingPumpSvRef.current) {
-                    setCirculatingPumpSv(String(data?.circulating_pump_sv ?? ''));
+                    setCirculatingPumpSv(String(toDisplay(data?.circulating_pump_sv, MAX_FREQ_60) || ''));
                 }
                 if (!isEditingOutletValveOpeningRef.current && !isSubmittingOutletValveOpening && !modifiedValvePidFields.opening) {
-                    setOutletValveOpening(String(data?.outlet_electric_valve_opening_sv ?? ''));
+                    setOutletValveOpening(String(toDisplay(data?.outlet_electric_valve_opening_sv, MAX_VALVE_100) || ''));
                 }
                 if (!isEditingReturnValveOpeningRef.current) {
-                    setReturnValveOpening(String(data?.return_electric_valve_opening_sv ?? ''));
+                    setReturnValveOpening(String(toDisplay(data?.return_electric_valve_opening_sv, MAX_VALVE_100) || ''));
                 }
                 if (!isEditingPressureTargetRef.current) {
-                    setPressureTarget(String(data?.target_pressure_diff_sv ?? ''));
+                    setPressureTarget(String(toDisplay(data?.target_pressure_diff_sv, MAX_PRESSURE_1000) || ''));
                 }
                 if (!isEditingPidValuesRef.current && !isSubmittingPid && !Object.values(modifiedPidFields).some(Boolean)) {
                     setPidValues({
-                        p: String(data?.group1_pid_p_sv ?? ''),
-                        i: String(data?.group1_pid_i_sv ?? ''),
-                        d: String(data?.group1_pid_d_sv ?? ''),
+                        p: String(toDisplay(data?.group1_pid_p_sv, MAX_PID_100) || ''),
+                        i: String(toDisplay(data?.group1_pid_i_sv, MAX_PID_100) || ''),
+                        d: String(toDisplay(data?.group1_pid_d_sv, MAX_PID_100) || ''),
                     });
                 }
                 if (!isEditingValvePidValuesRef.current && !isSubmittingValvePid && !Object.values(modifiedValvePidFields).some(Boolean)) {
                     setValvePidValues({
-                        p: String(data?.group2_pid_p_sv ?? ''),
-                        i: String(data?.group2_pid_i_sv ?? ''),
-                        d: String(data?.group2_pid_d_sv ?? ''),
+                        p: String(toDisplay(data?.group2_pid_p_sv, MAX_PID_100) || ''),
+                        i: String(toDisplay(data?.group2_pid_i_sv, MAX_PID_100) || ''),
+                        d: String(toDisplay(data?.group2_pid_d_sv, MAX_PID_100) || ''),
                     });
                 }
                 if (!isSubmittingPidSwitch) {
@@ -1056,6 +1120,12 @@ export function IndustrialControl({ device, onBack }) {
         const targetFan = fans.find((fan) => fan.id === fanId);
         const nextValue = Number(targetFan?.svRpm);
 
+        if (nextValue < 0 || nextValue > 100) {
+            setFanErrors((prev) => ({ ...prev, [fanId]: '0 ~ 100' }));
+            return;
+        }
+        setFanErrors((prev) => ({ ...prev, [fanId]: '' }));
+
         setSubmittingFanId(fanId);
 
         try {
@@ -1067,7 +1137,7 @@ export function IndustrialControl({ device, onBack }) {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        value: Number.isNaN(nextValue) ? 0 : nextValue,
+                        value: toModbus(nextValue, 100),
                     }),
                 }
             );
@@ -1098,23 +1168,23 @@ export function IndustrialControl({ device, onBack }) {
     };
 
     const buildSvPayload = () => ({
-        circulating_pump_sv: Number(circulatingPumpSv) || 0,
-        cooling_fan1_sv: Number(fans.find((fan) => fan.id === '01')?.svRpm) || 0,
-        cooling_fan2_sv: Number(fans.find((fan) => fan.id === '02')?.svRpm) || 0,
-        cooling_fan3_sv: Number(fans.find((fan) => fan.id === '03')?.svRpm) || 0,
-        cooling_fan4_sv: Number(fans.find((fan) => fan.id === '04')?.svRpm) || 0,
-        cooling_fan5_sv: Number(fans.find((fan) => fan.id === '05')?.svRpm) || 0,
-        cooling_fan6_sv: Number(fans.find((fan) => fan.id === '06')?.svRpm) || 0,
-        cooling_fan7_sv: Number(fans.find((fan) => fan.id === '07')?.svRpm) || 0,
-        cooling_fan8_sv: Number(fans.find((fan) => fan.id === '08')?.svRpm) || 0,
-        cooling_fan9_sv: Number(fans.find((fan) => fan.id === '09')?.svRpm) || 0,
-        return_electric_valve_opening_sv: Number(returnValveOpening) || 0,
-        group1_pid_p_sv: Number(pidValues.p) || 0,
-        group1_pid_i_sv: Number(pidValues.i) || 0,
-        group1_pid_d_sv: Number(pidValues.d) || 0,
-        group2_pid_p_sv: Number(valvePidValues.p) || 0,
-        group2_pid_i_sv: Number(valvePidValues.i) || 0,
-        group2_pid_d_sv: Number(valvePidValues.d) || 0,
+        circulating_pump_sv: toModbus(circulatingPumpSv, MAX_FREQ_60),
+        cooling_fan1_sv: toModbus(fans.find((fan) => fan.id === '01')?.svRpm, 100),
+        cooling_fan2_sv: toModbus(fans.find((fan) => fan.id === '02')?.svRpm, 100),
+        cooling_fan3_sv: toModbus(fans.find((fan) => fan.id === '03')?.svRpm, 100),
+        cooling_fan4_sv: toModbus(fans.find((fan) => fan.id === '04')?.svRpm, 100),
+        cooling_fan5_sv: toModbus(fans.find((fan) => fan.id === '05')?.svRpm, 100),
+        cooling_fan6_sv: toModbus(fans.find((fan) => fan.id === '06')?.svRpm, 100),
+        cooling_fan7_sv: toModbus(fans.find((fan) => fan.id === '07')?.svRpm, 100),
+        cooling_fan8_sv: toModbus(fans.find((fan) => fan.id === '08')?.svRpm, 100),
+        cooling_fan9_sv: toModbus(fans.find((fan) => fan.id === '09')?.svRpm, 100),
+        return_electric_valve_opening_sv: toModbus(returnValveOpening, MAX_VALVE_100),
+        group1_pid_p_sv: toModbus(pidValues.p, MAX_PID_100),
+        group1_pid_i_sv: toModbus(pidValues.i, MAX_PID_100),
+        group1_pid_d_sv: toModbus(pidValues.d, MAX_PID_100),
+        group2_pid_p_sv: toModbus(valvePidValues.p, MAX_PID_100),
+        group2_pid_i_sv: toModbus(valvePidValues.i, MAX_PID_100),
+        group2_pid_d_sv: toModbus(valvePidValues.d, MAX_PID_100),
     });
 
     const handlePidChange = (key, value) => {
@@ -1155,6 +1225,13 @@ export function IndustrialControl({ device, onBack }) {
             return;
         }
 
+        const vals = [pidValues.p, pidValues.i, pidValues.d].map(Number);
+        if (vals.some(v => v < 0 || v > 100)) {
+            setPidError('0 ~ 100');
+            return;
+        }
+        setPidError('');
+
         setIsSubmittingPid(true);
         const payload = buildSvPayload();
         console.log('[PID Fans] 開始更新 PID 數值, payload:', payload);
@@ -1177,9 +1254,9 @@ export function IndustrialControl({ device, onBack }) {
 
             // 同步本地狀態，確保在輪詢更新前 UI 保持一致
             setPidValues({
-                p: String(payload.group1_pid_p_sv),
-                i: String(payload.group1_pid_i_sv),
-                d: String(payload.group1_pid_d_sv),
+                p: String(pidValues.p),
+                i: String(pidValues.i),
+                d: String(pidValues.d),
             });
             setModifiedPidFields({ p: false, i: false, d: false });
             isEditingPidValuesRef.current = false;
@@ -1198,6 +1275,12 @@ export function IndustrialControl({ device, onBack }) {
         }
 
         const nextValue = Number(allFansRpmTarget);
+        if (nextValue < 0 || nextValue > 100) {
+            setAllFansError('0 ~ 100');
+            return;
+        }
+        setAllFansError('');
+
         const normalizedValue = Number.isNaN(nextValue) ? 0 : nextValue;
         const nextFans = fans.map((fan) => ({
             ...fan,
@@ -1216,20 +1299,20 @@ export function IndustrialControl({ device, onBack }) {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    circulating_pump_sv: Number(circulatingPumpSv) || 0,
-                    cooling_fan1_sv: normalizedValue,
-                    cooling_fan2_sv: normalizedValue,
-                    cooling_fan3_sv: normalizedValue,
-                    cooling_fan4_sv: normalizedValue,
-                    cooling_fan5_sv: normalizedValue,
-                    cooling_fan6_sv: normalizedValue,
-                    cooling_fan7_sv: normalizedValue,
-                    cooling_fan8_sv: normalizedValue,
-                    cooling_fan9_sv: normalizedValue,
-                    return_electric_valve_opening_sv: Number(returnValveOpening) || 0,
-                    group1_pid_p_sv: Number(pidValues.p) || 0,
-                    group1_pid_i_sv: Number(pidValues.i) || 0,
-                    group1_pid_d_sv: Number(pidValues.d) || 0,
+                    circulating_pump_sv: toModbus(circulatingPumpSv, MAX_FREQ_60),
+                    cooling_fan1_sv: toModbus(normalizedValue, 100),
+                    cooling_fan2_sv: toModbus(normalizedValue, 100),
+                    cooling_fan3_sv: toModbus(normalizedValue, 100),
+                    cooling_fan4_sv: toModbus(normalizedValue, 100),
+                    cooling_fan5_sv: toModbus(normalizedValue, 100),
+                    cooling_fan6_sv: toModbus(normalizedValue, 100),
+                    cooling_fan7_sv: toModbus(normalizedValue, 100),
+                    cooling_fan8_sv: toModbus(normalizedValue, 100),
+                    cooling_fan9_sv: toModbus(normalizedValue, 100),
+                    return_electric_valve_opening_sv: toModbus(returnValveOpening, MAX_VALVE_100),
+                    group1_pid_p_sv: toModbus(pidValues.p, MAX_PID_100),
+                    group1_pid_i_sv: toModbus(pidValues.i, MAX_PID_100),
+                    group1_pid_d_sv: toModbus(pidValues.d, MAX_PID_100),
                 }),
             });
 
@@ -1253,6 +1336,12 @@ export function IndustrialControl({ device, onBack }) {
         }
 
         const nextValue = Number(outletTargetTempSv);
+        if (nextValue < 0 || nextValue > 100) {
+            setTempError('0 ~ 100');
+            return;
+        }
+        setTempError('');
+
         setIsSubmittingOutletTargetTemp(true);
 
         try {
@@ -1264,7 +1353,7 @@ export function IndustrialControl({ device, onBack }) {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        value: Number.isNaN(nextValue) ? 0 : nextValue,
+                        value: toModbus(nextValue, MAX_TEMP_100),
                     }),
                 }
             );
@@ -1288,6 +1377,12 @@ export function IndustrialControl({ device, onBack }) {
         }
 
         const nextValue = Number(circulatingPumpSv);
+        if (nextValue < 0 || nextValue > 60) {
+            setPumpError('0 ~ 60');
+            return;
+        }
+        setPumpError('');
+
         setIsSubmittingPumpFrequency(true);
 
         try {
@@ -1299,7 +1394,7 @@ export function IndustrialControl({ device, onBack }) {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        value: Number.isNaN(nextValue) ? 0 : nextValue,
+                        value: toModbus(nextValue, MAX_FREQ_60),
                     }),
                 }
             );
@@ -1323,12 +1418,22 @@ export function IndustrialControl({ device, onBack }) {
         }
 
         const nextValue = Number(outletValveOpening);
+        const pVal = Number(valvePidValues.p);
+        const iVal = Number(valvePidValues.i);
+        const dVal = Number(valvePidValues.d);
+
+        if (nextValue < 0 || nextValue > 100 || pVal < 0 || pVal > 100 || iVal < 0 || iVal > 100 || dVal < 0 || dVal > 100) {
+            setValvePidError('0 ~ 100');
+            return;
+        }
+        setValvePidError('');
+
         const payload = {
             ...buildSvPayload(),
-            outlet_electric_valve_opening_sv: Number.isNaN(nextValue) ? 0 : nextValue,
-            group2_pid_p_sv: Number(valvePidValues.p) || 0,
-            group2_pid_i_sv: Number(valvePidValues.i) || 0,
-            group2_pid_d_sv: Number(valvePidValues.d) || 0,
+            outlet_electric_valve_opening_sv: toModbus(nextValue, MAX_VALVE_100),
+            group2_pid_p_sv: toModbus(pVal, MAX_PID_100),
+            group2_pid_i_sv: toModbus(iVal, MAX_PID_100),
+            group2_pid_d_sv: toModbus(dVal, MAX_PID_100),
         };
 
         console.log('[PID Outlet] 開始更新出水閥開度及 PID, payload:', payload);
@@ -1378,6 +1483,12 @@ export function IndustrialControl({ device, onBack }) {
         }
 
         const nextValue = Number(pressureTarget);
+        if (nextValue < 0 || nextValue > 1000) {
+            setPressureError('0 ~ 1000');
+            return;
+        }
+        setPressureError('');
+
         setIsSubmittingPressureTarget(true);
 
         try {
@@ -1389,7 +1500,7 @@ export function IndustrialControl({ device, onBack }) {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        value: Number.isNaN(nextValue) ? 0 : nextValue,
+                        value: toModbus(nextValue, MAX_PRESSURE_1000),
                     }),
                 }
             );
@@ -1413,6 +1524,12 @@ export function IndustrialControl({ device, onBack }) {
         }
 
         const nextValue = Number(returnValveOpening);
+        if (nextValue < 0 || nextValue > 100) {
+            setReturnValveError('0 ~ 100');
+            return;
+        }
+        setReturnValveError('');
+
         setIsSubmittingReturnValveOpening(true);
 
         try {
@@ -1424,7 +1541,7 @@ export function IndustrialControl({ device, onBack }) {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        value: Number.isNaN(nextValue) ? 0 : nextValue,
+                        value: toModbus(nextValue, MAX_VALVE_100),
                     }),
                 }
             );
@@ -1557,22 +1674,27 @@ export function IndustrialControl({ device, onBack }) {
                         <PVText value={holdingData?.outlet_target_temp_pv} unit="°C" />
                         <div className="flex items-center gap-2">
                             <span className="text-[16px] font-bold text-slate-500 shrink-0">{t('industrial.targetTemperature')}</span>
-                            <input
-                                className="text-left w-full h-7 text-[12px] border border-slate-200 rounded px-1 focus:ring-1 focus:ring-primary outline-none"
-                                type="number"
-                                value={outletTargetTempSv}
-                                onFocus={() => {
-                                    isEditingOutletTargetTempRef.current = true;
-                                }}
-                                onBlur={() => {
-                                    isEditingOutletTargetTempRef.current = false;
-                                }}
-                                onChange={(event) => {
-                                    isEditingOutletTargetTempRef.current = true;
-                                    setOutletTargetTempSv(event.target.value);
-                                }}
-                                placeholder={FALLBACK_VALUE}
-                            />
+                            <div className="relative flex-1">
+                                <input
+                                    className={`text-left w-full h-7 text-[12px] border rounded px-1 outline-none transition-colors ${
+                                        tempError ? 'bg-red-50 border-red-500 focus:ring-red-200' : 'bg-white border-slate-200 focus:ring-1 focus:ring-primary'
+                                    }`}
+                                    type="number"
+                                    value={outletTargetTempSv}
+                                    onFocus={() => {
+                                        isEditingOutletTargetTempRef.current = true;
+                                    }}
+                                    onBlur={() => {
+                                        isEditingOutletTargetTempRef.current = false;
+                                    }}
+                                    onChange={(event) => {
+                                        isEditingOutletTargetTempRef.current = true;
+                                        setOutletTargetTempSv(event.target.value);
+                                    }}
+                                    placeholder={FALLBACK_VALUE}
+                                />
+                                {tempError && <span className="absolute -top-4 right-0 text-[10px] font-bold text-red-500">{tempError}</span>}
+                            </div>
                             <span className="text-[16px] text-slate-400">°C</span>
                         </div>
                         <button
@@ -1614,6 +1736,7 @@ export function IndustrialControl({ device, onBack }) {
                     onPidMonitoringChange={(enabled) => handleUpdatePidSwitch('pid2_switch', enabled)}
                     correctionEnabled={outletCorrectionEnabled}
                     onCorrectionChange={(enabled) => handleUpdatePidSwitch('pid2_direction', enabled)}
+                    error={valvePidError}
                 />
                 <ReturnValveControl
                     sensorValues={sensorValues}
@@ -1631,6 +1754,7 @@ export function IndustrialControl({ device, onBack }) {
                     }}
                     onSubmit={handleSubmitReturnValveOpening}
                     isSubmitting={isSubmittingReturnValveOpening}
+                    error={returnValveError}
                 />
                 <MotorControl
                     deviceIdentifier={deviceIdentifier}
@@ -1649,6 +1773,7 @@ export function IndustrialControl({ device, onBack }) {
                     }}
                     onSubmit={handleSubmitPumpFrequency}
                     isSubmitting={isSubmittingPumpFrequency}
+                    error={pumpError}
                 />
             </section>
 
@@ -1703,18 +1828,21 @@ export function IndustrialControl({ device, onBack }) {
                                             isEditingAllFansRpmTargetRef.current = false;
                                         }}
                                         placeholder={FALLBACK_VALUE}
-                                        className="text-left w-full bg-white border-none rounded-lg px-3 py-2 text-[14px] ring-1 ring-slate-200 focus:ring-primary outline-none"
+                                        className={`text-left w-full bg-white border-none rounded-lg px-3 py-2 text-[14px] ring-1 focus:ring-primary outline-none ${allFansError ? 'ring-red-500' : 'ring-slate-200'}`}
                                     />
-                                    <span className="absolute right-3 top-2.5 text-[10px] text-slate-400 font-bold">RPM</span>
+                                    <span className="absolute right-3 top-2.5 text-[10px] text-slate-400 font-bold">%</span>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={handleSubmitAllFansSv}
-                                    disabled={isSubmittingAllFans}
-                                    className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold border border-primary/20 hover:bg-primary hover:text-white transition-all disabled:opacity-50"
-                                >
-                                    {t('common.confirm')}
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={handleSubmitAllFansSv}
+                                        disabled={isSubmittingAllFans}
+                                        className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold border border-primary/20 hover:bg-primary hover:text-white transition-all disabled:opacity-50"
+                                    >
+                                        {t('common.confirm')}
+                                    </button>
+                                    {allFansError && <span className="text-[12px] text-red-500 font-bold whitespace-nowrap">{allFansError}</span>}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1744,9 +1872,12 @@ export function IndustrialControl({ device, onBack }) {
                                             isEditingPressureTargetRef.current = false;
                                         }}
                                         placeholder={FALLBACK_VALUE}
-                                        className="text-left w-full bg-white border-none rounded-lg px-3 py-2 text-[14px] ring-1 ring-slate-200 focus:ring-primary outline-none"
+                                        className={`text-left w-full border-none rounded-lg px-3 py-2 text-[14px] ring-1 outline-none transition-colors ${
+                                            pressureError ? 'bg-red-50 ring-red-500' : 'bg-white ring-slate-200 focus:ring-primary'
+                                        }`}
                                     />
                                     <span className="absolute right-3 top-2.5 text-[10px] text-slate-400 font-bold">Pa</span>
+                                    {pressureError && <span className="absolute -top-4 right-0 text-[10px] font-bold text-red-500">{pressureError}</span>}
                                 </div>
                                 <button
                                     type="button"
@@ -1780,24 +1911,27 @@ export function IndustrialControl({ device, onBack }) {
                                                         : holdingData?.group1_pid_d_pv
                                             }
                                         />
-                                        <input
-                                            type="number"
-                                            value={pidValues[item.key]}
-                                            onFocus={() => {
-                                                isEditingPidValuesRef.current = true;
-                                            }}
-                                            onBlur={() => {
-                                                isEditingPidValuesRef.current = false;
-                                            }}
-                                            onChange={(event) => handlePidChange(item.key, event.target.value)}
-                                            step="1"
-                                            placeholder={FALLBACK_VALUE}
-                                            className={`text-left w-full border-none rounded-lg text-xs px-2 py-1.5 ring-1 outline-none transition-colors ${
-                                                modifiedPidFields[item.key]
-                                                    ? 'bg-red-50 ring-red-500'
-                                                    : 'bg-white ring-slate-200 focus:ring-primary'
-                                            }`}
-                                        />
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                value={pidValues[item.key]}
+                                                onFocus={() => {
+                                                    isEditingPidValuesRef.current = true;
+                                                }}
+                                                onBlur={() => {
+                                                    isEditingPidValuesRef.current = false;
+                                                }}
+                                                onChange={(event) => handlePidChange(item.key, event.target.value)}
+                                                step="1"
+                                                placeholder={FALLBACK_VALUE}
+                                                className={`text-left w-full border-none rounded-lg text-xs px-2 py-1.5 ring-1 outline-none transition-colors ${
+                                                    modifiedPidFields[item.key] || pidError
+                                                        ? 'bg-red-50 ring-red-500'
+                                                        : 'bg-white ring-slate-200 focus:ring-primary'
+                                                }`}
+                                            />
+                                            {pidError && <span className="absolute -top-4 right-0 text-[8px] font-bold text-red-500">{pidError}</span>}
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -1828,6 +1962,7 @@ export function IndustrialControl({ device, onBack }) {
                             onSubmit={handleSubmitFanSv}
                             onToggle={handleToggleFan}
                             isSubmitting={submittingFanId === fan.id}
+                            error={fanErrors[fan.id]}
                         />
                     ))}
                 </motion.div>
