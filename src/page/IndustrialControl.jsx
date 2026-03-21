@@ -757,7 +757,7 @@ export function IndustrialControl({ device, onBack }) {
         return () => clearInterval(intervalId);
     }, [deviceIdentifier, t]);
 
-    useEffect(() => {
+    const fetchFanHoldingData = () => {
         if (!deviceIdentifier) {
             setFans([]);
             setHoldingData({});
@@ -766,84 +766,88 @@ export function IndustrialControl({ device, onBack }) {
             return;
         }
 
-        const fetchFanHoldingData = () => {
-            fetch(`/api/modbus/holding/${encodeURIComponent(deviceIdentifier)}`, {
-                method: 'GET',
-            })
-                .then((response) => response.json())
-                .then((data) => {
-                    setHoldingData(data ?? {});
-                    setFans((prev) => {
-                        const nextFans = buildFansFromHolding(data ?? {});
+        fetch(`/api/modbus/holding/${encodeURIComponent(deviceIdentifier)}`, {
+            method: 'GET',
+        })
+            .then((response) => response.json())
+            .then((data) => {
+                setHoldingData(data ?? {});
+                setFans((prev) => {
+                    const nextFans = buildFansFromHolding(data ?? {});
 
-                        return nextFans.map((nextFan) => {
-                            const currentFan = prev.find((fan) => fan.id === nextFan.id);
-                            const isEditingFan = editingFanIdsRef.current.has(nextFan.id);
-                            const isSubmittingFan = submittingFanId === nextFan.id;
-                            const shouldPreserveInactiveSv = Boolean(
-                                currentFan && !nextFan.isActive && currentFan.lastActiveSvRpm
-                            );
+                    return nextFans.map((nextFan) => {
+                        const currentFan = prev.find((fan) => fan.id === nextFan.id);
+                        const isEditingFan = editingFanIdsRef.current.has(nextFan.id);
+                        const isSubmittingFan = submittingFanId === nextFan.id;
+                        const shouldPreserveInactiveSv = Boolean(
+                            currentFan && !nextFan.isActive && currentFan.lastActiveSvRpm
+                        );
 
-                            if (!currentFan) {
-                                return nextFan;
-                            }
+                        if (!currentFan) {
+                            return nextFan;
+                        }
 
-                            return {
-                                ...nextFan,
-                                svRpm: isEditingFan || isSubmittingFan || shouldPreserveInactiveSv
-                                    ? currentFan.svRpm
-                                    : nextFan.svRpm,
-                                lastActiveSvRpm: currentFan.lastActiveSvRpm ?? nextFan.lastActiveSvRpm,
-                                isActive: currentFan.isActive,
-                                status: currentFan.status,
-                            };
-                        });
+                        return {
+                            ...nextFan,
+                            svRpm: isEditingFan || isSubmittingFan || shouldPreserveInactiveSv
+                                ? currentFan.svRpm
+                                : nextFan.svRpm,
+                            lastActiveSvRpm: currentFan.lastActiveSvRpm ?? nextFan.lastActiveSvRpm,
+                            isActive: currentFan.isActive,
+                            status: currentFan.status,
+                        };
                     });
-                    if (!isEditingAllFansRpmTargetRef.current) {
-                        setAllFansRpmTarget(buildAllFansTargetFromHolding(data ?? {}));
-                    }
-                    if (!isEditingOutletTargetTempRef.current) {
-                        setOutletTargetTempSv(String(data?.outlet_target_temp_sv ?? ''));
-                    }
-                    if (!isEditingCirculatingPumpSvRef.current) {
-                        setCirculatingPumpSv(String(data?.circulating_pump_sv ?? ''));
-                    }
-                    if (!isEditingOutletValveOpeningRef.current && !isSubmittingOutletValveOpening && !modifiedValvePidFields.opening) {
-                        setOutletValveOpening(String(data?.outlet_electric_valve_opening_sv ?? ''));
-                    }
-                    if (!isEditingReturnValveOpeningRef.current) {
-                        setReturnValveOpening(String(data?.return_electric_valve_opening_sv ?? ''));
-                    }
-                    if (!isEditingPressureTargetRef.current) {
-                        setPressureTarget(String(data?.target_pressure_diff_sv ?? ''));
-                    }
-                    if (!isEditingPidValuesRef.current && !isSubmittingPid && !Object.values(modifiedPidFields).some(Boolean)) {
-                        setPidValues({
-                            p: String(data?.group1_pid_p_sv ?? ''),
-                            i: String(data?.group1_pid_i_sv ?? ''),
-                            d: String(data?.group1_pid_d_sv ?? ''),
-                        });
-                    }
-                    if (!isEditingValvePidValuesRef.current && !isSubmittingValvePid && !Object.values(modifiedValvePidFields).some(Boolean)) {
-                        setValvePidValues({
-                            p: String(data?.group2_pid_p_sv ?? ''),
-                            i: String(data?.group2_pid_i_sv ?? ''),
-                            d: String(data?.group2_pid_d_sv ?? ''),
-                        });
-                    }
-                    if (!isSubmittingPidSwitch) {
-                        setOutletPidMonitoringEnabled(data?.pid2_switch === 1);
-                        setOutletCorrectionEnabled(data?.pid2_direction === 1);
-                        setPidMonitoringEnabled(data?.pid1_switch === 1);
-                        setFansCorrectionEnabled(data?.pid1_direction === 1);
-                    }
-                })
-                .catch((error) => {
-                    console.error(t('industrial.error.fetchSensor'), error);
-                    setHoldingData({});
-                    setFans([]);
                 });
-        };
+                if (!isEditingAllFansRpmTargetRef.current) {
+                    setAllFansRpmTarget(buildAllFansTargetFromHolding(data ?? {}));
+                }
+                if (!isEditingOutletTargetTempRef.current) {
+                    setOutletTargetTempSv(String(data?.outlet_target_temp_sv ?? ''));
+                }
+                if (!isEditingCirculatingPumpSvRef.current) {
+                    setCirculatingPumpSv(String(data?.circulating_pump_sv ?? ''));
+                }
+                if (!isEditingOutletValveOpeningRef.current && !isSubmittingOutletValveOpening && !modifiedValvePidFields.opening) {
+                    setOutletValveOpening(String(data?.outlet_electric_valve_opening_sv ?? ''));
+                }
+                if (!isEditingReturnValveOpeningRef.current) {
+                    setReturnValveOpening(String(data?.return_electric_valve_opening_sv ?? ''));
+                }
+                if (!isEditingPressureTargetRef.current) {
+                    setPressureTarget(String(data?.target_pressure_diff_sv ?? ''));
+                }
+                if (!isEditingPidValuesRef.current && !isSubmittingPid && !Object.values(modifiedPidFields).some(Boolean)) {
+                    setPidValues({
+                        p: String(data?.group1_pid_p_sv ?? ''),
+                        i: String(data?.group1_pid_i_sv ?? ''),
+                        d: String(data?.group1_pid_d_sv ?? ''),
+                    });
+                }
+                if (!isEditingValvePidValuesRef.current && !isSubmittingValvePid && !Object.values(modifiedValvePidFields).some(Boolean)) {
+                    setValvePidValues({
+                        p: String(data?.group2_pid_p_sv ?? ''),
+                        i: String(data?.group2_pid_i_sv ?? ''),
+                        d: String(data?.group2_pid_d_sv ?? ''),
+                    });
+                }
+                if (!isSubmittingPidSwitch) {
+                    setOutletPidMonitoringEnabled(data?.pid2_switch === 1);
+                    setOutletCorrectionEnabled(data?.pid2_direction === 1);
+                    setPidMonitoringEnabled(data?.pid1_switch === 1);
+                    setFansCorrectionEnabled(data?.pid1_direction === 1);
+                }
+            })
+            .catch((error) => {
+                console.error(t('industrial.error.fetchSensor'), error);
+                setHoldingData({});
+                setFans([]);
+            });
+    };
+
+    useEffect(() => {
+        if (!deviceIdentifier) {
+            return;
+        }
 
         fetchFanHoldingData();
         const intervalId = setInterval(fetchFanHoldingData, DEFAULT_POLLING_INTERVAL_MS);
@@ -884,14 +888,11 @@ export function IndustrialControl({ device, onBack }) {
             if (key === 'pid1_switch') setPidMonitoringEnabled(enabled);
             if (key === 'pid1_direction') setFansCorrectionEnabled(enabled);
             console.log(`[PID Switch] ${key} 更新成功`);
-
+            fetchFanHoldingData();
         } catch (error) {
             console.error(`更新 ${key} 失敗:`, error);
         } finally {
-            // 延遲重置，確保輪詢不會立即覆蓋
-            setTimeout(() => {
-                setIsSubmittingPidSwitch(false);
-            }, 3000);
+            setIsSubmittingPidSwitch(false);
         }
     };
 
@@ -1181,15 +1182,13 @@ export function IndustrialControl({ device, onBack }) {
                 d: String(payload.group1_pid_d_sv),
             });
             setModifiedPidFields({ p: false, i: false, d: false });
+            isEditingPidValuesRef.current = false;
+            fetchFanHoldingData();
             console.log('[PID Fans] 更新成功');
         } catch (error) {
             console.error('PID 設定失敗:', error);
         } finally {
-            // 延遲重置，給予設備響應時間
-            setTimeout(() => {
-                setIsSubmittingPid(false);
-                isEditingPidValuesRef.current = false;
-            }, 3000);
+            setIsSubmittingPid(false);
         }
     };
 
@@ -1239,10 +1238,11 @@ export function IndustrialControl({ device, onBack }) {
             }
 
             setFans(nextFans);
+            isEditingAllFansRpmTargetRef.current = false;
+            fetchFanHoldingData();
         } catch (error) {
             console.error('全部風扇 SV 設定失敗:', error);
         } finally {
-            isEditingAllFansRpmTargetRef.current = false;
             setIsSubmittingAllFans(false);
         }
     };
@@ -1272,10 +1272,12 @@ export function IndustrialControl({ device, onBack }) {
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
+
+            isEditingOutletTargetTempRef.current = false;
+            fetchFanHoldingData();
         } catch (error) {
             console.error('出風目標溫度設定失敗:', error);
         } finally {
-            isEditingOutletTargetTempRef.current = false;
             setIsSubmittingOutletTargetTemp(false);
         }
     };
@@ -1305,10 +1307,12 @@ export function IndustrialControl({ device, onBack }) {
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
+
+            isEditingCirculatingPumpSvRef.current = false;
+            fetchFanHoldingData();
         } catch (error) {
             console.error('循環泵設定失敗:', error);
         } finally {
-            isEditingCirculatingPumpSvRef.current = false;
             setIsSubmittingPumpFrequency(false);
         }
     };
@@ -1356,15 +1360,15 @@ export function IndustrialControl({ device, onBack }) {
             setOutletValveOpening(String(nextValue));
             setModifiedValvePidFields({ p: false, i: false, d: false, opening: false });
             console.log('[PID Outlet] 更新成功');
+
+            isEditingOutletValveOpeningRef.current = false;
+            isEditingValvePidValuesRef.current = false;
+            fetchFanHoldingData();
         } catch (error) {
             console.error('出水閥開度及 PID 設定失敗:', error);
         } finally {
-            setTimeout(() => {
-                setIsSubmittingOutletValveOpening(false);
-                setIsSubmittingValvePid(false);
-                isEditingOutletValveOpeningRef.current = false;
-                isEditingValvePidValuesRef.current = false;
-            }, 3000);
+            setIsSubmittingOutletValveOpening(false);
+            setIsSubmittingValvePid(false);
         }
     };
 
@@ -1393,10 +1397,12 @@ export function IndustrialControl({ device, onBack }) {
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
+
+            isEditingPressureTargetRef.current = false;
+            fetchFanHoldingData();
         } catch (error) {
             console.error('壓差控制設定失敗:', error);
         } finally {
-            isEditingPressureTargetRef.current = false;
             setIsSubmittingPressureTarget(false);
         }
     };
@@ -1426,10 +1432,12 @@ export function IndustrialControl({ device, onBack }) {
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
+
+            isEditingReturnValveOpeningRef.current = false;
+            fetchFanHoldingData();
         } catch (error) {
             console.error('混水閥開度設定失敗:', error);
         } finally {
-            isEditingReturnValveOpeningRef.current = false;
             setIsSubmittingReturnValveOpening(false);
         }
     };
@@ -1676,7 +1684,7 @@ export function IndustrialControl({ device, onBack }) {
                         <div className="flex space-x-4">
                             <h3 className="uppercase tracking-wider font-bold text-slate-400">{t('industrial.oneClickEnableAll')}</h3>
                             <Toggle checked={allFansEnabled} onChange={handleToggleAllFans} />
-                            <PVText value={sensorValues.rpm} />
+                            {/*<PVText value={sensorValues.rpm} />*/}
                         </div>
                         <div className="flex items-center gap-4">
                             <div className="flex-1 flex gap-2">
