@@ -256,12 +256,12 @@ const ValveControl = ({
                         <span className="text-xs font-bold text-slate-500 uppercase">{t('industrial.pidEnabled')}</span>
                         <Toggle checked={pidMonitoringEnabled} onChange={onPidMonitoringChange} />
                     </div>
-                    <div className="flex items-center gap-3">
-                        <span className="text-xs font-bold text-slate-500 uppercase">
-                            {t(correctionEnabled ? 'industrial.forwardCorrection' : 'industrial.reverseCorrection')}
-                        </span>
-                        <Toggle checked={correctionEnabled} onChange={onCorrectionChange} />
-                    </div>
+                    {/*<div className="flex items-center gap-3">*/}
+                    {/*    <span className="text-xs font-bold text-slate-500 uppercase">*/}
+                    {/*        {t(correctionEnabled ? 'industrial.forwardCorrection' : 'industrial.reverseCorrection')}*/}
+                    {/*    </span>*/}
+                    {/*    <Toggle checked={correctionEnabled} onChange={onCorrectionChange} />*/}
+                    {/*</div>*/}
                 </div>
             </div>
             <div className="p-6 flex-1 flex flex-col gap-6">
@@ -896,19 +896,12 @@ export function IndustrialControl({ device, onBack }) {
                                 ? currentFan.svRpm
                                 : nextFan.svRpm,
                             lastActiveSvRpm: currentFan.lastActiveSvRpm ?? nextFan.lastActiveSvRpm,
-                            isActive: currentFan.isActive,
-                            status: currentFan.status,
                         };
                     });
                 });
                 if (!isEditingAllFansRpmTargetRef.current && !isSubmittingAllFansRef.current) {
                     const allFansDisplay = toDisplay(buildAllFansTargetFromHolding(data ?? {}), MAX_VALVE_100);
-                    setAllFansRpmTarget(allFansDisplay > 0 ? String(allFansDisplay) : '');
-                    // const allFansTargetModbus = buildAllFansTargetFromHolding(data ?? {});
-                    // if (allFansTargetModbus !== '') {
-                    //     const allFansDisplay = toDisplay(allFansTargetModbus, MAX_VALVE_100);
-                    //     setAllFansRpmTarget(allFansDisplay > 0 ? String(allFansDisplay) : '');
-                    // }
+                    setAllFansRpmTarget(allFansDisplay >= 0 ? String(allFansDisplay) : '');
                 }
                 if (!isEditingOutletTargetTempRef.current) {
                     setOutletTargetTempSv(String(toDisplay(data?.outlet_target_temp_sv, MAX_TEMP_100) || ''));
@@ -1949,12 +1942,12 @@ export function IndustrialControl({ device, onBack }) {
                             <span className="text-xs font-bold text-slate-500 uppercase">{t('industrial.pidStartMonitoring')}</span>
                             <Toggle checked={pidMonitoringEnabled} onChange={(enabled) => handleUpdatePidSwitch('pid1_switch', enabled)} />
                         </div>
-                        <div className="flex items-center gap-3">
-                            <span className="text-xs font-bold text-slate-500 uppercase">
-                                {t(fansCorrectionEnabled ? 'industrial.forwardCorrection' : 'industrial.reverseCorrection')}
-                            </span>
-                            <Toggle checked={fansCorrectionEnabled} onChange={(enabled) => handleUpdatePidSwitch('pid1_direction', enabled)} />
-                        </div>
+                        {/*<div className="flex items-center gap-3">*/}
+                        {/*    <span className="text-xs font-bold text-slate-500 uppercase">*/}
+                        {/*        {t(fansCorrectionEnabled ? 'industrial.forwardCorrection' : 'industrial.reverseCorrection')}*/}
+                        {/*    </span>*/}
+                        {/*    <Toggle checked={fansCorrectionEnabled} onChange={(enabled) => handleUpdatePidSwitch('pid1_direction', enabled)} />*/}
+                        {/*</div>*/}
                         <div className="ml-auto flex items-center justify-between gap-4 bg-red-50 px-5 py-2.5 rounded-xl border border-red-100 shadow-sm">
                             <span className="text-sm font-black text-red-600 uppercase tracking-tight">{t('industrial.emergencySwitch')}</span>
                             <div className="ml-auto">
