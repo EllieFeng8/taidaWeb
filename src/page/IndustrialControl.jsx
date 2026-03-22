@@ -14,7 +14,7 @@ const API_HOST = '';
 const FALLBACK_VALUE = '--';
 const DEFAULT_POLLING_INTERVAL_MS = 1000;
 
-const SCALE_4096 = 4096;
+const SCALE_4096 = 4095;
 const MAX_VALVE_100 = 100;
 const MAX_TEMP_100 = 100;
 const MAX_FREQ_60 = 60;
@@ -745,6 +745,7 @@ export function IndustrialControl({ device, onBack }) {
     const isEditingReturnValveOpeningRef = useRef(false);
     const isEditingPidValuesRef = useRef(false);
     const isEditingValvePidValuesRef = useRef(false);
+    const isModifiedOutletTargetTempRef = useRef(false);
     const isSubmittingPidRef = useRef(false);
     const isSubmittingValvePidRef = useRef(false);
     const isSubmittingOutletValveOpeningRef = useRef(false);
@@ -907,7 +908,7 @@ export function IndustrialControl({ device, onBack }) {
                     const allFansDisplay = toDisplay(buildAllFansTargetFromHolding(data ?? {}), MAX_VALVE_100);
                     setAllFansRpmTarget(allFansDisplay >= 0 ? String(allFansDisplay) : '');
                 }
-                if (!isEditingOutletTargetTempRef.current && !isSubmittingOutletTargetTempRef.current) {
+                if (!isEditingOutletTargetTempRef.current && !isSubmittingOutletTargetTempRef.current && !isModifiedOutletTargetTempRef.current) {
                     setOutletTargetTempSv(String(toDisplay(data?.outlet_target_temp_sv, MAX_TEMP_100) || ''));
                 }
                 if (!isEditingCirculatingPumpSvRef.current && !isSubmittingPumpFrequencyRef.current) {
@@ -942,6 +943,7 @@ export function IndustrialControl({ device, onBack }) {
                     setPidMonitoringEnabled(data?.pid1_switch === 1);
                     setFansCorrectionEnabled(data?.pid1_direction === 1);
                 }
+                // console.log('Fetched holding data:', data);
             })
             .catch((error) => {
                 console.error(t('industrial.error.fetchSensor'), error);
@@ -1475,9 +1477,6 @@ export function IndustrialControl({ device, onBack }) {
             );
 
             const responseText = await response.clone().text();
-
-            // console.log('[Outlet Target Temp] response status:', response.status);
-            // console.log('[Outlet Target Temp] response ok:', response.ok);
             console.log('[Outlet Target Temp] response body:', responseText || '(empty)');
 
             if (!response.ok) {
@@ -1486,6 +1485,7 @@ export function IndustrialControl({ device, onBack }) {
 
             setOutletTargetTempSv(String(nextValue));
             isEditingOutletTargetTempRef.current = false;
+            isModifiedOutletTargetTempRef.current = false;
             fetchFanHoldingData();
         } catch (error) {
             console.error('出風目標溫度設定失敗:', error);
@@ -1852,6 +1852,7 @@ export function IndustrialControl({ device, onBack }) {
                                     }}
                                     onChange={(event) => {
                                         isEditingOutletTargetTempRef.current = true;
+                                        isModifiedOutletTargetTempRef.current = true;
                                         setOutletTargetTempSv(event.target.value);
                                     }}
                                     placeholder={FALLBACK_VALUE}
