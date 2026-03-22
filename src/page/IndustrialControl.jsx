@@ -28,6 +28,7 @@ const toDisplay = (modbusValue, maxRange) => {
         return 0;
     }
     const val = (Number(modbusValue) / SCALE_4096) * maxRange;
+    // console.log('toDisplay', val.toFixed(1));
     // 確保數值最多只有一位小數
     return parseFloat(val.toFixed(1));
 };
@@ -35,6 +36,7 @@ const toDisplay = (modbusValue, maxRange) => {
 const toModbus = (displayValue, maxRange) => {
     const val = Number(displayValue);
     if (Number.isNaN(val)) return 0;
+    // console.log('toModbus', Math.round((val / maxRange) * SCALE_4096));
     return Math.round((val / maxRange) * SCALE_4096);
 };
 
@@ -750,6 +752,7 @@ export function IndustrialControl({ device, onBack }) {
     const isSubmittingPidSwitchRef = useRef(false);
     const isSubmittingAllFansRef = useRef(false);
     const isSubmittingPressureTargetRef = useRef(false);
+    const isSubmittingOutletTargetTempRef = useRef(false);
     const submittingFanIdRef = useRef(null);
     const modifiedPidFieldsRef = useRef({ p: false, i: false, d: false });
     const modifiedValvePidFieldsRef = useRef({ p: false, i: false, d: false, opening: false });
@@ -765,6 +768,7 @@ export function IndustrialControl({ device, onBack }) {
     useEffect(() => { isSubmittingPidSwitchRef.current = isSubmittingPidSwitch; }, [isSubmittingPidSwitch]);
     useEffect(() => { isSubmittingAllFansRef.current = isSubmittingAllFans; }, [isSubmittingAllFans]);
     useEffect(() => { isSubmittingPressureTargetRef.current = isSubmittingPressureTarget; }, [isSubmittingPressureTarget]);
+    useEffect(() => { isSubmittingOutletTargetTempRef.current = isSubmittingOutletTargetTemp; }, [isSubmittingOutletTargetTemp]);
     useEffect(() => { submittingFanIdRef.current = submittingFanId; }, [submittingFanId]);
     useEffect(() => { modifiedPidFieldsRef.current = modifiedPidFields; }, [modifiedPidFields]);
     useEffect(() => { modifiedValvePidFieldsRef.current = modifiedValvePidFields; }, [modifiedValvePidFields]);
@@ -903,7 +907,7 @@ export function IndustrialControl({ device, onBack }) {
                     const allFansDisplay = toDisplay(buildAllFansTargetFromHolding(data ?? {}), MAX_VALVE_100);
                     setAllFansRpmTarget(allFansDisplay >= 0 ? String(allFansDisplay) : '');
                 }
-                if (!isEditingOutletTargetTempRef.current) {
+                if (!isEditingOutletTargetTempRef.current && !isSubmittingOutletTargetTempRef.current) {
                     setOutletTargetTempSv(String(toDisplay(data?.outlet_target_temp_sv, MAX_TEMP_100) || ''));
                 }
                 if (!isEditingCirculatingPumpSvRef.current && !isSubmittingPumpFrequencyRef.current) {
@@ -1448,6 +1452,7 @@ export function IndustrialControl({ device, onBack }) {
         setTempError('');
 
         setIsSubmittingOutletTargetTemp(true);
+        isSubmittingOutletTargetTempRef.current = true;
 
         const payload = {
             value: toModbus(nextValue, MAX_TEMP_100),
@@ -1486,6 +1491,7 @@ export function IndustrialControl({ device, onBack }) {
             console.error('出風目標溫度設定失敗:', error);
         } finally {
             setIsSubmittingOutletTargetTemp(false);
+            isSubmittingOutletTargetTempRef.current = false;
         }
     };
 
