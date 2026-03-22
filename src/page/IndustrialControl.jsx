@@ -1714,8 +1714,6 @@ export function IndustrialControl({ device, onBack }) {
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
-            //todo 確認是混水閥控制開度 還是 混水泵浦控制頻率
-            // setReturnValveOpening(String(nextValue));
             isEditingReturnValveOpeningRef.current = false;
             fetchFanHoldingData();
         } catch (error) {
