@@ -15,6 +15,7 @@ const FALLBACK_VALUE = '--';
 const DEFAULT_POLLING_INTERVAL_MS = 1000;
 
 const SCALE_4096 = 4095;
+const SCALE_65535 = 65535;
 const MAX_VALVE_100 = 100;
 const MAX_TEMP_100 = 100;
 const MAX_FREQ_60 = 60;
@@ -33,11 +34,28 @@ const toDisplay = (modbusValue, maxRange) => {
     return parseFloat(val.toFixed(1));
 };
 
+const toDisplay16 = (modbusValue, maxRange) => {
+    if (modbusValue === undefined || modbusValue === null || Number.isNaN(Number(modbusValue))) {
+        return 0;
+    }
+    const val = (Number(modbusValue) / SCALE_65535) * maxRange;
+    // console.log('toDisplay', val.toFixed(1));
+    // 確保數值最多只有一位小數
+    return parseFloat(val.toFixed(1));
+};
+
 const toModbus = (displayValue, maxRange) => {
     const val = Number(displayValue);
     if (Number.isNaN(val)) return 0;
     // console.log('toModbus', Math.round((val / maxRange) * SCALE_4096));
     return Math.round((val / maxRange) * SCALE_4096);
+};
+
+const toModbus16 = (displayValue, maxRange) => {
+    const val = Number(displayValue);
+    if (Number.isNaN(val)) return 0;
+    // console.log('toModbus', Math.round((val / maxRange) * SCALE_4096));
+    return Math.round((val / maxRange) * SCALE_65535);
 };
 
 const toPidDisplay = (modbusValue) => {
@@ -909,7 +927,7 @@ export function IndustrialControl({ device, onBack }) {
                     setAllFansRpmTarget(allFansDisplay >= 0 ? String(allFansDisplay) : '');
                 }
                 if (!isEditingOutletTargetTempRef.current && !isSubmittingOutletTargetTempRef.current && !isModifiedOutletTargetTempRef.current) {
-                    setOutletTargetTempSv(String(toDisplay(data?.outlet_target_temp_sv, MAX_TEMP_100) || ''));
+                    setOutletTargetTempSv(String(toDisplay16(data?.outlet_target_temp_sv, MAX_TEMP_100) || ''));
                 }
                 if (!isEditingCirculatingPumpSvRef.current && !isSubmittingPumpFrequencyRef.current) {
                     setCirculatingPumpSv(String(toDisplay(data?.circulating_pump_sv, MAX_FREQ_60) || ''));
@@ -1457,7 +1475,7 @@ export function IndustrialControl({ device, onBack }) {
         isSubmittingOutletTargetTempRef.current = true;
 
         const payload = {
-            value: toModbus(nextValue, MAX_TEMP_100),
+            value: toModbus16(nextValue, MAX_TEMP_100),
         };
         const requestUrl = `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent('outlet_target_temp_sv')}`;
 
