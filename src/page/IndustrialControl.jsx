@@ -746,7 +746,11 @@ export function IndustrialControl({ device, onBack }) {
     const isSubmittingPidRef = useRef(false);
     const isSubmittingValvePidRef = useRef(false);
     const isSubmittingOutletValveOpeningRef = useRef(false);
+    const isSubmittingPumpFrequencyRef = useRef(false);
     const isSubmittingPidSwitchRef = useRef(false);
+    const isSubmittingAllFansRef = useRef(false);
+    const isSubmittingPressureTargetRef = useRef(false);
+    const submittingFanIdRef = useRef(null);
     const modifiedPidFieldsRef = useRef({ p: false, i: false, d: false });
     const modifiedValvePidFieldsRef = useRef({ p: false, i: false, d: false, opening: false });
     const editingFanIdsRef = useRef(new Set());
@@ -757,7 +761,11 @@ export function IndustrialControl({ device, onBack }) {
     useEffect(() => { isSubmittingPidRef.current = isSubmittingPid; }, [isSubmittingPid]);
     useEffect(() => { isSubmittingValvePidRef.current = isSubmittingValvePid; }, [isSubmittingValvePid]);
     useEffect(() => { isSubmittingOutletValveOpeningRef.current = isSubmittingOutletValveOpening; }, [isSubmittingOutletValveOpening]);
+    useEffect(() => { isSubmittingPumpFrequencyRef.current = isSubmittingPumpFrequency; }, [isSubmittingPumpFrequency]);
     useEffect(() => { isSubmittingPidSwitchRef.current = isSubmittingPidSwitch; }, [isSubmittingPidSwitch]);
+    useEffect(() => { isSubmittingAllFansRef.current = isSubmittingAllFans; }, [isSubmittingAllFans]);
+    useEffect(() => { isSubmittingPressureTargetRef.current = isSubmittingPressureTarget; }, [isSubmittingPressureTarget]);
+    useEffect(() => { submittingFanIdRef.current = submittingFanId; }, [submittingFanId]);
     useEffect(() => { modifiedPidFieldsRef.current = modifiedPidFields; }, [modifiedPidFields]);
     useEffect(() => { modifiedValvePidFieldsRef.current = modifiedValvePidFields; }, [modifiedValvePidFields]);
 
@@ -873,7 +881,7 @@ export function IndustrialControl({ device, onBack }) {
                     return nextFans.map((nextFan) => {
                         const currentFan = prev.find((fan) => fan.id === nextFan.id);
                         const isEditingFan = editingFanIdsRef.current.has(nextFan.id);
-                        const isSubmittingFan = submittingFanId === nextFan.id;
+                        const isSubmittingFan = submittingFanIdRef.current === nextFan.id;
                         const shouldPreserveInactiveSv = Boolean(
                             currentFan && !nextFan.isActive && currentFan.lastActiveSvRpm
                         );
@@ -893,14 +901,19 @@ export function IndustrialControl({ device, onBack }) {
                         };
                     });
                 });
-                if (!isEditingAllFansRpmTargetRef.current) {
+                if (!isEditingAllFansRpmTargetRef.current && !isSubmittingAllFansRef.current) {
                     const allFansDisplay = toDisplay(buildAllFansTargetFromHolding(data ?? {}), MAX_VALVE_100);
                     setAllFansRpmTarget(allFansDisplay > 0 ? String(allFansDisplay) : '');
+                    // const allFansTargetModbus = buildAllFansTargetFromHolding(data ?? {});
+                    // if (allFansTargetModbus !== '') {
+                    //     const allFansDisplay = toDisplay(allFansTargetModbus, MAX_VALVE_100);
+                    //     setAllFansRpmTarget(allFansDisplay > 0 ? String(allFansDisplay) : '');
+                    // }
                 }
                 if (!isEditingOutletTargetTempRef.current) {
                     setOutletTargetTempSv(String(toDisplay(data?.outlet_target_temp_sv, MAX_TEMP_100) || ''));
                 }
-                if (!isEditingCirculatingPumpSvRef.current) {
+                if (!isEditingCirculatingPumpSvRef.current && !isSubmittingPumpFrequencyRef.current) {
                     setCirculatingPumpSv(String(toDisplay(data?.circulating_pump_sv, MAX_FREQ_60) || ''));
                 }
                 if (!isEditingOutletValveOpeningRef.current && !isSubmittingOutletValveOpeningRef.current && !modifiedValvePidFieldsRef.current.opening) {
@@ -909,7 +922,7 @@ export function IndustrialControl({ device, onBack }) {
                 if (!isEditingReturnValveOpeningRef.current) {
                     setReturnValveOpening(String(toDisplay(data?.return_electric_valve_opening_sv, MAX_VALVE_100) || ''));
                 }
-                if (!isEditingPressureTargetRef.current) {
+                if (!isEditingPressureTargetRef.current && !isSubmittingPressureTargetRef.current) {
                     setPressureTarget(String(toDisplay(data?.target_pressure_diff_sv, MAX_PRESSURE_1000) || ''));
                 }
                 if (!isEditingPidValuesRef.current && !isSubmittingPidRef.current && !Object.values(modifiedPidFieldsRef.current).some(Boolean)) {
@@ -1016,6 +1029,7 @@ export function IndustrialControl({ device, onBack }) {
         const normalizedValue = Number.isNaN(nextValue) ? 0 : nextValue;
 
         setSubmittingFanId(fanId);
+        submittingFanIdRef.current = fanId;
 
         try {
             const response = await fetch(
@@ -1052,6 +1066,7 @@ export function IndustrialControl({ device, onBack }) {
             console.error(`風扇 ${fanId} 開關設定失敗:`, error);
         } finally {
             setSubmittingFanId(null);
+            submittingFanIdRef.current = null;
         }
     };
 
@@ -1081,40 +1096,60 @@ export function IndustrialControl({ device, onBack }) {
             : 0;
 
         setIsSubmittingAllFans(true);
+        isSubmittingAllFansRef.current = true;
+        isEditingAllFansRpmTargetRef.current = true;
+
+        const payload = {
+            // circulating_pump_sv: Number(circulatingPumpSv) || 0,
+            cooling_fan1_sv: toModbus(nextFanPayloadValue,100),
+            cooling_fan2_sv: toModbus(nextFanPayloadValue,100),
+            cooling_fan3_sv: toModbus(nextFanPayloadValue,100),
+            cooling_fan4_sv: toModbus(nextFanPayloadValue,100),
+            cooling_fan5_sv: toModbus(nextFanPayloadValue,100),
+            cooling_fan6_sv: toModbus(nextFanPayloadValue,100),
+            cooling_fan7_sv: toModbus(nextFanPayloadValue,100),
+            cooling_fan8_sv: toModbus(nextFanPayloadValue,100),
+            cooling_fan9_sv: toModbus(nextFanPayloadValue,100),
+            // return_electric_valve_opening_sv: Number(returnValveOpening) || 0,
+            // group1_pid_p_sv: Number(pidValues.p) || 0,
+            // group1_pid_i_sv: Number(pidValues.i) || 0,
+            // group1_pid_d_sv: Number(pidValues.d) || 0,
+        }
+        const requestUrl = `/api/modbus/sv/${encodeURIComponent(deviceIdentifier)}`;
+
+        console.log('[All Fans Toggle] request url:', requestUrl);
+        console.log('[All Fans Toggle] payload:', payload);
 
         try {
-            const response = await fetch(`/api/modbus/sv/${encodeURIComponent(deviceIdentifier)}`, {
+            const response = await fetch(requestUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    // circulating_pump_sv: Number(circulatingPumpSv) || 0,
-                    cooling_fan1_sv: nextFanPayloadValue,
-                    cooling_fan2_sv: nextFanPayloadValue,
-                    cooling_fan3_sv: nextFanPayloadValue,
-                    cooling_fan4_sv: nextFanPayloadValue,
-                    cooling_fan5_sv: nextFanPayloadValue,
-                    cooling_fan6_sv: nextFanPayloadValue,
-                    cooling_fan7_sv: nextFanPayloadValue,
-                    cooling_fan8_sv: nextFanPayloadValue,
-                    cooling_fan9_sv: nextFanPayloadValue,
-                    // return_electric_valve_opening_sv: Number(returnValveOpening) || 0,
-                    // group1_pid_p_sv: Number(pidValues.p) || 0,
-                    // group1_pid_i_sv: Number(pidValues.i) || 0,
-                    // group1_pid_d_sv: Number(pidValues.d) || 0,
-                }),
+                body: JSON.stringify(payload),
             });
+            const responseText = await response.clone().text();
+            console.log('[All Fans Toggle] response body:', responseText || '(empty)');
 
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
 
             setFans(nextFans);
+            if (enabled && !Number.isNaN(normalizedAllFansTarget)) {
+                // 如果是開啟且有有效數值，同步到 input
+                setAllFansRpmTarget(String(normalizedAllFansTarget));
+            } else if (!enabled) {
+                // 關閉時清空 input (placeholder 顯示 0)
+                setAllFansRpmTarget('');
+            }
+            fetchFanHoldingData();
         } catch (error) {
             console.error('全部風扇開關設定失敗:', error);
         } finally {
             setIsSubmittingAllFans(false);
+            isSubmittingAllFansRef.current = false;
+            isEditingAllFansRpmTargetRef.current = false;
         }
     };
 
@@ -1161,20 +1196,25 @@ export function IndustrialControl({ device, onBack }) {
         setFanErrors((prev) => ({ ...prev, [fanId]: '' }));
 
         setSubmittingFanId(fanId);
+        submittingFanIdRef.current = fanId;
 
+        const payload = {value: toModbus(nextValue, 100),}
+
+        const requestUrl = `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent(`cooling_fan${fanNumber}_sv`)}`;
+        console.log(`[Fan ${fanId} SV Submit] request url:`, requestUrl);
+        console.log(`[Fan ${fanId} SV Submit] payload:`, payload);
         try {
-            const response = await fetch(
-                `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent(`cooling_fan${fanNumber}_sv`)}`,
+            const response = await fetch(requestUrl,
                 {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        value: toModbus(nextValue, 100),
-                    }),
+                    body: JSON.stringify(payload),
                 }
             );
+            const responseText = await response.clone().text();
+            console.log(`[Fan ${fanId} SV Submit] response body:`, responseText || '(empty)');
 
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
@@ -1198,6 +1238,7 @@ export function IndustrialControl({ device, onBack }) {
             console.error(`風扇 ${fanId} SV 設定失敗:`, error);
         } finally {
             setSubmittingFanId(null);
+            submittingFanIdRef.current = null;
         }
     };
 
@@ -1295,7 +1336,7 @@ export function IndustrialControl({ device, onBack }) {
         };
 
         const payload = {
-            ...buildSvPayload(null, currentPidValues),
+            // ...buildSvPayload(null, currentPidValues),
             group1_pid_p_sv: toPidModbus(pValLatest),
             group1_pid_i_sv: toPidModbus(iValLatest),
             group1_pid_d_sv: toPidModbus(dValLatest),
@@ -1359,9 +1400,10 @@ export function IndustrialControl({ device, onBack }) {
         }));
 
         setIsSubmittingAllFans(true);
+        isSubmittingAllFansRef.current = true;
 
         const payload = {
-            ...buildSvPayload(nextFans),
+            // ...buildSvPayload(nextFans),
             cooling_fan1_sv: toModbus(normalizedValue, 100),
             cooling_fan2_sv: toModbus(normalizedValue, 100),
             cooling_fan3_sv: toModbus(normalizedValue, 100),
@@ -1373,6 +1415,8 @@ export function IndustrialControl({ device, onBack }) {
             cooling_fan9_sv: toModbus(normalizedValue, 100),
         };
 
+        console.log('[All Fans SV] 開始更新全部風扇 SV, payload:', payload);
+
         try {
             const response = await fetch(`/api/modbus/sv-with-coils/${encodeURIComponent(deviceIdentifier)}`, {
                 method: 'POST',
@@ -1382,6 +1426,7 @@ export function IndustrialControl({ device, onBack }) {
                 body: JSON.stringify(payload),
             });
 
+            console.log(`[All Fans SV] 收到回應: ${response.status} ${response.statusText}`);
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
@@ -1393,6 +1438,7 @@ export function IndustrialControl({ device, onBack }) {
             console.error('全部風扇 SV 設定失敗:', error);
         } finally {
             setIsSubmittingAllFans(false);
+            isSubmittingAllFansRef.current = false;
         }
     };
 
@@ -1410,19 +1456,31 @@ export function IndustrialControl({ device, onBack }) {
 
         setIsSubmittingOutletTargetTemp(true);
 
+        const payload = {
+            value: toModbus(nextValue, MAX_TEMP_100),
+        };
+        const requestUrl = `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent('outlet_target_temp_sv')}`;
+
+        console.log('[Outlet Target Temp] request url:', requestUrl);
+        console.log('[Outlet Target Temp] request body:', payload);
+
         try {
             const response = await fetch(
-                `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent('outlet_target_temp_sv')}`,
+                requestUrl,
                 {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        value: toModbus(nextValue, MAX_TEMP_100),
-                    }),
+                    body: JSON.stringify(payload),
                 }
             );
+
+            const responseText = await response.clone().text();
+
+            // console.log('[Outlet Target Temp] response status:', response.status);
+            // console.log('[Outlet Target Temp] response ok:', response.ok);
+            console.log('[Outlet Target Temp] response body:', responseText || '(empty)');
 
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
@@ -1451,20 +1509,31 @@ export function IndustrialControl({ device, onBack }) {
         setPumpError('');
 
         setIsSubmittingPumpFrequency(true);
+        isSubmittingPumpFrequencyRef.current = true;
+
+        const payload = {
+            value: toModbus(nextValue, MAX_FREQ_60),
+        }
+
+        const requestUrl =`/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent('circulating_pump_sv')}`;
+        console.log('[Circulating Pump SV] request url:', requestUrl);
+        console.log('[Circulating Pump SV] request body:', payload);
+
 
         try {
-            const response = await fetch(
-                `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent('circulating_pump_sv')}`,
+            const response = await fetch(requestUrl,
                 {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        value: toModbus(nextValue, MAX_FREQ_60),
-                    }),
+                    body: JSON.stringify(payload),
                 }
             );
+
+            const responseText = await response.clone().text();
+            console.log('[Circulating Pump SV] response body:', responseText || '(empty)');
+
 
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
@@ -1477,6 +1546,7 @@ export function IndustrialControl({ device, onBack }) {
             console.error('循環泵設定失敗:', error);
         } finally {
             setIsSubmittingPumpFrequency(false);
+            isSubmittingPumpFrequencyRef.current = false;
         }
     };
 
@@ -1503,7 +1573,7 @@ export function IndustrialControl({ device, onBack }) {
         };
 
         const payload = {
-            ...buildSvPayload(null, null, currentValvePidValues),
+            // ...buildSvPayload(null, null, currentValvePidValues),
             outlet_electric_valve_opening_sv: toModbus(nextValue, MAX_VALVE_100),
             group2_pid_p_sv: toPidModbus(pVal),
             group2_pid_i_sv: toPidModbus(iVal),
@@ -1569,20 +1639,27 @@ export function IndustrialControl({ device, onBack }) {
         setPressureError('');
 
         setIsSubmittingPressureTarget(true);
+        isSubmittingPressureTargetRef.current = true;
+
+        const payload = {
+            value: toModbus(nextValue, MAX_PRESSURE_1000),
+        };
+        const requestUrl = `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent('target_pressure_diff_sv')}`;
+        console.log('[Pressure Target] request url:', requestUrl);
+        console.log('[Pressure Target] request body:', payload);
 
         try {
-            const response = await fetch(
-                `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent('target_pressure_diff_sv')}`,
+            const response = await fetch(requestUrl,
                 {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        value: toModbus(nextValue, MAX_PRESSURE_1000),
-                    }),
+                    body: JSON.stringify(payload),
                 }
             );
+            const responseText = await response.clone().text();
+            console.log('[Pressure Target] response text:', responseText);
 
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
@@ -1595,6 +1672,7 @@ export function IndustrialControl({ device, onBack }) {
             console.error('壓差控制設定失敗:', error);
         } finally {
             setIsSubmittingPressureTarget(false);
+            isSubmittingPressureTargetRef.current = false;
         }
     };
 
@@ -1612,24 +1690,30 @@ export function IndustrialControl({ device, onBack }) {
 
         setIsSubmittingReturnValveOpening(true);
 
+        const payload = {
+            value: toModbus(nextValue, MAX_VALVE_100),
+        };
+        const requestUrl = `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent('return_electric_valve_opening_sv')}`;
+        console.log('[return_electric_valve_opening_sv] request url:', requestUrl);
+        console.log('[return_electric_valve_opening_sv] request body:', payload);
+
         try {
             const response = await fetch(
-                `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent('return_electric_valve_opening_sv')}`,
+                requestUrl,
                 {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        value: toModbus(nextValue, MAX_VALVE_100),
-                    }),
+                    body: JSON.stringify(payload),
                 }
             );
+            const responseText = await response.clone().text();
+            console.log('[return_electric_valve_opening_sv] response status:', responseText || '(empty)');
 
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
-
             isEditingReturnValveOpeningRef.current = false;
             fetchFanHoldingData();
         } catch (error) {
@@ -1940,6 +2024,7 @@ export function IndustrialControl({ device, onBack }) {
                                 <div className="relative flex-1">
                                     <input
                                         type="number"
+                                        step="1"
                                         value={pressureTarget}
                                         onChange={(event) => {
                                             isEditingPressureTargetRef.current = true;
