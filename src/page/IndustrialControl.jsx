@@ -14,7 +14,7 @@ const API_HOST = '';
 const FALLBACK_VALUE = '--';
 const DEFAULT_POLLING_INTERVAL_MS = 1000;
 
-const SCALE_4096 = 4096;
+const SCALE_4096 = 4095;
 const MAX_VALVE_100 = 100;
 const MAX_TEMP_100 = 100;
 const MAX_FREQ_60 = 60;
