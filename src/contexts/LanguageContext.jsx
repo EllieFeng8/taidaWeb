@@ -361,6 +361,10 @@ const translations = {
     'groupControl.reset': '重設',
     'groupControl.emergencyOn': '緊急開啟',
     'groupControl.emergencyOff': '緊急關閉',
+    'groupControl.invalidRange': '輸入數值超出有效範圍',
+    'groupControl.tempRange': '目標溫度有效範圍為 0-100',
+    'groupControl.pressureRange': '目標壓差有效範圍為 0-1000',
+    'groupControl.fanRange': '控制輸出有效範圍為 0-100',
     
     // Configuration Panel
     'config.title': '配置面板',
@@ -727,6 +731,10 @@ const translations = {
     'groupControl.reset': 'Reset',
     'groupControl.emergencyOn': 'Emergency On',
     'groupControl.emergencyOff': 'Emergency Off',
+    'groupControl.invalidRange': 'Input value out of range',
+    'groupControl.tempRange': 'Target temperature range: 0-100',
+    'groupControl.pressureRange': 'Target pressure range: 0-1000',
+    'groupControl.fanRange': 'Control output range: 0-100',
     
     // Configuration Panel
     'config.title': 'Configuration Panel',

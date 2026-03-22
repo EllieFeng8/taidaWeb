@@ -109,6 +109,7 @@ export default function HistoryList() {
     const [devices, setDevices] = useState([]);
     const [selectedDevice, setSelectedDevice] = useState('');
     const [sensorColumns, setSensorColumns] = useState(() => SENSOR_KEYS.map((key) => ({ key, label: key })));
+    const [holdingColumns, setHoldingColumns] = useState([]);
     const [fromDateTime, setFromDateTime] = useState(() => formatDateTimeLocalInput(getStartOfToday()));
     const [toDateTime, setToDateTime] = useState('');
     const [tableData, setTableData] = useState([]);
@@ -177,6 +178,7 @@ export default function HistoryList() {
             const data = await response.json();
             const columns = buildSensorColumns(data);
             setSensorColumns(columns);
+            console.log(`Fetched sensor settings for device "${deviceName}":`, columns);
             return columns;
         } catch (err) {
             console.error('Error fetching sensor settings:', err);
@@ -201,59 +203,133 @@ export default function HistoryList() {
             const queryDateRange = getEffectiveDateRange(fromValue, toValue);
             const { fromIso, toIso, fromDate, toDate } = queryDateRange;
 
-            // API #16: 根據設備名稱與日期時間查詢數據
-            const url = `${API_HOST}/api/sensor/rangeDateTime/${encodeURIComponent(deviceName)}?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`;
+            // API URLs
+            const sensorUrl = `${API_HOST}/api/sensor/rangeDateTime/${encodeURIComponent(deviceName)}?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`;
+            const holdingUrl = `${API_HOST}/api/holding/rangeDateTime/${encodeURIComponent(deviceName)}?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`;
 
-            console.log('Fetching from URL:', url);
+            console.log('Fetching sensor from:', sensorUrl);
+            console.log('Fetching holding from:', holdingUrl);
 
-            const response = await fetch(url);
-            if (response.status === 503) {
+            // Fetch both concurrently
+            const [sensorResponse, holdingResponse] = await Promise.all([
+                fetch(sensorUrl),
+                fetch(holdingUrl).catch(err => {
+                    console.error('Error fetching holding data:', err);
+                    return { ok: false, status: 'error' };
+                })
+            ]);
+
+            if (sensorResponse.status === 503) {
                 setTableData([]);
                 applyQueryMetadata(deviceName, queryDateRange);
                 setEmptyState(EMPTY_STATE.NO_DATA);
                 return;
             }
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+            if (!sensorResponse.ok) {
+                throw new Error(`HTTP error fetching sensors! status: ${sensorResponse.status}`);
             }
 
-            const data = await response.json();
-            console.log('Received data:', data);
+            const sensorData = await sensorResponse.json();
+            const holdingData = holdingResponse.ok ? await holdingResponse.json() : [];
+
+            console.log('Received sensor data:', sensorData.length);
+            console.log('Received holding data:', holdingData.length);
 
             // Calculate time range for filtering
             const fromTimestamp = fromDate.getTime() / 1000;
             const toTimestamp = toDate.getTime() / 1000;
 
-            const normalizedColumns = Array.isArray(columns) && columns.length > 0
+            const normalizedSensorColumns = Array.isArray(columns) && columns.length > 0
                 ? columns
                 : SENSOR_KEYS.map((key) => ({ key, label: key }));
 
-            const transformedData = Array.isArray(data)
-                ? data
-                    .filter((record) => {
-                        const timestamp = Number(record?.ts);
-                        return Number.isFinite(timestamp) && timestamp >= fromTimestamp && timestamp <= toTimestamp;
-                    })
-                    .map((record, index) => {
-                        const timestamp = Number(record.ts);
-                        const row = {
-                            id: `${deviceName}-${timestamp}-${index}`,
-                            time: formatTableTime(timestamp),
-                            deviceid: deviceName,
-                            timestamp,
-                        };
+            // Collect all unique keys from holding register data for dynamic columns
+            const holdingKeysSet = new Set();
+            if (Array.isArray(holdingData)) {
+                holdingData.forEach(item => {
+                    Object.keys(item).forEach(key => {
+                        if (key !== 'ts' && key !== 'deviceid' && key !== 'id') {
+                            holdingKeysSet.add(key);
+                        }
+                    });
+                });
+            }
 
-                        normalizedColumns.forEach((column) => {
-                            row[column.key] = record?.[column.key] ?? '--';
-                        });
+            // Convert to column definitions and sort them (e.g., h1, h2, h10...)
+            const nextHoldingColumns = Array.from(holdingKeysSet)
+                .sort((a, b) => {
+                    const aNum = parseInt(a.replace(/\D/g, ''), 10);
+                    const bNum = parseInt(b.replace(/\D/g, ''), 10);
+                    if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+                    return a.localeCompare(b);
+                })
+                .map(key => ({ key, label: key }));
 
-                        return row;
-                    })
-                    .sort((left, right) => right.timestamp - left.timestamp)
-                : [];
+            setHoldingColumns(nextHoldingColumns);
 
-            console.log(`Filtered ${transformedData.length} records within time range: ${new Date(fromTimestamp * 1000).toLocaleString('zh-TW')} ~ ${new Date(toTimestamp * 1000).toLocaleString('zh-TW')}`);
+            // Create a map of holding data indexed by ts
+            const holdingMap = new Map();
+            if (Array.isArray(holdingData)) {
+                holdingData.forEach(record => {
+                    const ts = Number(record.ts);
+                    if (Number.isFinite(ts)) {
+                        holdingMap.set(ts, record);
+                    }
+                });
+            }
+
+            // Also map sensor data by ts to find all timestamps
+            const sensorMap = new Map();
+            const allTimestamps = new Set();
+
+            if (Array.isArray(sensorData)) {
+                sensorData.forEach(record => {
+                    const ts = Number(record.ts);
+                    if (Number.isFinite(ts) && ts >= fromTimestamp && ts <= toTimestamp) {
+                        sensorMap.set(ts, record);
+                        allTimestamps.add(ts);
+                    }
+                });
+            }
+
+            // Add timestamps from holding data if they fit in range
+            if (Array.isArray(holdingData)) {
+                holdingData.forEach(record => {
+                    const ts = Number(record.ts);
+                    if (Number.isFinite(ts) && ts >= fromTimestamp && ts <= toTimestamp) {
+                        allTimestamps.add(ts);
+                    }
+                });
+            }
+
+            const sortedTimestamps = Array.from(allTimestamps).sort((a, b) => b - a);
+
+            const transformedData = sortedTimestamps.map((timestamp, index) => {
+                const sensorRecord = sensorMap.get(timestamp);
+                const holdingRecord = holdingMap.get(timestamp);
+
+                const row = {
+                    id: `${deviceName}-${timestamp}-${index}`,
+                    time: formatTableTime(timestamp),
+                    deviceid: deviceName,
+                    timestamp,
+                };
+
+                // Add sensor columns
+                normalizedSensorColumns.forEach((column) => {
+                    row[column.key] = sensorRecord?.[column.key] ?? '--';
+                });
+
+                // Add holding columns
+                nextHoldingColumns.forEach((column) => {
+                    row[column.key] = holdingRecord?.[column.key] ?? '--';
+                });
+
+                return row;
+            });
+
+            console.log(`Merged ${transformedData.length} records within time range: ${new Date(fromTimestamp * 1000).toLocaleString('zh-TW')} ~ ${new Date(toTimestamp * 1000).toLocaleString('zh-TW')}`);
 
             setTableData(transformedData);
             applyQueryMetadata(deviceName, queryDateRange);
@@ -261,7 +337,7 @@ export default function HistoryList() {
         } catch (err) {
             setError(`載入數據失敗: ${err.message}`);
             setEmptyState(EMPTY_STATE.IDLE);
-            console.error('Error fetching sensor data:', err);
+            console.error('Error fetching data:', err);
         } finally {
             setLoading(false);
         }
@@ -299,11 +375,17 @@ export default function HistoryList() {
             return;
         }
 
-        const headerRow = [t('time'), t('device_id'), ...sensorColumns.map((column) => column.label)];
+        const headerRow = [
+            t('time'),
+            t('device_id'),
+            ...sensorColumns.map((column) => column.label),
+            ...holdingColumns.map((column) => column.label)
+        ];
         const dataRows = tableData.map((row) => ([
             row.time,
             row.deviceid,
             ...sensorColumns.map((column) => formatApiNumber(row[column.key])),
+            ...holdingColumns.map((column) => formatApiNumber(row[column.key])),
         ]));
 
         const csvContent = [headerRow, ...dataRows]
@@ -331,7 +413,7 @@ export default function HistoryList() {
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
     const currentData = tableData.slice(startIndex, endIndex);
-    const tableColSpan = sensorColumns.length + 2;
+    const tableColSpan = sensorColumns.length + holdingColumns.length + 2;
     const emptyStateMessage = emptyState === EMPTY_STATE.NO_DATA
         ? t('history.no_data_found')
         : emptyState === EMPTY_STATE.NO_MATCH
@@ -487,12 +569,15 @@ export default function HistoryList() {
                             </div>
                         )}
                         <div className="overflow-x-auto">
-                            <table className="min-w-full border-collapse text-left" style={{ minWidth: `${Math.max(4, sensorColumns.length + 2) * 140}px` }}>
+                            <table className="min-w-full border-collapse text-left" style={{ minWidth: `${Math.max(4, sensorColumns.length + holdingColumns.length + 2) * 140}px` }}>
                                 <thead>
                                 <tr className="bg-slate-50 text-slate-500 uppercase text-[11px] font-bold tracking-widest border-b border-slate-200">
                                     <th className="px-6 py-4 whitespace-nowrap sticky left-0 bg-slate-50 z-10 min-w-[180px]">{t('time')}</th>
                                     <th className="px-6 py-4 whitespace-nowrap sticky left-[180px] bg-slate-50 z-10 min-w-[160px]">{t('device_id')}</th>
                                     {sensorColumns.map((column) => (
+                                        <th key={column.key} className="px-6 py-4 whitespace-nowrap min-w-[140px]">{column.label}</th>
+                                    ))}
+                                    {holdingColumns.map((column) => (
                                         <th key={column.key} className="px-6 py-4 whitespace-nowrap min-w-[140px]">{column.label}</th>
                                     ))}
                                 </tr>
@@ -514,6 +599,11 @@ export default function HistoryList() {
                                             <td className="px-6 py-4 whitespace-nowrap text-slate-600 sticky left-0 bg-white min-w-[180px]">{row.time}</td>
                                             <td className="px-6 py-4 whitespace-nowrap sticky left-[180px] bg-white min-w-[160px]">{row.deviceid}</td>
                                             {sensorColumns.map((column) => (
+                                                <td key={`${row.id}-${column.key}`} className="px-6 py-4 font-mono font-semibold whitespace-nowrap min-w-[140px]">
+                                                    {formatApiNumber(row[column.key])}
+                                                </td>
+                                            ))}
+                                            {holdingColumns.map((column) => (
                                                 <td key={`${row.id}-${column.key}`} className="px-6 py-4 font-mono font-semibold whitespace-nowrap min-w-[140px]">
                                                     {formatApiNumber(row[column.key])}
                                                 </td>

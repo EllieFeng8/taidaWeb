@@ -12,6 +12,66 @@ import { formatApiNumber } from '../utils/formatApiNumber';
 const API_HOST = '';
 const FALLBACK_VALUE = '--';
 
+const SCALE_4096 = 4095;
+const SCALE_65535 = 10000;
+const MAX_VALVE_100 = 100;
+const MAX_TEMP_100 = 100;
+const MAX_FREQ_60 = 60;
+const MAX_PID_100 = 100;
+const MAX_PID_10 = 10;
+const MAX_PRESSURE_1000 = 1000;
+const FAN_MAX_RPM_3570 = 3570;
+
+const toDisplay = (modbusValue, maxRange) => {
+  if (modbusValue === undefined || modbusValue === null || Number.isNaN(Number(modbusValue))) {
+    return 0;
+  }
+  const val = (Number(modbusValue) / SCALE_4096) * maxRange;
+  // console.log('toDisplay', val.toFixed(1));
+  // 確保數值最多只有一位小數
+  return parseFloat(val.toFixed(1));
+};
+
+const toDisplay16 = (modbusValue, maxRange) => {
+  if (modbusValue === undefined || modbusValue === null || Number.isNaN(Number(modbusValue))) {
+    return 0;
+  }
+  const val = (Number(modbusValue) / SCALE_65535) * maxRange;
+  // console.log('toDisplay', val.toFixed(1));
+  // 確保數值最多只有一位小數
+  return parseFloat(val.toFixed(1));
+};
+
+const toModbus = (displayValue, maxRange) => {
+  const val = Number(displayValue);
+  if (Number.isNaN(val)) return 0;
+  // console.log('toModbus', Math.round((val / maxRange) * SCALE_4096));
+  return Math.round((val / maxRange) * SCALE_4096);
+};
+
+const toModbus16 = (displayValue, maxRange) => {
+  const val = Number(displayValue);
+  if (Number.isNaN(val)) return 0;
+  // console.log('toModbus', Math.round((val / maxRange) * SCALE_4096));
+  return Math.round((val / maxRange) * SCALE_65535);
+};
+
+const toPidDisplay = (modbusValue) => {
+  if (modbusValue === undefined || modbusValue === null || Number.isNaN(Number(modbusValue))) {
+    return 0;
+  }
+  const val = Number(modbusValue) / 1000;
+  // 確保數值最多只有兩位小數 (因為 step=0.01)
+  return parseFloat(val.toFixed(2));
+};
+
+const toPidModbus = (displayValue) => {
+  const val = Number(displayValue);
+  if (Number.isNaN(val)) return 0;
+  return Math.round(val * 1000);
+};
+
+
 const formatDisplayValue = (value) => {
   const formattedValue = formatApiNumber(value, FALLBACK_VALUE);
 
@@ -25,8 +85,8 @@ const formatDisplayValue = (value) => {
 
 export const GroupControl = ({ group, onBack }) => {
   const { t } = useLanguage();
-  const [pidOn, setPidOn] = useState(true);
-  const [fanPidOn, setFanPidOn] = useState(true);
+  const [pidOn, setPidOn] = useState(false);
+  const [fanPidOn, setFanPidOn] = useState(false);
   const [allOn, setAllOn] = useState(false);
   const [groupDetail, setGroupDetail] = useState(null);
   const [holdingData, setHoldingData] = useState({});
@@ -43,6 +103,9 @@ export const GroupControl = ({ group, onBack }) => {
   const toastTimeoutRef = useRef(null);
   const [valveEmergency, setValveEmergency] = useState(false);
   const [fanEmergency, setFanEmergency] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState('success');
+  const [isSubmittingToggle, setIsSubmittingToggle] = useState(false);
 
   useEffect(() => () => {
     if (toastTimeoutRef.current) {
@@ -56,6 +119,7 @@ export const GroupControl = ({ group, onBack }) => {
       return null;
     }
 
+    console.log('API Request [GET]:', `${API_HOST}/api/groups/${encodeURIComponent(groupId)}`);
     const response = await fetch(`${API_HOST}/api/groups/${encodeURIComponent(groupId)}`, {
       method: 'GET',
     });
@@ -64,7 +128,9 @@ export const GroupControl = ({ group, onBack }) => {
       throw new Error(`HTTP ${response.status}`);
     }
 
-    return response.json();
+    const data = await response.json();
+    console.log('API Response:', data);
+    return data;
   };
 
   const getGroupDeviceIdentifiers = (nextGroupDetail) => (
@@ -102,6 +168,7 @@ export const GroupControl = ({ group, onBack }) => {
           return;
         }
 
+        console.log('API Request [GET]:', `${API_HOST}/api/modbus/holding/${encodeURIComponent(deviceIdentifier)}`);
         const holdingResponse = await fetch(`${API_HOST}/api/modbus/holding/${encodeURIComponent(deviceIdentifier)}`, {
           method: 'GET',
         });
@@ -111,28 +178,36 @@ export const GroupControl = ({ group, onBack }) => {
         }
 
         const nextHoldingData = await holdingResponse.json();
+        console.log('API Response:', nextHoldingData);
 
         if (!isActive) {
           return;
         }
 
         setHoldingData(nextHoldingData ?? {});
+
+        // 同步狀態
+        setPidOn(Number(nextHoldingData?.pid2_switch) === 1);
+        setFanPidOn(Number(nextHoldingData?.pid1_switch) === 1);
+        setValveEmergency(Number(nextHoldingData?.pump_start) === 1);
+        setFanEmergency(Number(nextHoldingData?.fan_power_start) === 1);
+
         if (!isEditingTempRef.current) {
-          const nextTempValue = String(nextHoldingData?.outlet_target_temp_sv ?? '');
+          const nextTempValue = String(toDisplay16(nextHoldingData?.outlet_target_temp_sv, MAX_TEMP_100) ?? '');
           setTempDefaultValue(nextTempValue);
           if (tempInputRef.current) {
             tempInputRef.current.value = nextTempValue;
           }
         }
         if (!isEditingTargetPressureRef.current) {
-          const nextTargetPressureValue = String(nextHoldingData?.target_pressure_diff_sv ?? '');
+          const nextTargetPressureValue = String(toDisplay16(nextHoldingData?.target_pressure_diff_sv, MAX_PRESSURE_1000) ?? '');
           setTargetPressureDefaultValue(nextTargetPressureValue);
           if (targetPressureInputRef.current) {
             targetPressureInputRef.current.value = nextTargetPressureValue;
           }
         }
         if (!isEditingCvOutputRef.current) {
-          const nextCvOutputValue = String(nextHoldingData?.cooling_fan1_sv ?? '');
+          const nextCvOutputValue = String(toDisplay(nextHoldingData?.cooling_fan1_sv, MAX_VALVE_100) ?? '');
           setCvOutputDefaultValue(nextCvOutputValue);
           if (cvOutputInputRef.current) {
             cvOutputInputRef.current.value = nextCvOutputValue;
@@ -155,7 +230,7 @@ export const GroupControl = ({ group, onBack }) => {
   }, [group?.id]);
 
   const buildSvPayload = (overrides = {}) => ({
-    circulating_pump_sv: Number(holdingData?.circulating_pump_sv) || 0,
+    // circulating_pump_sv: Number(holdingData?.circulating_pump_sv) || 0,
     cooling_fan1_sv: Number(holdingData?.cooling_fan1_sv) || 0,
     cooling_fan2_sv: Number(holdingData?.cooling_fan2_sv) || 0,
     cooling_fan3_sv: Number(holdingData?.cooling_fan3_sv) || 0,
@@ -165,18 +240,20 @@ export const GroupControl = ({ group, onBack }) => {
     cooling_fan7_sv: Number(holdingData?.cooling_fan7_sv) || 0,
     cooling_fan8_sv: Number(holdingData?.cooling_fan8_sv) || 0,
     cooling_fan9_sv: Number(holdingData?.cooling_fan9_sv) || 0,
-    return_electric_valve_opening_sv: Number(holdingData?.return_electric_valve_opening_sv) || 0,
-    group1_pid_p_sv: Number(holdingData?.group1_pid_p_sv) || 0,
-    group1_pid_i_sv: Number(holdingData?.group1_pid_i_sv) || 0,
-    group1_pid_d_sv: Number(holdingData?.group1_pid_d_sv) || 0,
+    // return_electric_valve_opening_sv: Number(holdingData?.return_electric_valve_opening_sv) || 0,
+    // group1_pid_p_sv: Number(holdingData?.group1_pid_p_sv) || 0,
+    // group1_pid_i_sv: Number(holdingData?.group1_pid_i_sv) || 0,
+    // group1_pid_d_sv: Number(holdingData?.group1_pid_d_sv) || 0,
     ...overrides,
   });
 
-  const showSavedToast = () => {
+  const showToast = (message, type = 'success') => {
     if (!toastRef.current) {
       return;
     }
 
+    setToastMessage(message);
+    setToastType(type);
     toastRef.current.classList.remove('hidden');
 
     if (toastTimeoutRef.current) {
@@ -188,6 +265,10 @@ export const GroupControl = ({ group, onBack }) => {
     }, 2000);
   };
 
+  const showSavedToast = () => {
+    showToast(t('groupControl.saved'), 'success');
+  };
+
   const submitToGroupDevices = async (payload) => {
     const nextGroupDetail = await fetchGroupDetail();
     const groupDeviceIdentifiers = getGroupDeviceIdentifiers(nextGroupDetail);
@@ -197,6 +278,7 @@ export const GroupControl = ({ group, onBack }) => {
     }
 
     await Promise.all(groupDeviceIdentifiers.map(async (deviceIdentifier) => {
+      console.log('API Request [POST]:', `${API_HOST}/api/modbus/sv-with-coils/${encodeURIComponent(deviceIdentifier)}`, 'Payload:', payload);
       const response = await fetch(`${API_HOST}/api/modbus/sv-with-coils/${encodeURIComponent(deviceIdentifier)}`, {
         method: 'POST',
         headers: {
@@ -208,6 +290,48 @@ export const GroupControl = ({ group, onBack }) => {
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
+
+      try{
+        const responseData = await response.json();
+        console.log('API Response:', responseData);
+      }catch (error) {
+        console.log(response);
+      }
+
+    }));
+
+    setGroupDetail(nextGroupDetail ?? null);
+  };
+
+  const submitSvToGroupDevices = async (payload) => {
+    const nextGroupDetail = await fetchGroupDetail();
+    const groupDeviceIdentifiers = getGroupDeviceIdentifiers(nextGroupDetail);
+
+    if (!groupDeviceIdentifiers.length) {
+      return;
+    }
+
+    await Promise.all(groupDeviceIdentifiers.map(async (deviceIdentifier) => {
+      console.log('API Request [POST]:', `${API_HOST}/api/modbus/sv/${encodeURIComponent(deviceIdentifier)}`, 'Payload:', payload);
+      const response = await fetch(`${API_HOST}/api/modbus/sv/${encodeURIComponent(deviceIdentifier)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      try{
+        const responseData = await response.json();
+        console.log('API Response:', responseData);
+      }catch (error) {
+        console.log(response);
+      }
+
     }));
 
     setGroupDetail(nextGroupDetail ?? null);
@@ -222,6 +346,15 @@ export const GroupControl = ({ group, onBack }) => {
     }
 
     await Promise.all(groupDeviceIdentifiers.map(async (deviceIdentifier) => {
+      const payload = {
+        value,
+      };
+      console.log(
+        'API Request [POST]:',
+        `${API_HOST}/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent(key)}`,
+        'Payload:',
+        payload
+      );
       const response = await fetch(
         `${API_HOST}/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent(key)}`,
         {
@@ -229,26 +362,55 @@ export const GroupControl = ({ group, onBack }) => {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            value,
-          }),
+          body: JSON.stringify(payload),
         }
       );
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
+
+      const responseData = await response.json();
+      console.log('API Response:', responseData);
     }));
 
     setGroupDetail(nextGroupDetail ?? null);
   };
 
-  const handleSubmitTargetTemp = async () => {
-    const nextValue = Number(tempInputRef.current?.value ?? '');
-    const normalizedValue = Number.isNaN(nextValue) ? 0 : nextValue;
+  const handleToggleValue = async (key, checked, setter) => {
+    if (isSubmittingToggle) return;
+
+    const previousValue = !checked;
+    const payload = { [key]: checked ? 1 : 0 };
+
+    setter(checked);
+    setIsSubmittingToggle(true);
 
     try {
-      await submitControlKeyToGroupDevices('outlet_target_temp_sv', normalizedValue);
+      await submitSvToGroupDevices(payload);
+      showSavedToast();
+    } catch (error) {
+      console.error(`設定 ${key} 失敗:`, error);
+      setter(previousValue);
+      showToast(t('common.error'), 'error');
+    } finally {
+      setIsSubmittingToggle(false);
+    }
+  };
+
+  const handleSubmitTargetTemp = async () => {
+    const nextValue = Number(tempInputRef.current?.value ?? '');
+    
+    if (nextValue < 0 || nextValue > 100 || Number.isNaN(nextValue)) {
+      showToast(t('groupControl.tempRange'), 'error');
+      return;
+    }
+
+    const normalizedValue = nextValue;
+    const modbusValue = toModbus16(normalizedValue, MAX_TEMP_100);
+
+    try {
+      await submitControlKeyToGroupDevices('outlet_target_temp_sv', modbusValue);
       setTempDefaultValue(String(normalizedValue));
       isEditingTempRef.current = false;
       showSavedToast();
@@ -259,10 +421,17 @@ export const GroupControl = ({ group, onBack }) => {
 
   const handleSubmitTargetPressure = async () => {
     const nextValue = Number(targetPressureInputRef.current?.value ?? '');
-    const normalizedValue = Number.isNaN(nextValue) ? 0 : nextValue;
+
+    if (nextValue < 0 || nextValue > 1000 || Number.isNaN(nextValue)) {
+      showToast(t('groupControl.pressureRange'), 'error');
+      return;
+    }
+
+    const normalizedValue = nextValue;
+    const modbusValue = toModbus16(normalizedValue, MAX_PRESSURE_1000);
 
     try {
-      await submitControlKeyToGroupDevices('target_pressure_diff_sv', normalizedValue);
+      await submitControlKeyToGroupDevices('target_pressure_diff_sv', modbusValue);
       setTargetPressureDefaultValue(String(normalizedValue));
       isEditingTargetPressureRef.current = false;
       showSavedToast();
@@ -273,19 +442,26 @@ export const GroupControl = ({ group, onBack }) => {
 
   const handleSubmitFanOutput = async () => {
     const nextValue = Number(cvOutputInputRef.current?.value ?? '');
-    const normalizedValue = Number.isNaN(nextValue) ? 0 : nextValue;
+
+    if (nextValue < 0 || nextValue > 100 || Number.isNaN(nextValue)) {
+      showToast(t('groupControl.fanRange'), 'error');
+      return;
+    }
+
+    const normalizedValue = nextValue;
+    const modbusValue = toModbus(normalizedValue, MAX_VALVE_100);
 
     try {
       await submitToGroupDevices(buildSvPayload({
-        cooling_fan1_sv: normalizedValue,
-        cooling_fan2_sv: normalizedValue,
-        cooling_fan3_sv: normalizedValue,
-        cooling_fan4_sv: normalizedValue,
-        cooling_fan5_sv: normalizedValue,
-        cooling_fan6_sv: normalizedValue,
-        cooling_fan7_sv: normalizedValue,
-        cooling_fan8_sv: normalizedValue,
-        cooling_fan9_sv: normalizedValue,
+        cooling_fan1_sv: modbusValue,
+        cooling_fan2_sv: modbusValue,
+        cooling_fan3_sv: modbusValue,
+        cooling_fan4_sv: modbusValue,
+        cooling_fan5_sv: modbusValue,
+        cooling_fan6_sv: modbusValue,
+        cooling_fan7_sv: modbusValue,
+        cooling_fan8_sv: modbusValue,
+        cooling_fan9_sv: modbusValue,
       }));
       setCvOutputDefaultValue(String(normalizedValue));
       isEditingCvOutputRef.current = false;
@@ -313,7 +489,7 @@ export const GroupControl = ({ group, onBack }) => {
       <button
           onClick={() => onChange(!checked)}
           className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none ${
-              checked ? color : 'bg-slate-200 dark:bg-slate-700'
+              checked ? color : 'bg-slate-200 bg-slate-700'
           }`}
       >
         <div
@@ -325,11 +501,11 @@ export const GroupControl = ({ group, onBack }) => {
   );
   const EmergencyStop = ({ active, onToggle }) => (
     <div className="flex items-center gap-3">
-      <button className="px-4 py-2 bg-white/50 dark:bg-red-900/40 text-red-600 dark:text-red-400 hover:bg-white hover:text-red-700 hover:border-red-200 hover:shadow-sm active:scale-95 active:bg-red-100 active:shadow-none rounded-lg font-bold text-sm transition-all border border-red-100 dark:border-red-900/30">
+      <button className="px-4 py-2 bg-white/50 bg-red-900/40 text-red-600 text-red-400 hover:bg-white hover:text-red-700 hover:border-red-200 hover:shadow-sm active:scale-95 active:bg-red-100 active:shadow-none rounded-lg font-bold text-sm transition-all border border-red-100 border-red-900/30">
         {t('groupControl.reset')}
       </button>
-      <div className="flex items-center gap-3 px-4 py-1.5 bg-red-50 dark:bg-red-900/20 rounded-full border border-red-100 dark:border-red-900/30">
-        <span className="text-xs font-bold text-red-600 dark:text-red-400">
+      <div className="flex items-center gap-3 px-4 py-1.5 bg-red-50 bg-red-900/20 rounded-full border border-red-100 border-red-900/30">
+        <span className="text-xs font-bold text-red-600 text-red-400">
           {active ? t('groupControl.emergencyOn') : t('groupControl.emergencyOff')}
         </span>
         <ToggleSwitch checked={active} onChange={onToggle} color="bg-red-600" />
@@ -337,8 +513,8 @@ export const GroupControl = ({ group, onBack }) => {
     </div>
   );
   const FansEmergencyStop = ({ active, onToggle }) => (
-      <div className="flex items-center gap-3 px-4 py-1.5 bg-red-50 dark:bg-red-900/20 rounded-full border border-red-100 dark:border-red-900/30">
-        <span className="text-xs font-bold text-red-600 dark:text-red-400">{active ? t('groupControl.emergencyOn') : t('groupControl.emergencyOff')}</span>
+      <div className="flex items-center gap-3 px-4 py-1.5 bg-red-50 bg-red-900/20 rounded-full border border-red-100 border-red-900/30">
+        <span className="text-xs font-bold text-red-600 text-red-400">{active ? t('groupControl.emergencyOn') : t('groupControl.emergencyOff')}</span>
         <ToggleSwitch checked={active} onChange={onToggle} color="bg-red-600" />
       </div>
   );
@@ -366,9 +542,13 @@ export const GroupControl = ({ group, onBack }) => {
     <div className="p-8 space-y-8 max-w-7xl mx-auto pb-32">
       <div
         ref={toastRef}
-        className="fixed bottom-24 right-8 z-40 hidden rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700 shadow-lg shadow-emerald-100"
+        className={`fixed top-8 right-8 z-[100] hidden rounded-xl border px-4 py-3 text-sm font-bold shadow-lg ${
+          toastType === 'success'
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-emerald-100'
+            : 'border-red-200 bg-red-50 text-red-700 shadow-red-100'
+        }`}
       >
-        {t('groupControl.saved')}
+        {toastMessage}
       </div>
 
       {/* Header */}
@@ -402,7 +582,7 @@ export const GroupControl = ({ group, onBack }) => {
           title={t('industrial.outletValveControl')}
           icon={Droplets}
 
-          headerRight={<EmergencyStop active={valveEmergency} onToggle={setValveEmergency} />}
+          headerRight={<EmergencyStop active={valveEmergency} onToggle={(checked) => handleToggleValue('pump_start', checked, setValveEmergency)} />}
         >
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <div className="flex flex-col gap-6">
@@ -413,7 +593,7 @@ export const GroupControl = ({ group, onBack }) => {
                   </div>
                   <span className="font-bold text-slate-700">{t('groupControl.pidOn')}</span>
                 </div>
-                <Toggle checked={pidOn} onChange={setPidOn} />
+                <Toggle checked={pidOn} onChange={(checked) => handleToggleValue('pid2_switch', checked, setPidOn)} />
               </div>
 
               <div className="space-y-3">
@@ -449,7 +629,7 @@ export const GroupControl = ({ group, onBack }) => {
         <ControlSection
             title={t('groupControl.fanMatrixControl')}
             icon={Wind}
-            headerRight={<FansEmergencyStop active={fanEmergency} onToggle={setFanEmergency} />}
+            headerRight={<FansEmergencyStop active={fanEmergency} onToggle={(checked) => handleToggleValue('fan_power_start', checked, setFanEmergency)} />}
         >
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -459,7 +639,7 @@ export const GroupControl = ({ group, onBack }) => {
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t('groupControl.operationStatus')}</p>
                   <h4 className="font-bold text-slate-700">{t('groupControl.pidMonitoring')}</h4>
                 </div>
-                <Toggle checked={fanPidOn} onChange={setFanPidOn} />
+                <Toggle checked={fanPidOn} onChange={(checked) => handleToggleValue('pid1_switch', checked, setFanPidOn)} />
               </div>
 
 
@@ -502,7 +682,7 @@ export const GroupControl = ({ group, onBack }) => {
                     <p className="text-sm text-slate-500 font-medium">{t('groupControl.enableAllDescription')}</p>
                   </div>
                   <div className="ml-4">
-                    <Toggle checked={allOn} onChange={setAllOn} />
+                    {/*<Toggle checked={allOn} onChange={setAllOn} />*/}
                   </div>
                 </div>
 
@@ -522,7 +702,7 @@ export const GroupControl = ({ group, onBack }) => {
                           }}
                           className="w-28 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/5"
                         />
-                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">RPM</span>
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">%</span>
                       </div>
                       <button
                         onClick={handleSubmitFanOutput}
