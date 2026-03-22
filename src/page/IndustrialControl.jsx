@@ -582,7 +582,7 @@ const MotorControl = ({
                 <div className="grid grid-cols-1 gap-6">
                     <div className="flex-1 space-y-1.5 space-x-1.5">
                         <label className="text-[14px] font-bold text-slate-500 uppercase">{t('industrial.targetFrequency')}</label>
-                        <PVText value={toDisplay16(holdingData?.circulating_pump_pv, MAX_FREQ_60)} unit="Hz" />
+                        <PVText value={toDisplay(holdingData?.circulating_pump_pv, MAX_FREQ_60)} unit="Hz" />
                         <div className="flex flex-1 gap-2">
                             <div className="relative flex-1">
                                 <input
