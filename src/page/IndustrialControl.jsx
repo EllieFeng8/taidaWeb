@@ -582,7 +582,7 @@ const MotorControl = ({
                 <div className="grid grid-cols-1 gap-6">
                     <div className="flex-1 space-y-1.5 space-x-1.5">
                         <label className="text-[14px] font-bold text-slate-500 uppercase">{t('industrial.targetFrequency')}</label>
-                        <PVText value={holdingData?.circulating_pump_pv} unit="Hz" />
+                        <PVText value={toDisplay16(holdingData?.circulating_pump_pv, MAX_FREQ_60)} unit="Hz" />
                         <div className="flex flex-1 gap-2">
                             <div className="relative flex-1">
                                 <input
@@ -922,6 +922,7 @@ export function IndustrialControl({ device, onBack }) {
                         };
                     });
                 });
+
                 if (!isEditingAllFansRpmTargetRef.current && !isSubmittingAllFansRef.current) {
                     const allFansDisplay = toDisplay(buildAllFansTargetFromHolding(data ?? {}), MAX_VALVE_100);
                     setAllFansRpmTarget(allFansDisplay >= 0 ? String(allFansDisplay) : '');
@@ -939,7 +940,7 @@ export function IndustrialControl({ device, onBack }) {
                     setReturnValveOpening(String(toDisplay(data?.return_electric_valve_opening_sv, MAX_VALVE_100) || ''));
                 }
                 if (!isEditingPressureTargetRef.current && !isSubmittingPressureTargetRef.current) {
-                    setPressureTarget(String(toDisplay(data?.target_pressure_diff_sv, MAX_PRESSURE_1000) || ''));
+                    setPressureTarget(String(toDisplay16(data?.target_pressure_diff_sv, MAX_PRESSURE_1000) || ''));
                 }
                 if (!isEditingPidValuesRef.current && !isSubmittingPidRef.current && !Object.values(modifiedPidFieldsRef.current).some(Boolean)) {
                     setPidValues({
@@ -1659,7 +1660,7 @@ export function IndustrialControl({ device, onBack }) {
         isSubmittingPressureTargetRef.current = true;
 
         const payload = {
-            value: toModbus(nextValue, MAX_PRESSURE_1000),
+            value: toModbus16(nextValue, MAX_PRESSURE_1000),
         };
         const requestUrl = `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent('target_pressure_diff_sv')}`;
         console.log('[Pressure Target] request url:', requestUrl);
@@ -1852,7 +1853,7 @@ export function IndustrialControl({ device, onBack }) {
                         </span>
                     </div>
                     <div className="pt-2 border-t border-slate-100 space-y-2">
-                        <PVText value={holdingData?.outlet_target_temp_pv} unit="°C" />
+                        <PVText value={toDisplay16(holdingData?.outlet_target_temp_pv, MAX_TEMP_100)} unit="°C" />
                         <div className="flex items-center gap-2">
                             <span className="text-[16px] font-bold text-slate-500 shrink-0">{t('industrial.targetTemperature')}</span>
                             <div className="relative flex-1">
