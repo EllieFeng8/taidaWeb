@@ -122,6 +122,10 @@ export default function HistoryList() {
     // Pagination states
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(20);
+    const [totalPages, setTotalPages] = useState(0);
+    const [totalCount, setTotalCount] = useState(0);
+    const [hasNextPage, setHasNextPage] = useState(false);
+    const [hasPreviousPage, setHasPreviousPage] = useState(false);
     const [jumpToPage, setJumpToPage] = useState('');
 
     // Fetch devices list on mount
@@ -156,10 +160,14 @@ export default function HistoryList() {
         }
     };
 
-    const applyQueryMetadata = (deviceName, dateRange) => {
+    const applyQueryMetadata = (deviceName, dateRange, pageInfo = {}) => {
         setAppliedDevice(deviceName);
         setAppliedDateRange(dateRange);
-        setCurrentPage(1);
+        if (pageInfo.currentPage !== undefined) setCurrentPage(pageInfo.currentPage);
+        if (pageInfo.totalPages !== undefined) setTotalPages(pageInfo.totalPages);
+        if (pageInfo.totalCount !== undefined) setTotalCount(pageInfo.totalCount);
+        if (pageInfo.hasNextPage !== undefined) setHasNextPage(pageInfo.hasNextPage);
+        if (pageInfo.hasPreviousPage !== undefined) setHasPreviousPage(pageInfo.hasPreviousPage);
     };
 
     // Fetch sensor settings for selected device
@@ -189,7 +197,7 @@ export default function HistoryList() {
     };
 
     // Fetch data from API
-    const fetchSensorData = async (deviceName, columns, fromValue, toValue) => {
+    const fetchSensorData = async (deviceName, columns, fromValue, toValue, page = currentPage, pageSize = itemsPerPage) => {
         if (!deviceName) {
             setError('請選擇設備');
             return;
@@ -203,9 +211,9 @@ export default function HistoryList() {
             const queryDateRange = getEffectiveDateRange(fromValue, toValue);
             const { fromIso, toIso, fromDate, toDate } = queryDateRange;
 
-            // API URLs
-            const sensorUrl = `${API_HOST}/api/sensor/rangeDateTime/${encodeURIComponent(deviceName)}?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`;
-            const holdingUrl = `${API_HOST}/api/holding/rangeDateTime/${encodeURIComponent(deviceName)}?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`;
+            // API URLs - Updated to rangeDateTimePage
+            const sensorUrl = `${API_HOST}/api/sensor/rangeDateTimePage/${encodeURIComponent(deviceName)}?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}&page=${page}&pageSize=${pageSize}`;
+            const holdingUrl = `${API_HOST}/api/holding/rangeDateTimePage/${encodeURIComponent(deviceName)}?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}&page=${page}&pageSize=${pageSize}`;
 
             console.log('Fetching sensor from:', sensorUrl);
             console.log('Fetching holding from:', holdingUrl);
@@ -221,7 +229,13 @@ export default function HistoryList() {
 
             if (sensorResponse.status === 503) {
                 setTableData([]);
-                applyQueryMetadata(deviceName, queryDateRange);
+                applyQueryMetadata(deviceName, queryDateRange, {
+                    currentPage: 1,
+                    totalPages: 0,
+                    totalCount: 0,
+                    hasNextPage: false,
+                    hasPreviousPage: false
+                });
                 setEmptyState(EMPTY_STATE.NO_DATA);
                 return;
             }
@@ -230,13 +244,16 @@ export default function HistoryList() {
                 throw new Error(`HTTP error fetching sensors! status: ${sensorResponse.status}`);
             }
 
-            const sensorData = await sensorResponse.json();
-            const holdingData = holdingResponse.ok ? await holdingResponse.json() : [];
+            const sensorResData = await sensorResponse.json();
+            const holdingResData = holdingResponse.ok ? await holdingResponse.json() : { items: [] };
 
-            console.log('Received sensor data:', sensorData.length);
-            console.log('Received holding data:', holdingData.length);
+            const sensorItems = sensorResData.items || [];
+            const holdingItems = holdingResData.items || [];
 
-            // Calculate time range for filtering
+            console.log('Received sensor items:', sensorItems.length);
+            console.log('Received holding items:', holdingItems.length);
+
+            // Calculate time range for filtering (though API already filters, we keep for consistency in merging)
             const fromTimestamp = fromDate.getTime() / 1000;
             const toTimestamp = toDate.getTime() / 1000;
 
@@ -246,8 +263,8 @@ export default function HistoryList() {
 
             // Collect all unique keys from holding register data for dynamic columns
             const holdingKeysSet = new Set();
-            if (Array.isArray(holdingData)) {
-                holdingData.forEach(item => {
+            if (Array.isArray(holdingItems)) {
+                holdingItems.forEach(item => {
                     Object.keys(item).forEach(key => {
                         if (key !== 'ts' && key !== 'deviceid' && key !== 'id') {
                             holdingKeysSet.add(key);
@@ -270,69 +287,122 @@ export default function HistoryList() {
 
             // Create a map of holding data indexed by ts
             const holdingMap = new Map();
-            if (Array.isArray(holdingData)) {
-                holdingData.forEach(record => {
+            if (Array.isArray(holdingItems)) {
+                holdingItems.forEach(record => {
                     const ts = Number(record.ts);
                     if (Number.isFinite(ts)) {
-                        holdingMap.set(ts, record);
+                        // 如果同一秒有多筆，我們將其存為陣列，或是在這裡做某種處理
+                        // 為了簡化，目前假設如果是同一秒，前端暫時只取一筆，但我們需要確保資料不遺失
+                        if (!holdingMap.has(ts)) {
+                            holdingMap.set(ts, []);
+                        }
+                        holdingMap.get(ts).push(record);
                     }
                 });
             }
 
             // Also map sensor data by ts to find all timestamps
             const sensorMap = new Map();
-            const allTimestamps = new Set();
-
-            if (Array.isArray(sensorData)) {
-                sensorData.forEach(record => {
+            if (Array.isArray(sensorItems)) {
+                sensorItems.forEach(record => {
                     const ts = Number(record.ts);
                     if (Number.isFinite(ts) && ts >= fromTimestamp && ts <= toTimestamp) {
-                        sensorMap.set(ts, record);
-                        allTimestamps.add(ts);
+                        if (!sensorMap.has(ts)) {
+                            sensorMap.set(ts, []);
+                        }
+                        sensorMap.get(ts).push(record);
                     }
                 });
             }
 
-            // Add timestamps from holding data if they fit in range
-            if (Array.isArray(holdingData)) {
-                holdingData.forEach(record => {
-                    const ts = Number(record.ts);
-                    if (Number.isFinite(ts) && ts >= fromTimestamp && ts <= toTimestamp) {
-                        allTimestamps.add(ts);
+            // 合併邏輯改進：
+            // 由於 API 回傳的 sensorItems 和 holdingItems 是分頁後的，且可能包含重複 ts
+            // 我們應該以 sensorItems 為主（或兩者的聯集），並盡量對齊
+            const transformedData = [];
+            
+            // 建立所有出現過的 timestamp 集合，但我們會針對每個出現的 record 進行處理
+            const processedTimestamps = new Set();
+            
+            // 輔助函式：從 Map 中取出並消耗一筆資料
+            const getAndConsume = (map, ts) => {
+                const list = map.get(ts);
+                if (list && list.length > 0) {
+                    return list.shift();
+                }
+                return null;
+            };
+
+            // 1. 先處理 sensorItems
+            if (Array.isArray(sensorItems)) {
+                sensorItems.forEach((sensorRecord, index) => {
+                    const ts = Number(sensorRecord.ts);
+                    if (ts >= fromTimestamp && ts <= toTimestamp) {
+                        const holdingRecord = getAndConsume(holdingMap, ts);
+                        
+                        const row = {
+                            id: `s-${deviceName}-${ts}-${index}`,
+                            time: formatTableTime(ts),
+                            deviceid: deviceName,
+                            timestamp: ts,
+                        };
+
+                        normalizedSensorColumns.forEach((column) => {
+                            row[column.key] = sensorRecord?.[column.key] ?? '--';
+                        });
+
+                        nextHoldingColumns.forEach((column) => {
+                            row[column.key] = holdingRecord?.[column.key] ?? '--';
+                        });
+
+                        transformedData.push(row);
                     }
                 });
             }
 
-            const sortedTimestamps = Array.from(allTimestamps).sort((a, b) => b - a);
+            // 2. 處理剩餘的 holdingItems (如果有 sensor 沒對應到的)
+            if (Array.isArray(holdingItems)) {
+                holdingItems.forEach((holdingRecord, index) => {
+                    const ts = Number(holdingRecord.ts);
+                    // 檢查 map 中是否還有剩餘（沒被 consume 完的）
+                    const remainingList = holdingMap.get(ts);
+                    if (ts >= fromTimestamp && ts <= toTimestamp && remainingList && remainingList.includes(holdingRecord)) {
+                        // 消耗掉
+                        const idx = remainingList.indexOf(holdingRecord);
+                        remainingList.splice(idx, 1);
 
-            const transformedData = sortedTimestamps.map((timestamp, index) => {
-                const sensorRecord = sensorMap.get(timestamp);
-                const holdingRecord = holdingMap.get(timestamp);
+                        const row = {
+                            id: `h-${deviceName}-${ts}-${index}`,
+                            time: formatTableTime(ts),
+                            deviceid: deviceName,
+                            timestamp: ts,
+                        };
 
-                const row = {
-                    id: `${deviceName}-${timestamp}-${index}`,
-                    time: formatTableTime(timestamp),
-                    deviceid: deviceName,
-                    timestamp,
-                };
+                        normalizedSensorColumns.forEach((column) => {
+                            row[column.key] = '--';
+                        });
 
-                // Add sensor columns
-                normalizedSensorColumns.forEach((column) => {
-                    row[column.key] = sensorRecord?.[column.key] ?? '--';
+                        nextHoldingColumns.forEach((column) => {
+                            row[column.key] = holdingRecord?.[column.key] ?? '--';
+                        });
+
+                        transformedData.push(row);
+                    }
                 });
+            }
 
-                // Add holding columns
-                nextHoldingColumns.forEach((column) => {
-                    row[column.key] = holdingRecord?.[column.key] ?? '--';
-                });
-
-                return row;
-            });
+            // 最後依照時間排序（降序）
+            transformedData.sort((a, b) => b.timestamp - a.timestamp);
 
             console.log(`Merged ${transformedData.length} records within time range: ${new Date(fromTimestamp * 1000).toLocaleString('zh-TW')} ~ ${new Date(toTimestamp * 1000).toLocaleString('zh-TW')}`);
 
             setTableData(transformedData);
-            applyQueryMetadata(deviceName, queryDateRange);
+            applyQueryMetadata(deviceName, queryDateRange, {
+                currentPage: sensorResData.page || page,
+                totalPages: sensorResData.totalPages || 0,
+                totalCount: sensorResData.totalCount || 0,
+                hasNextPage: sensorResData.hasNextPage || false,
+                hasPreviousPage: sensorResData.hasPreviousPage || false
+            });
             setEmptyState(transformedData.length === 0 ? EMPTY_STATE.NO_MATCH : EMPTY_STATE.IDLE);
         } catch (err) {
             setError(`載入數據失敗: ${err.message}`);
@@ -347,6 +417,8 @@ export default function HistoryList() {
         deviceName = selectedDevice,
         fromValue = fromDateTime,
         toValue = toDateTime,
+        page = 1,
+        pageSize = itemsPerPage
     ) => {
         if (!deviceName) {
             setError('請選擇設備');
@@ -354,7 +426,7 @@ export default function HistoryList() {
         }
 
         const columns = await fetchSensorSettings(deviceName);
-        await fetchSensorData(deviceName, columns, fromValue, toValue);
+        await fetchSensorData(deviceName, columns, fromValue, toValue, page, pageSize);
     };
 
     const handleDeviceChange = async (event) => {
@@ -408,11 +480,10 @@ export default function HistoryList() {
         URL.revokeObjectURL(downloadUrl);
     };
 
-    // Calculate pagination
-    const totalPages = Math.ceil(tableData.length / itemsPerPage);
+    // Calculate pagination labels
     const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const currentData = tableData.slice(startIndex, endIndex);
+    const endIndex = startIndex + tableData.length;
+    const currentData = tableData;
     const tableColSpan = sensorColumns.length + holdingColumns.length + 2;
     const emptyStateMessage = emptyState === EMPTY_STATE.NO_DATA
         ? t('history.no_data_found')
@@ -422,24 +493,33 @@ export default function HistoryList() {
 
     // Pagination handlers
     const handlePreviousPage = () => {
-        setCurrentPage((prev) => Math.max(1, prev - 1));
+        if (hasPreviousPage) {
+            handleQuery(appliedDevice, appliedDateRange.fromDate, appliedDateRange.toDate, currentPage - 1, itemsPerPage);
+        }
     };
 
     const handleNextPage = () => {
-        setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+        if (hasNextPage) {
+            handleQuery(appliedDevice, appliedDateRange.fromDate, appliedDateRange.toDate, currentPage + 1, itemsPerPage);
+        }
     };
 
     const handlePageJump = () => {
         const pageNum = Number.parseInt(jumpToPage, 10);
         if (pageNum >= 1 && pageNum <= totalPages) {
-            setCurrentPage(pageNum);
+            handleQuery(appliedDevice, appliedDateRange.fromDate, appliedDateRange.toDate, pageNum, itemsPerPage);
             setJumpToPage('');
         }
     };
 
     const handleItemsPerPageChange = (e) => {
-        setItemsPerPage(Number.parseInt(e.target.value, 10));
-        setCurrentPage(1); // Reset to first page
+        const nextItemsPerPage = Number.parseInt(e.target.value, 10);
+        setItemsPerPage(nextItemsPerPage);
+        handleQuery(appliedDevice, appliedDateRange.fromDate, appliedDateRange.toDate, 1, nextItemsPerPage);
+    };
+
+    const handlePageClick = (pageNum) => {
+        handleQuery(appliedDevice, appliedDateRange.fromDate, appliedDateRange.toDate, pageNum, itemsPerPage);
     };
 
     return (
@@ -562,9 +642,9 @@ export default function HistoryList() {
                                         {appliedDateRange.fromLabel} ~ {appliedDateRange.toLabel}
                                     </span>
                                 </div>
-                                <span className="text-slate-600">
+                                    <span className="text-slate-600">
                                     <span className="font-semibold text-primary">{t('total')}：</span>
-                                    {tableData.length} {t('records')}
+                                    {totalCount} {t('records')}
                                 </span>
                             </div>
                         )}
@@ -627,7 +707,7 @@ export default function HistoryList() {
                                 className="p-4 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
                                 <div className="flex items-center gap-4">
                                     <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">
-                                        {t('showing')} {startIndex + 1} {t('to')} {Math.min(endIndex, tableData.length)} {t('of')} {tableData.length} {t('entries')}
+                                        {t('showing')} {totalCount > 0 ? startIndex + 1 : 0} {t('to')} {endIndex} {t('of')} {totalCount} {t('entries')}
                                     </p>
                                     <div className="flex items-center gap-2">
                                         <label className="text-xs text-slate-500 font-medium">{t('items_per_page')}:</label>
@@ -676,7 +756,7 @@ export default function HistoryList() {
                                     <div className="flex items-center gap-2">
                                         <button
                                             onClick={handlePreviousPage}
-                                            disabled={currentPage === 1 || totalPages === 0}
+                                            disabled={!hasPreviousPage || totalPages === 0}
                                             className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                         >
                                             <ChevronLeft size={18} />
@@ -686,7 +766,7 @@ export default function HistoryList() {
                                             {currentPage > 2 && (
                                                 <>
                                                     <button
-                                                        onClick={() => setCurrentPage(1)}
+                                                        onClick={() => handlePageClick(1)}
                                                         className="w-8 h-8 rounded-lg hover:bg-slate-100 text-xs font-bold transition-colors"
                                                     >
                                                         1
@@ -697,7 +777,7 @@ export default function HistoryList() {
 
                                             {currentPage > 1 && (
                                                 <button
-                                                    onClick={() => setCurrentPage(currentPage - 1)}
+                                                    onClick={() => handlePageClick(currentPage - 1)}
                                                     className="w-8 h-8 rounded-lg hover:bg-slate-100 text-xs font-bold transition-colors"
                                                 >
                                                     {currentPage - 1}
@@ -713,7 +793,7 @@ export default function HistoryList() {
 
                                             {currentPage < totalPages && (
                                                 <button
-                                                    onClick={() => setCurrentPage(currentPage + 1)}
+                                                    onClick={() => handlePageClick(currentPage + 1)}
                                                     className="w-8 h-8 rounded-lg hover:bg-slate-100 text-xs font-bold transition-colors"
                                                 >
                                                     {currentPage + 1}
@@ -724,7 +804,7 @@ export default function HistoryList() {
                                                 <>
                                                     {currentPage < totalPages - 2 && <span className="px-2 text-slate-400">...</span>}
                                                     <button
-                                                        onClick={() => setCurrentPage(totalPages)}
+                                                        onClick={() => handlePageClick(totalPages)}
                                                         className="w-8 h-8 rounded-lg hover:bg-slate-100 text-xs font-bold transition-colors"
                                                     >
                                                         {totalPages}
@@ -735,7 +815,7 @@ export default function HistoryList() {
 
                                         <button
                                             onClick={handleNextPage}
-                                            disabled={currentPage === totalPages || totalPages === 0}
+                                            disabled={!hasNextPage || totalPages === 0}
                                             className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                         >
                                             <ChevronRight size={18} />

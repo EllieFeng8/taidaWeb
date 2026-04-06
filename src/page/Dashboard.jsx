@@ -18,24 +18,24 @@ const ALL_GROUP_OPTION = {id: 'all', name: 'ALL_DEVICES_PLACEHOLDER', devices: [
 const SENSOR_FIELD_ORDER = [
     'inletWaterTemp',
     'inletWaterPressure',
-    'outletWaterTemp',
-    'outletWaterPressure',
     'returnWaterTemp',
     'returnWaterPressure',
-    'inletAirTemp',
-    'inletAirHumidity',
-    'outletAirTemp',
-    'outletAirHumidity',
+    'outletWaterTemp',
+    'outletWaterPressure',
     'coolingL1',
     'coolingL2',
     'coolingR1',
     'coolingR2',
-    'rpm',
-    'hz',
+    'inletAirTemp',
+    'inletAirHumidity',
     'flowRate',
+    'outletWaterPV',
+    'returnWaterPV',
+    'fanAutoSpeed',
+    'outletAirTemp',
+    'pressureDifference',
+    'TBD',
     'heatExchange',
-    'pidP',
-    'pidI',
 ];
 
 const formatMetric = (value, unit = '') => {
@@ -129,14 +129,14 @@ const normalizeDevice = (device, index, sensorPayload) => {
             r2: device?.cooling?.r2 ?? sensorValues.coolingR2 ?? device?.coolingR2 ?? '--',
         },
         power: {
-            rpm: device?.power?.rpm ?? sensorValues.rpm ?? device?.rpm ?? '--',
+            fanAutoSpeed: device?.power?.rpm ?? sensorValues.rpm ?? device?.rpm ?? '--',
             hz: device?.power?.hz ?? sensorValues.hz ?? device?.hz ?? '--',
         },
         system: {
+            pressureDifference: sensorValues.pressureDifference ?? device?.pressureDifference ?? '--',
             flowRate: sensorValues.flowRate ?? device?.flowRate ?? '--',
-            heatExchange: sensorValues.heatExchange ?? device?.heatExchange ?? '--',
-            pidP: sensorValues.pidP ?? device?.pidP ?? '--',
-            pidI: sensorValues.pidI ?? device?.pidI ?? '--',
+            // pidP: sensorValues.pidP ?? device?.pidP ?? '--',
+            // pidI: sensorValues.pidI ?? device?.pidI ?? '--',
         },
     };
 };
@@ -315,13 +315,13 @@ const DeviceCard = ({device, onSelect, isConnected, index}) => {
                         <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">{t('dashboard.deviceCard.powerSection.title')}</p>
                         <div className="space-y-1 text-sm">
                             <div className="flex justify-between">
-                                <span className="text-slate-500">{t('dashboard.deviceCard.powerSection.rpm')}</span>
+                                <span className="text-slate-500">{t('dashboard.deviceCard.powerSection.pressureDifference')}</span>
                                 <span
-                                    className={`font-mono ${isDisconnected && device.power.rpm > 1800 ? 'text-red-500 font-bold' : ''}`}>{formatMetric(device.power.rpm, ' RPM')}</span>
+                                    className="font-mono">{formatMetric(device.system.pressureDifference, ' Pa')}</span>
                             </div>
                             <div className="flex justify-between">
-                                <span className="text-slate-500">{t('dashboard.deviceCard.powerSection.hz')}</span>
-                                <span className="font-mono">{formatMetric(device.power.hz, ' Hz')}</span>
+                                <span className="text-slate-500">{t('dashboard.deviceCard.powerSection.flowRate')}</span>
+                                <span className="font-mono">{formatMetric(device.system.flowRate, ' L/min')}</span>
                             </div>
                         </div>
                     </div>
@@ -387,6 +387,14 @@ export const Dashboard = ({onSelectDevice}) => {
     useEffect(() => {
         const fetchDevices = async () => {
             try {
+                // 先獲取連線狀態，確保我們有最新的狀態來決定是否 call sensor api
+                const statusResponse = await fetch('/api/devices/connection/status', {
+                    method: 'GET',
+                });
+                const statusData = await statusResponse.json();
+                const currentConnectionStatusMap = normalizeConnectionStatusMap(statusData);
+                setConnectionStatusMap(currentConnectionStatusMap);
+
                 const response = await fetch('/api/devices', {
                     method: 'GET',
                 });
@@ -397,6 +405,12 @@ export const Dashboard = ({onSelectDevice}) => {
                         const deviceIdentifier = device?.name ?? device?.deviceName ?? device?.id ?? device?.deviceId;
 
                         if (!deviceIdentifier) {
+                            return normalizeDevice(device, index);
+                        }
+
+                        // 如果連線狀態為 false，則不 call sensor api
+                        const isConnected = currentConnectionStatusMap[String(deviceIdentifier)] ?? true;
+                        if (!isConnected) {
                             return normalizeDevice(device, index);
                         }
 
@@ -427,25 +441,7 @@ export const Dashboard = ({onSelectDevice}) => {
         return () => clearInterval(interval);
     }, []);
 
-    useEffect(() => {
-        const fetchConnectionStatuses = async () => {
-            try {
-                const response = await fetch('/api/devices/connection/status', {
-                    method: 'GET',
-                });
-                const data = await response.json();
-                setConnectionStatusMap(normalizeConnectionStatusMap(data));
-            } catch (error) {
-                console.error('設備連線狀態獲取失敗:', error);
-                setConnectionStatusMap({});
-            }
-        };
-
-        fetchConnectionStatuses();
-        const interval = setInterval(fetchConnectionStatuses, 1000);
-
-        return () => clearInterval(interval);
-    }, []);
+    // 移除重複的 fetchConnectionStatuses useEffect，已整合進 fetchDevices
 
     const groupOptions = [{...ALL_GROUP_OPTION, name: t('dashboard.allDevicesOption')}, ...groups];
     const selectedGroup = groupOptions.find((group) => String(group.id) === selectedGroupId) ?? ALL_GROUP_OPTION;

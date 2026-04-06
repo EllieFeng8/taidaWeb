@@ -721,6 +721,7 @@ export function IndustrialControl({ device, onBack }) {
     const [pidMonitoringEnabled, setPidMonitoringEnabled] = useState(false);
     const [fansCorrectionEnabled, setFansCorrectionEnabled] = useState(false);
     const [isSubmittingPidSwitch, setIsSubmittingPidSwitch] = useState(false);
+    const [connectionStatus, setConnectionStatus] = useState(true);
     const [sensorData, setSensorData] = useState({});
     const [holdingData, setHoldingData] = useState({});
     const [fans, setFans] = useState([]);
@@ -859,11 +860,48 @@ export function IndustrialControl({ device, onBack }) {
 
     useEffect(() => {
         if (!deviceIdentifier) {
+            setConnectionStatus(true);
+            return;
+        }
+
+        const fetchConnectionStatus = () => {
+            fetch(`/api/devices/connection/status/${encodeURIComponent(deviceIdentifier)}`, {
+                method: 'GET',
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    // 假設返回的是 boolean 值或者是 { [deviceIdentifier]: boolean }
+                    if (typeof data === 'boolean') {
+                        setConnectionStatus(data);
+                    } else if (data && typeof data === 'object') {
+                        setConnectionStatus(data[deviceIdentifier] ?? true);
+                    }
+                })
+                .catch((error) => {
+                    console.error('獲取連線狀態失敗:', error);
+                    setConnectionStatus(false);
+                });
+        };
+
+        fetchConnectionStatus();
+        const intervalId = setInterval(fetchConnectionStatus, DEFAULT_POLLING_INTERVAL_MS);
+
+        return () => clearInterval(intervalId);
+    }, [deviceIdentifier]);
+
+    useEffect(() => {
+        if (!deviceIdentifier) {
             setSensorData({});
             return;
         }
 
         const fetchDeviceSensor = () => {
+            if (!connectionStatus) {
+                // 如果離線，不 call api，但也不清空數據，讓它維持最後的數值
+                // 或者根據需求決定是否清空。題目說「填入相關數值」指的是恢復連線後
+                return;
+            }
+
             fetch(`/api/sensor/last/${encodeURIComponent(deviceIdentifier)}`, {
                 method: 'GET',
             })
@@ -881,7 +919,7 @@ export function IndustrialControl({ device, onBack }) {
         const intervalId = setInterval(fetchDeviceSensor, DEFAULT_POLLING_INTERVAL_MS);
 
         return () => clearInterval(intervalId);
-    }, [deviceIdentifier, t]);
+    }, [deviceIdentifier, t, connectionStatus]);
 
     const fetchFanHoldingData = () => {
         if (!deviceIdentifier) {
@@ -889,6 +927,10 @@ export function IndustrialControl({ device, onBack }) {
             setHoldingData({});
             emergencyOverrideRef.current = null;
             setIsEmergencyEnabled(false);
+            return;
+        }
+
+        if (!connectionStatus) {
             return;
         }
 
@@ -980,7 +1022,7 @@ export function IndustrialControl({ device, onBack }) {
         const intervalId = setInterval(fetchFanHoldingData, DEFAULT_POLLING_INTERVAL_MS);
 
         return () => clearInterval(intervalId);
-    }, [deviceIdentifier, submittingFanId, t]);
+    }, [deviceIdentifier, submittingFanId, t, connectionStatus]);
 
     const handleUpdatePidSwitch = async (key, enabled) => {
         if (!deviceIdentifier) {
