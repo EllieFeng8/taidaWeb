@@ -121,9 +121,9 @@ const translations = {
     'dashboard.deviceCard.coolingSection.leftOut': '左出',
     'dashboard.deviceCard.coolingSection.rightIn': '右入',
     'dashboard.deviceCard.coolingSection.rightOut': '右出',
-    'dashboard.deviceCard.powerSection.title': '動力系統',
-    'dashboard.deviceCard.powerSection.rpm': '轉速',
-    'dashboard.deviceCard.powerSection.hz': '頻率',
+    'dashboard.deviceCard.powerSection.title': '壓差及水流量',
+    'dashboard.deviceCard.powerSection.pressureDifference': '壓差',
+    'dashboard.deviceCard.powerSection.flowRate': '水流量',
     'dashboard.noMatchingDevices': '目前沒有符合條件的設備。',
 
     // Group Settings
@@ -361,6 +361,10 @@ const translations = {
     'groupControl.reset': '重設',
     'groupControl.emergencyOn': '緊急開啟',
     'groupControl.emergencyOff': '緊急關閉',
+    'groupControl.invalidRange': '輸入數值超出有效範圍',
+    'groupControl.tempRange': '目標溫度有效範圍為 0-100',
+    'groupControl.pressureRange': '目標壓差有效範圍為 0-1000',
+    'groupControl.fanRange': '控制輸出有效範圍為 0-100',
 
     // Configuration Panel
     'config.title': '配置面板',
@@ -487,9 +491,9 @@ const translations = {
     'dashboard.deviceCard.coolingSection.leftOut': 'Left Out',
     'dashboard.deviceCard.coolingSection.rightIn': 'Right In',
     'dashboard.deviceCard.coolingSection.rightOut': 'Right Out',
-    'dashboard.deviceCard.powerSection.title': 'Power System',
-    'dashboard.deviceCard.powerSection.rpm': 'Speed',
-    'dashboard.deviceCard.powerSection.hz': 'Frequency',
+    'dashboard.deviceCard.powerSection.title': 'Pressure Difference & Flow Rate',
+    'dashboard.deviceCard.powerSection.pressureDifference': 'Pressure Difference',
+    'dashboard.deviceCard.powerSection.flowRate': 'Flow Rate',
     'dashboard.noMatchingDevices': 'No devices match the current filters.',
 
     // Group Settings
@@ -727,6 +731,10 @@ const translations = {
     'groupControl.reset': 'Reset',
     'groupControl.emergencyOn': 'Emergency On',
     'groupControl.emergencyOff': 'Emergency Off',
+    'groupControl.invalidRange': 'Input value out of range',
+    'groupControl.tempRange': 'Target temperature range: 0-100',
+    'groupControl.pressureRange': 'Target pressure range: 0-1000',
+    'groupControl.fanRange': 'Control output range: 0-100',
 
     // Configuration Panel
     'config.title': 'Configuration Panel',
