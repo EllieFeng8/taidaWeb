@@ -20,7 +20,7 @@ const formatDisplayValue = (value) => {
   }
 
   const numericValue = Number(formattedValue);
-  return Number.isNaN(numericValue) ? FALLBACK_VALUE : numericValue.toFixed(1);
+  return Number.isNaN(numericValue) ? FALLBACK_VALUE : numericValue.toFixed(2);
 };
 
 export const GroupControl = ({ group, onBack }) => {

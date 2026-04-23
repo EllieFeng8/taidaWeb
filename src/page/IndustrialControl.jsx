@@ -26,22 +26,21 @@ const FAN_MAX_RPM_3570 = 3570;
 
 const toDisplay = (modbusValue, maxRange) => {
     if (modbusValue === undefined || modbusValue === null || Number.isNaN(Number(modbusValue))) {
-        return 0;
+        return '0.00';
     }
     const val = (Number(modbusValue) / SCALE_4096) * maxRange;
-    // console.log('toDisplay', val.toFixed(1));
-    // 確保數值最多只有一位小數
-    return parseFloat(val.toFixed(1));
+
+    // 確保數值固定為兩位小數
+    return val.toFixed(2);
 };
 
 const toDisplay16 = (modbusValue, maxRange) => {
     if (modbusValue === undefined || modbusValue === null || Number.isNaN(Number(modbusValue))) {
-        return 0;
+        return '0.00';
     }
     const val = (Number(modbusValue) / SCALE_65535) * maxRange;
-    // console.log('toDisplay', val.toFixed(1));
-    // 確保數值最多只有一位小數
-    return parseFloat(val.toFixed(1));
+    // 確保數值固定為兩位小數
+    return val.toFixed(2);
 };
 
 const toModbus = (displayValue, maxRange) => {
@@ -60,11 +59,11 @@ const toModbus16 = (displayValue, maxRange) => {
 
 const toPidDisplay = (modbusValue) => {
     if (modbusValue === undefined || modbusValue === null || Number.isNaN(Number(modbusValue))) {
-        return 0;
+        return '0.00';
     }
     const val = Number(modbusValue) / 1000;
-    // 確保數值最多只有兩位小數 (因為 step=0.01)
-    return parseFloat(val.toFixed(2));
+    // 確保數值固定為兩位小數
+    return val.toFixed(2);
 };
 
 const toPidModbus = (displayValue) => {
@@ -139,8 +138,22 @@ const formatDisplayValue = (value) => {
     const numericValue = Number(formattedValue);
     if (Number.isNaN(numericValue)) return FALLBACK_VALUE;
 
-    // 格式化為最多一位小數，並移除末尾不必要的零
-    return parseFloat(numericValue.toFixed(1)).toString();
+    // 格式化為固定兩位小數
+    return numericValue.toFixed(2);
+};
+
+const formatFanPercentValue = (value) => {
+    const formattedValue = formatApiNumber(value, FALLBACK_VALUE);
+
+    if (formattedValue === FALLBACK_VALUE) {
+        return FALLBACK_VALUE;
+    }
+
+    const numericValue = Number(formattedValue);
+    if (Number.isNaN(numericValue)) return FALLBACK_VALUE;
+
+    // 粉絲的 % 只要整數
+    return Math.round(numericValue).toString();
 };
 
 const buildFansFromHolding = (holdingPayload) => Array.from({ length: 9 }, (_, index) => {
@@ -160,7 +173,7 @@ const buildFansFromHolding = (holdingPayload) => Array.from({ length: 9 }, (_, i
         status: isActive ? 'running' : 'stopped',
         pvPercent: displayPvPercent,
         pvRpm: displayPvRpm,
-        svRpm: displaySvPercent,
+        svRpm: Math.round(Number(displaySvPercent)).toString(),
         lastActiveSvRpm: displaySvPercent > 0 ? displaySvPercent : displayPvPercent,
         isActive,
     };
@@ -2085,7 +2098,7 @@ export function IndustrialControl({ device, onBack }) {
                                 <div className="relative flex-1">
                                     <input
                                         type="number"
-                                        step="1"
+                                        step="0.01"
                                         value={pressureTarget}
                                         onChange={(event) => {
                                             isEditingPressureTargetRef.current = true;
