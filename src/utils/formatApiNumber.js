@@ -1,8 +1,6 @@
 const FLOATING_POINT_PATTERN = /^[-+]?(?:\d+\.\d*|\d*\.\d+)(?:[eE][-+]?\d+)?$/;
 const INTEGER_PATTERN = /^[-+]?\d+$/;
 
-const trimTrailingZeros = (value) => value.replace(/(\.\d*?[1-9])0+$/u, '$1').replace(/\.0+$/u, '');
-
 export const formatApiNumber = (value, fallback = '--') => {
     if (value === null || value === undefined || value === '') {
         return fallback;
@@ -13,7 +11,7 @@ export const formatApiNumber = (value, fallback = '--') => {
             return fallback;
         }
 
-        return Number.isInteger(value) ? String(value) : trimTrailingZeros(value.toFixed(2));
+        return String(value);
     }
 
     if (typeof value === 'string') {
@@ -34,7 +32,7 @@ export const formatApiNumber = (value, fallback = '--') => {
                 return fallback;
             }
 
-            return trimTrailingZeros(numericValue.toFixed(2));
+            return String(numericValue);
         }
 
         return value;

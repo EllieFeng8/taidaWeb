@@ -45,7 +45,10 @@ const formatMetric = (value, unit = '') => {
         return '--';
     }
 
-    return unit ? `${formattedValue}${unit}` : formattedValue;
+    const numericValue = Number(formattedValue);
+    const displayValue = Number.isNaN(numericValue) ? formattedValue : numericValue.toFixed(2);
+
+    return unit ? `${displayValue}${unit}` : displayValue;
 };
 
 const formatCombinedMetric = (primaryValue, primaryUnit, secondaryValue, secondaryUnit) => {
