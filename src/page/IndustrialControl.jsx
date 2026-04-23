@@ -153,7 +153,7 @@ const buildFansFromHolding = (holdingPayload) => Array.from({ length: 9 }, (_, i
     const displaySvPercent = toDisplay(modbusSv, 100);
     const displayPvRpm = toDisplay(modbusPv, FAN_MAX_RPM_3570);
 
-    const isActive = modbusSv > 0;
+    const isActive = modbusSv > 0 || modbusPv > 0;
 
     return {
         id,
