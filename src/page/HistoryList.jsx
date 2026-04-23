@@ -108,6 +108,7 @@ export default function HistoryList() {
     // State management
     const [devices, setDevices] = useState([]);
     const [selectedDevice, setSelectedDevice] = useState('');
+    const [isExporting, setIsExporting] = useState(false);
     const [sensorColumns, setSensorColumns] = useState(() => SENSOR_KEYS.map((key) => ({ key, label: key })));
     const [holdingColumns, setHoldingColumns] = useState([]);
     const [fromDateTime, setFromDateTime] = useState(() => formatDateTimeLocalInput(getStartOfToday()));
@@ -390,8 +391,8 @@ export default function HistoryList() {
                 });
             }
 
-            // 最後依照時間排序（降序）
-            transformedData.sort((a, b) => b.timestamp - a.timestamp);
+            // 最後依照時間排序（升序）
+            transformedData.sort((a, b) => a.timestamp - b.timestamp);
 
             console.log(`Merged ${transformedData.length} records within time range: ${new Date(fromTimestamp * 1000).toLocaleString('zh-TW')} ~ ${new Date(toTimestamp * 1000).toLocaleString('zh-TW')}`);
 
@@ -442,42 +443,147 @@ export default function HistoryList() {
         }
     };
 
-    const handleExportCsv = () => {
-        if (tableData.length === 0) {
+    const handleExportCsv = async () => {
+        if (appliedDevice === '' || isExporting) {
             return;
         }
 
-        const headerRow = [
-            t('time'),
-            t('device_id'),
-            ...sensorColumns.map((column) => column.label),
-            ...holdingColumns.map((column) => column.label)
-        ];
-        const dataRows = tableData.map((row) => ([
-            row.time,
-            row.deviceid,
-            ...sensorColumns.map((column) => formatApiNumber(row[column.key])),
-            ...holdingColumns.map((column) => formatApiNumber(row[column.key])),
-        ]));
+        setIsExporting(true);
+        try {
+            const queryDateRange = getEffectiveDateRange(appliedDateRange.fromDate, appliedDateRange.toDate);
+            const { fromIso, toIso, fromDate, toDate } = queryDateRange;
 
-        const csvContent = [headerRow, ...dataRows]
-            .map((row) => row.map(escapeCsvValue).join(','))
-            .join('\r\n');
+            // 使用不帶分頁的 API 獲取所有資料
+            const sensorUrl = `${API_HOST}/api/sensor/rangeDateTime/${encodeURIComponent(appliedDevice)}?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`;
+            const holdingUrl = `${API_HOST}/api/holding/rangeDateTime/${encodeURIComponent(appliedDevice)}?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`;
 
-        const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
-        const downloadUrl = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        const exportDeviceName = appliedDevice || selectedDevice || '設備';
-        const safeDeviceName = exportDeviceName.replace(/[\\/:*?"<>|]/gu, '_');
-        const startDateTime = formatDateTimeFileNamePart(appliedDateRange.fromDate);
-        const endDateTime = formatDateTimeFileNamePart(appliedDateRange.toDate);
+            const [sensorResponse, holdingResponse] = await Promise.all([
+                fetch(sensorUrl),
+                fetch(holdingUrl).catch(err => {
+                    console.error('Error fetching holding data for export:', err);
+                    return { ok: false };
+                })
+            ]);
 
-        link.href = downloadUrl;
-        link.download = `${safeDeviceName}_${startDateTime}_${endDateTime}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(downloadUrl);
+            if (!sensorResponse.ok) {
+                throw new Error(`HTTP error fetching sensors for export! status: ${sensorResponse.status}`);
+            }
+
+            const sensorItems = await sensorResponse.json();
+            const holdingItems = holdingResponse.ok ? await holdingResponse.json() : [];
+
+            // 獲取目前的感測器設定
+            const columns = sensorColumns;
+            const fromTimestamp = fromDate.getTime() / 1000;
+            const toTimestamp = toDate.getTime() / 1000;
+
+            // 建立 holdingMap
+            const holdingMap = new Map();
+            holdingItems.forEach(record => {
+                const ts = Number(record.ts);
+                if (Number.isFinite(ts)) {
+                    if (!holdingMap.has(ts)) {
+                        holdingMap.set(ts, []);
+                    }
+                    holdingMap.get(ts).push(record);
+                }
+            });
+
+            // 合併邏輯 (與 fetchSensorData 相同)
+            const allExportData = [];
+            const getAndConsumeLocal = (map, ts) => {
+                const list = map.get(ts);
+                if (list && list.length > 0) {
+                    return list.shift();
+                }
+                return null;
+            };
+
+            sensorItems.forEach((sensorRecord, index) => {
+                const ts = Number(sensorRecord.ts);
+                if (ts >= fromTimestamp && ts <= toTimestamp) {
+                    const holdingRecord = getAndConsumeLocal(holdingMap, ts);
+                    const row = {
+                        time: formatTableTime(ts),
+                        deviceid: appliedDevice,
+                        timestamp: ts,
+                    };
+                    columns.forEach((column) => {
+                        row[column.key] = sensorRecord?.[column.key] ?? '--';
+                    });
+                    holdingColumns.forEach((column) => {
+                        row[column.key] = holdingRecord?.[column.key] ?? '--';
+                    });
+                    allExportData.push(row);
+                }
+            });
+
+            // 處理剩餘的 holdingItems
+            holdingItems.forEach((holdingRecord, index) => {
+                const ts = Number(holdingRecord.ts);
+                const remainingList = holdingMap.get(ts);
+                if (ts >= fromTimestamp && ts <= toTimestamp && remainingList && remainingList.includes(holdingRecord)) {
+                    const idx = remainingList.indexOf(holdingRecord);
+                    remainingList.splice(idx, 1);
+                    const row = {
+                        time: formatTableTime(ts),
+                        deviceid: appliedDevice,
+                        timestamp: ts,
+                    };
+                    columns.forEach((column) => {
+                        row[column.key] = '--';
+                    });
+                    holdingColumns.forEach((column) => {
+                        row[column.key] = holdingRecord?.[column.key] ?? '--';
+                    });
+                    allExportData.push(row);
+                }
+            });
+
+            allExportData.sort((a, b) => a.timestamp - b.timestamp);
+
+            if (allExportData.length === 0) {
+                alert(t('history.no_data_found'));
+                return;
+            }
+
+            const headerRow = [
+                t('time'),
+                t('device_id'),
+                ...sensorColumns.map((column) => column.label),
+                ...holdingColumns.map((column) => column.label)
+            ];
+            const dataRows = allExportData.map((row) => ([
+                row.time,
+                row.deviceid,
+                ...sensorColumns.map((column) => formatApiNumber(row[column.key])),
+                ...holdingColumns.map((column) => formatApiNumber(row[column.key])),
+            ]));
+
+            const csvContent = [headerRow, ...dataRows]
+                .map((row) => row.map(escapeCsvValue).join(','))
+                .join('\r\n');
+
+            const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+            const downloadUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const exportDeviceName = appliedDevice || '設備';
+            const safeDeviceName = exportDeviceName.replace(/[\\/:*?"<>|]/gu, '_');
+            const startDateTime = formatDateTimeFileNamePart(appliedDateRange.fromDate);
+            const endDateTime = formatDateTimeFileNamePart(appliedDateRange.toDate);
+
+            link.href = downloadUrl;
+            link.download = `${safeDeviceName}_${startDateTime}_${endDateTime}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(downloadUrl);
+        } catch (err) {
+            console.error('Export failed:', err);
+            alert(`匯出失敗: ${err.message}`);
+        } finally {
+            setIsExporting(false);
+        }
     };
 
     // Calculate pagination labels
@@ -600,11 +706,21 @@ export default function HistoryList() {
                         <div className="mt-6 flex flex-wrap justify-end gap-3">
                             <button
                                 onClick={handleExportCsv}
-                                disabled={loading || tableData.length === 0}
+                                disabled={loading || isExporting || appliedDevice === ''}
                                 className="px-6 py-2.5 bg-white text-slate-700 border border-slate-200 rounded-lg text-sm font-semibold hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
                             >
-                                <Download size={16} />
-                                {t('history.export')} CSV
+                                        {isExporting ? (
+                                    <>
+                                        <div
+                                            className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                                        {t('history.exporting')}
+                                    </>
+                                ) : (
+                                    <>
+                                        <Download size={16} />
+                                        {t('history.export')} CSV
+                                    </>
+                                )}
                             </button>
                             <button
                                 onClick={() => handleQuery()}
