@@ -6,6 +6,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, Check, Settings } from 'lucide-react';
+import Swal from 'sweetalert2';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatApiNumber } from '../utils/formatApiNumber';
 
@@ -70,6 +71,132 @@ const toPidModbus = (displayValue) => {
     const val = Number(displayValue);
     if (Number.isNaN(val)) return 0;
     return Math.round(val * 1000);
+};
+
+const clampFanSvValue = (value) => {
+    if (Number.isNaN(Number(value))) {
+        return 0;
+    }
+
+    return Math.min(100, Math.max(0, Number(value)));
+};
+
+const normalizeFanSvInputValue = (value) => {
+    if (value === '') {
+        return '';
+    }
+
+    const numericValue = Number(value);
+    if (Number.isNaN(numericValue)) {
+        return value;
+    }
+
+    return String(clampFanSvValue(numericValue));
+};
+
+const clampPressureTargetValue = (value) => {
+    if (Number.isNaN(Number(value))) {
+        return 0;
+    }
+
+    return Math.min(MAX_PRESSURE_1000, Math.max(0, Number(value)));
+};
+
+const normalizePressureTargetInputValue = (value) => {
+    if (value === '') {
+        return '';
+    }
+
+    const numericValue = Number(value);
+    if (Number.isNaN(numericValue)) {
+        return value;
+    }
+
+    return String(clampPressureTargetValue(numericValue));
+};
+
+const clampPidValue = (value) => {
+    if (Number.isNaN(Number(value))) {
+        return 0;
+    }
+
+    return Math.min(MAX_PID_10, Math.max(0, Number(value)));
+};
+
+const normalizePidInputValue = (value) => {
+    if (value === '') {
+        return '';
+    }
+
+    const numericValue = Number(value);
+    if (Number.isNaN(numericValue)) {
+        return value;
+    }
+
+    return String(clampPidValue(numericValue));
+};
+
+const clampPumpFrequencyValue = (value) => {
+    if (Number.isNaN(Number(value))) {
+        return 0;
+    }
+
+    return Math.min(MAX_FREQ_60, Math.max(0, Number(value)));
+};
+
+const normalizePumpFrequencyInputValue = (value) => {
+    if (value === '') {
+        return '';
+    }
+
+    const numericValue = Number(value);
+    if (Number.isNaN(numericValue)) {
+        return value;
+    }
+
+    return String(clampPumpFrequencyValue(numericValue));
+};
+
+const clampOutletTargetTempValue = (value) => {
+    if (Number.isNaN(Number(value))) {
+        return 0;
+    }
+
+    return Math.min(MAX_TEMP_100, Math.max(0, Number(value)));
+};
+
+const normalizeOutletTargetTempInputValue = (value) => {
+    if (value === '') {
+        return '';
+    }
+
+    const numericValue = Number(value);
+    if (Number.isNaN(numericValue)) {
+        return value;
+    }
+
+    return String(clampOutletTargetTempValue(numericValue));
+};
+
+const clampValveOpeningValue = (value) => {
+    if (Number.isNaN(Number(value))) {
+        return 0;
+    }
+
+    return Math.min(MAX_VALVE_100, Math.max(0, Number(value)));
+};
+
+const normalizeValveOpeningInputValue = (value) => {
+    if (value === '') {
+        return '';
+    }
+
+    const numericValue = Number(value);
+    if (Number.isNaN(numericValue)) {
+        return value;
+    }
+
+    return String(clampValveOpeningValue(numericValue));
 };
 // const TELEMETRY_SENSOR_ORDER = [
 //     'inletWaterTemp',
@@ -202,13 +329,14 @@ const TelemetryCard = ({ data }) => (
     </div>
 );
 
-const Toggle = ({ checked, onChange }) => (
-    <label className="relative inline-flex items-center cursor-pointer">
+const Toggle = ({ checked, onChange, disabled = false }) => (
+    <label className={`relative inline-flex items-center ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
         <input
             type="checkbox"
             className="sr-only peer"
             checked={checked}
             onChange={(event) => onChange?.(event.target.checked)}
+            disabled={disabled}
         />
         <div className="relative h-5 w-10 rounded-full bg-slate-200 transition-colors duration-200 peer-checked:bg-primary after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform after:duration-200 peer-checked:after:translate-x-5"></div>
     </label>
@@ -231,6 +359,18 @@ const PVText = ({ value, unit = '' }) => (
         PV: {formatDisplayValue(value)} {unit}
     </span>
 );
+
+const submitOnEnter = (event, onSubmit, disabled = false) => {
+    if (event.key !== 'Enter') {
+        return;
+    }
+
+    event.preventDefault();
+
+    if (!disabled) {
+        onSubmit?.();
+    }
+};
 
 const PIDInput = ({ label, pvValue, value, onChange, onFocus, onBlur, isModified, error }) => (
     <div className="space-y-1.5 space-x-1.5">
@@ -642,7 +782,7 @@ const MotorControl = ({
     );
 };
 
-const FanUnitCard = ({ fan, onSvChange, onSvFocus, onSvBlur, onSubmit, onToggle, isSubmitting, error }) => {
+const FanUnitCard = ({ fan, onSvChange, onSvFocus, onSvBlur, onSubmit, onToggle, isSubmitting, error, svLocked = false }) => {
     const { t } = useLanguage();
     const statusColors = {
         running: 'text-emerald-500',
@@ -670,7 +810,7 @@ const FanUnitCard = ({ fan, onSvChange, onSvFocus, onSvBlur, onSubmit, onToggle,
                 <button
                     type="button"
                     onClick={() => onToggle?.(fan.id)}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || svLocked}
                     className={`w-10 h-5 rounded-full relative transition-colors disabled:opacity-50 ${fan.isActive ? 'bg-blue-600' : 'bg-slate-300'}`}
                 >
                     <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${fan.isActive ? 'left-5.5' : 'left-0.5'}`} />
@@ -703,6 +843,8 @@ const FanUnitCard = ({ fan, onSvChange, onSvFocus, onSvBlur, onSubmit, onToggle,
                             onChange={(event) => onSvChange?.(fan.id, event.target.value)}
                             onFocus={() => onSvFocus?.(fan.id)}
                             onBlur={() => onSvBlur?.(fan.id)}
+                            onKeyDown={(event) => submitOnEnter(event, () => onSubmit?.(fan.id), isSubmitting)}
+                            disabled={svLocked}
                             className="text-left w-full border-none bg-transparent text-lg font-bold px-3 focus:ring-0"
 
                         />
@@ -710,7 +852,7 @@ const FanUnitCard = ({ fan, onSvChange, onSvFocus, onSvBlur, onSubmit, onToggle,
                         <button
                             type="button"
                             onClick={() => onSubmit?.(fan.id)}
-                            disabled={isSubmitting}
+                            disabled={isSubmitting || svLocked}
                             className="bg-slate-50 px-3 flex items-center justify-center border-l border-slate-100 transition-colors disabled:opacity-50"
                         >
                             <Check size={18} className="text-slate-400" />
@@ -1080,8 +1222,23 @@ export function IndustrialControl({ device, onBack }) {
         }
     };
 
+    const showEmergencyFanSvLockedAlert = () => {
+        Swal.fire({
+            icon: 'warning',
+            title: '緊急開關已啟用',
+            text: '請先關閉緊急開關，才能重新設置風扇 SV。',
+            confirmButtonText: '確定',
+        });
+    };
+
     const handleToggleFan = async (fanId) => {
         if (!deviceIdentifier) {
+            return;
+        }
+
+        if (isEmergencyEnabled) {
+            console.log(`[Fan ${fanId} Toggle] blocked: emergency switch is enabled`);
+            showEmergencyFanSvLockedAlert();
             return;
         }
 
@@ -1095,14 +1252,35 @@ export function IndustrialControl({ device, onBack }) {
             return;
         }
 
-        const fallbackRestoreValue = Number(allFansRpmTarget) || Number(targetFan.pvRpm) || 0;
-        const restoredValue = Number(targetFan.lastActiveSvRpm) || fallbackRestoreValue;
+        const inputSvValue = Number(targetFan.svRpm);
+        const fallbackRestoreValue = Number(allFansRpmTarget) || Number(targetFan.pvPercent) || 0;
+        const restoredValue = Number.isNaN(inputSvValue)
+            ? (Number(targetFan.lastActiveSvRpm) || fallbackRestoreValue)
+            : inputSvValue;
         const nextIsActive = !targetFan.isActive;
         const nextValue = nextIsActive ? restoredValue : 0;
-        const normalizedValue = Number.isNaN(nextValue) ? 0 : nextValue;
+        const normalizedValue = clampFanSvValue(nextValue);
+        const normalizedPvValue = clampFanSvValue(targetFan.pvPercent);
+        const modbusValue = toModbus(normalizedValue, 100);
+
+        if (nextIsActive && normalizedPvValue === 0 && normalizedValue === 0) {
+            console.log(`[Fan ${fanId} Toggle] blocked: pv and sv are 0`);
+            Swal.fire({
+                icon: 'warning',
+                title: '請先設置 SV',
+                text: '風扇 PV 和 SV 都是 0，請先輸入 SV 再開啟風扇。',
+                confirmButtonText: '確定',
+            });
+            return;
+        }
 
         setSubmittingFanId(fanId);
         submittingFanIdRef.current = fanId;
+
+        console.log(`[Fan ${fanId} Toggle] current sv input:`, targetFan.svRpm);
+        console.log(`[Fan ${fanId} Toggle] next active:`, nextIsActive);
+        console.log(`[Fan ${fanId} Toggle] normalized sv:`, normalizedValue);
+        console.log(`[Fan ${fanId} Toggle] modbus value:`, modbusValue);
 
         try {
             const response = await fetch(
@@ -1113,7 +1291,7 @@ export function IndustrialControl({ device, onBack }) {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        value: normalizedValue,
+                        value: modbusValue,
                     }),
                 }
             );
@@ -1145,6 +1323,12 @@ export function IndustrialControl({ device, onBack }) {
 
     const handleToggleAllFans = async (enabled) => {
         if (!deviceIdentifier) {
+            return;
+        }
+
+        if (isEmergencyEnabled) {
+            console.log('[All Fans Toggle] blocked: emergency switch is enabled');
+            showEmergencyFanSvLockedAlert();
             return;
         }
 
@@ -1227,18 +1411,28 @@ export function IndustrialControl({ device, onBack }) {
     };
 
     const handleFanSvChange = (fanId, value) => {
+        if (isEmergencyEnabled) {
+            console.log(`[Fan ${fanId} SV Change] blocked: emergency switch is enabled`);
+            return;
+        }
+
+        const normalizedValue = normalizeFanSvInputValue(value);
+        const numericValue = Number(normalizedValue);
+
         editingFanIdsRef.current.add(fanId);
         setFans((prev) =>
             prev.map((fan) => (
                 fan.id === fanId
                     ? {
                         ...fan,
-                        svRpm: value,
-                        lastActiveSvRpm: Number(value) > 0 ? Number(value) : fan.lastActiveSvRpm,
+                        svRpm: normalizedValue,
+                        lastActiveSvRpm: !Number.isNaN(numericValue) && numericValue > 0 ? numericValue : fan.lastActiveSvRpm,
                     }
                     : fan
             ))
         );
+
+        setFanErrors((prev) => ({ ...prev, [fanId]: '' }));
     };
 
     const handleFanSvFocus = (fanId) => {
@@ -1254,18 +1448,19 @@ export function IndustrialControl({ device, onBack }) {
             return;
         }
 
+        if (isEmergencyEnabled) {
+            console.log(`[Fan ${fanId} SV Submit] blocked: emergency switch is enabled`);
+            showEmergencyFanSvLockedAlert();
+            return;
+        }
+
         const fanNumber = Number(fanId);
         if (Number.isNaN(fanNumber)) {
             return;
         }
 
         const targetFan = fans.find((fan) => fan.id === fanId);
-        const nextValue = Number(targetFan?.svRpm);
-
-        if (nextValue < 0 || nextValue > 100) {
-            setFanErrors((prev) => ({ ...prev, [fanId]: '0 ~ 100' }));
-            return;
-        }
+        const nextValue = clampFanSvValue(targetFan?.svRpm);
         setFanErrors((prev) => ({ ...prev, [fanId]: '' }));
 
         setSubmittingFanId(fanId);
@@ -1298,10 +1493,10 @@ export function IndustrialControl({ device, onBack }) {
                     fan.id === fanId
                         ? {
                             ...fan,
-                            svRpm: Number.isNaN(nextValue) ? 0 : nextValue,
-                            lastActiveSvRpm: Number.isNaN(nextValue) || nextValue <= 0 ? fan.lastActiveSvRpm : nextValue,
-                            isActive: !Number.isNaN(nextValue) && nextValue > 0,
-                            status: !Number.isNaN(nextValue) && nextValue > 0 ? 'running' : 'stopped',
+                            svRpm: nextValue,
+                            lastActiveSvRpm: nextValue <= 0 ? fan.lastActiveSvRpm : nextValue,
+                            isActive: nextValue > 0,
+                            status: nextValue > 0 ? 'running' : 'stopped',
                         }
                         : fan
                 ))
@@ -1316,31 +1511,45 @@ export function IndustrialControl({ device, onBack }) {
     };
 
     const buildSvPayload = (currentFans, currentPidValues, currentValvePidValues, currentPumpSv, currentReturnValveOpening) => ({
-        circulating_pump_sv: toModbus(currentPumpSv ?? circulatingPumpSv, MAX_FREQ_60),
-        cooling_fan1_sv: toModbus((currentFans ?? fans).find((fan) => fan.id === '01')?.svRpm, 100),
-        cooling_fan2_sv: toModbus((currentFans ?? fans).find((fan) => fan.id === '02')?.svRpm, 100),
-        cooling_fan3_sv: toModbus((currentFans ?? fans).find((fan) => fan.id === '03')?.svRpm, 100),
-        cooling_fan4_sv: toModbus((currentFans ?? fans).find((fan) => fan.id === '04')?.svRpm, 100),
-        cooling_fan5_sv: toModbus((currentFans ?? fans).find((fan) => fan.id === '05')?.svRpm, 100),
-        cooling_fan6_sv: toModbus((currentFans ?? fans).find((fan) => fan.id === '06')?.svRpm, 100),
-        cooling_fan7_sv: toModbus((currentFans ?? fans).find((fan) => fan.id === '07')?.svRpm, 100),
-        cooling_fan8_sv: toModbus((currentFans ?? fans).find((fan) => fan.id === '08')?.svRpm, 100),
-        cooling_fan9_sv: toModbus((currentFans ?? fans).find((fan) => fan.id === '09')?.svRpm, 100),
+        circulating_pump_sv: toModbus(clampPumpFrequencyValue(currentPumpSv ?? circulatingPumpSv), MAX_FREQ_60),
+        cooling_fan1_sv: toModbus(clampFanSvValue((currentFans ?? fans).find((fan) => fan.id === '01')?.svRpm), 100),
+        cooling_fan2_sv: toModbus(clampFanSvValue((currentFans ?? fans).find((fan) => fan.id === '02')?.svRpm), 100),
+        cooling_fan3_sv: toModbus(clampFanSvValue((currentFans ?? fans).find((fan) => fan.id === '03')?.svRpm), 100),
+        cooling_fan4_sv: toModbus(clampFanSvValue((currentFans ?? fans).find((fan) => fan.id === '04')?.svRpm), 100),
+        cooling_fan5_sv: toModbus(clampFanSvValue((currentFans ?? fans).find((fan) => fan.id === '05')?.svRpm), 100),
+        cooling_fan6_sv: toModbus(clampFanSvValue((currentFans ?? fans).find((fan) => fan.id === '06')?.svRpm), 100),
+        cooling_fan7_sv: toModbus(clampFanSvValue((currentFans ?? fans).find((fan) => fan.id === '07')?.svRpm), 100),
+        cooling_fan8_sv: toModbus(clampFanSvValue((currentFans ?? fans).find((fan) => fan.id === '08')?.svRpm), 100),
+        cooling_fan9_sv: toModbus(clampFanSvValue((currentFans ?? fans).find((fan) => fan.id === '09')?.svRpm), 100),
         return_electric_valve_opening_sv: toModbus(currentReturnValveOpening ?? returnValveOpening, MAX_VALVE_100),
-        group1_pid_p_sv: toPidModbus((currentPidValues ?? pidValues).p),
-        group1_pid_i_sv: toPidModbus((currentPidValues ?? pidValues).i),
-        group1_pid_d_sv: toPidModbus((currentPidValues ?? pidValues).d),
-        group2_pid_p_sv: toPidModbus((currentValvePidValues ?? valvePidValues).p),
-        group2_pid_i_sv: toPidModbus((currentValvePidValues ?? valvePidValues).i),
-        group2_pid_d_sv: toPidModbus((currentValvePidValues ?? valvePidValues).d),
+        group1_pid_p_sv: toPidModbus(clampPidValue((currentPidValues ?? pidValues).p)),
+        group1_pid_i_sv: toPidModbus(clampPidValue((currentPidValues ?? pidValues).i)),
+        group1_pid_d_sv: toPidModbus(clampPidValue((currentPidValues ?? pidValues).d)),
+        group2_pid_p_sv: toPidModbus(clampPidValue((currentValvePidValues ?? valvePidValues).p)),
+        group2_pid_i_sv: toPidModbus(clampPidValue((currentValvePidValues ?? valvePidValues).i)),
+        group2_pid_d_sv: toPidModbus(clampPidValue((currentValvePidValues ?? valvePidValues).d)),
+    });
+
+    const buildZeroFanSvPayload = () => ({
+        cooling_fan1_sv: toModbus(0, 100),
+        cooling_fan2_sv: toModbus(0, 100),
+        cooling_fan3_sv: toModbus(0, 100),
+        cooling_fan4_sv: toModbus(0, 100),
+        cooling_fan5_sv: toModbus(0, 100),
+        cooling_fan6_sv: toModbus(0, 100),
+        cooling_fan7_sv: toModbus(0, 100),
+        cooling_fan8_sv: toModbus(0, 100),
+        cooling_fan9_sv: toModbus(0, 100),
     });
 
     const handlePidChange = (key, value) => {
+        const normalizedValue = normalizePidInputValue(value);
         isEditingPidValuesRef.current = true;
         setPidValues((prev) => ({
             ...prev,
-            [key]: value,
+            [key]: normalizedValue,
         }));
+        setPidError('');
         setModifiedPidFields((prev) => {
             const next = {
                 ...prev,
@@ -1352,11 +1561,13 @@ export function IndustrialControl({ device, onBack }) {
     };
 
     const handleValvePidChange = (key, value) => {
+        const normalizedValue = normalizePidInputValue(value);
         isEditingValvePidValuesRef.current = true;
         setValvePidValues((prev) => ({
             ...prev,
-            [key]: value,
+            [key]: normalizedValue,
         }));
+        setValvePidError('');
         setModifiedValvePidFields((prev) => {
             const next = {
                 ...prev,
@@ -1368,8 +1579,10 @@ export function IndustrialControl({ device, onBack }) {
     };
 
     const handleOutletValveOpeningChange = (value) => {
+        const normalizedValue = normalizeValveOpeningInputValue(value);
         isEditingOutletValveOpeningRef.current = true;
-        setOutletValveOpening(value);
+        setOutletValveOpening(normalizedValue);
+        setValvePidError('');
         setModifiedValvePidFields((prev) => {
             const next = {
                 ...prev,
@@ -1385,22 +1598,17 @@ export function IndustrialControl({ device, onBack }) {
             return;
         }
 
-        const pVal = Number(pidValues.p);
-        const iVal = Number(pidValues.i);
-        const dVal = Number(pidValues.d);
-
-        if ([pVal, iVal, dVal].some(v => v < 0 || v > 10)) {
-            setPidError('0 ~ 10.00');
-            return;
-        }
+        const pVal = clampPidValue(pidValues.p);
+        const iVal = clampPidValue(pidValues.i);
+        const dVal = clampPidValue(pidValues.d);
         setPidError('');
 
         setIsSubmittingPid(true);
         isSubmittingPidRef.current = true;
 
-        const pValLatest = Number(pidValues.p);
-        const iValLatest = Number(pidValues.i);
-        const dValLatest = Number(pidValues.d);
+        const pValLatest = pVal;
+        const iValLatest = iVal;
+        const dValLatest = dVal;
 
         const currentPidValues = {
             p: String(pValLatest),
@@ -1456,14 +1664,16 @@ export function IndustrialControl({ device, onBack }) {
             return;
         }
 
-        const nextValue = Number(allFansRpmTarget);
-        if (nextValue < 0 || nextValue > 100) {
-            setAllFansError('0 ~ 100');
+        if (isEmergencyEnabled) {
+            console.log('[All Fans SV] blocked: emergency switch is enabled');
+            showEmergencyFanSvLockedAlert();
             return;
         }
+
+        const nextValue = clampFanSvValue(allFansRpmTarget);
         setAllFansError('');
 
-        const normalizedValue = Number.isNaN(nextValue) ? 0 : nextValue;
+        const normalizedValue = nextValue;
         const nextFans = fans.map((fan) => ({
             ...fan,
             svRpm: normalizedValue,
@@ -1505,6 +1715,7 @@ export function IndustrialControl({ device, onBack }) {
             }
 
             setFans(nextFans);
+            setAllFansRpmTarget(String(normalizedValue));
             isEditingAllFansRpmTargetRef.current = false;
             fetchFanHoldingData();
         } catch (error) {
@@ -1520,11 +1731,7 @@ export function IndustrialControl({ device, onBack }) {
             return;
         }
 
-        const nextValue = Number(outletTargetTempSv);
-        if (nextValue < 0 || nextValue > 100) {
-            setTempError('0 ~ 100');
-            return;
-        }
+        const nextValue = clampOutletTargetTempValue(outletTargetTempSv);
         setTempError('');
 
         setIsSubmittingOutletTargetTemp(true);
@@ -1574,11 +1781,7 @@ export function IndustrialControl({ device, onBack }) {
             return;
         }
 
-        const nextValue = Number(circulatingPumpSv);
-        if (nextValue < 0 || nextValue > 60) {
-            setPumpError('0 ~ 60');
-            return;
-        }
+        const nextValue = clampPumpFrequencyValue(circulatingPumpSv);
         setPumpError('');
 
         setIsSubmittingPumpFrequency(true);
@@ -1628,15 +1831,10 @@ export function IndustrialControl({ device, onBack }) {
             return;
         }
 
-        const nextValue = Number(outletValveOpening);
-        const pVal = Number(valvePidValues.p);
-        const iVal = Number(valvePidValues.i);
-        const dVal = Number(valvePidValues.d);
-
-        if (nextValue < 0 || nextValue > 100 || pVal < 0 || pVal > 10 || iVal < 0 || iVal > 10 || dVal < 0 || dVal > 10) {
-            setValvePidError(nextValue < 0 || nextValue > 100 ? '0 ~ 100' : '0 ~ 10.00');
-            return;
-        }
+        const nextValue = clampValveOpeningValue(outletValveOpening);
+        const pVal = clampPidValue(valvePidValues.p);
+        const iVal = clampPidValue(valvePidValues.i);
+        const dVal = clampPidValue(valvePidValues.d);
         setValvePidError('');
 
         const currentValvePidValues = {
@@ -1704,11 +1902,7 @@ export function IndustrialControl({ device, onBack }) {
             return;
         }
 
-        const nextValue = Number(pressureTarget);
-        if (nextValue < 0 || nextValue > 1000) {
-            setPressureError('0 ~ 1000');
-            return;
-        }
+        const nextValue = clampPressureTargetValue(pressureTarget);
         setPressureError('');
 
         setIsSubmittingPressureTarget(true);
@@ -1754,11 +1948,7 @@ export function IndustrialControl({ device, onBack }) {
             return;
         }
 
-        const nextValue = Number(returnValveOpening);
-        if (nextValue < 0 || nextValue > 100) {
-            setReturnValveError('0 ~ 100');
-            return;
-        }
+        const nextValue = clampValveOpeningValue(returnValveOpening);
         setReturnValveError('');
 
         setIsSubmittingReturnValveOpening(true);
@@ -1787,6 +1977,7 @@ export function IndustrialControl({ device, onBack }) {
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
+            setReturnValveOpening(String(nextValue));
             isEditingReturnValveOpeningRef.current = false;
             fetchFanHoldingData();
         } catch (error) {
@@ -1803,13 +1994,33 @@ export function IndustrialControl({ device, onBack }) {
 
         const nextValue = enabled ? 1 : 0;
         const previousValue = isEmergencyEnabled;
+        const previousFans = fans;
+        const previousAllFansRpmTarget = allFansRpmTarget;
+        const nextFans = enabled
+            ? fans.map((fan) => (
+                fan.status === 'fault'
+                    ? fan
+                    : {
+                        ...fan,
+                        svRpm: '0',
+                        lastActiveSvRpm: Number(fan.svRpm) > 0 ? fan.svRpm : fan.lastActiveSvRpm,
+                        isActive: false,
+                        status: 'stopped',
+                    }
+            ))
+            : fans;
         const payload = {
             fan_power_start: nextValue,
+            ...(enabled ? buildZeroFanSvPayload() : {}),
         };
 
         emergencyOverrideRef.current = nextValue;
         setIsEmergencyEnabled(enabled);
         setIsSubmittingEmergency(true);
+        if (enabled) {
+            setFans(nextFans);
+            setAllFansRpmTarget('0');
+        }
 
         try {
             console.log('Emergency switch request:', {
@@ -1834,10 +2045,14 @@ export function IndustrialControl({ device, onBack }) {
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
+
+            fetchFanHoldingData();
         } catch (error) {
             console.error('緊急開關設定失敗:', error);
             emergencyOverrideRef.current = null;
             setIsEmergencyEnabled(previousValue);
+            setFans(previousFans);
+            setAllFansRpmTarget(previousAllFansRpmTarget);
         } finally {
             setIsSubmittingEmergency(false);
         }
@@ -1927,7 +2142,8 @@ export function IndustrialControl({ device, onBack }) {
                                     onChange={(event) => {
                                         isEditingOutletTargetTempRef.current = true;
                                         isModifiedOutletTargetTempRef.current = true;
-                                        setOutletTargetTempSv(event.target.value);
+                                        setOutletTargetTempSv(normalizeOutletTargetTempInputValue(event.target.value));
+                                        setTempError('');
                                     }}
                                     placeholder={FALLBACK_VALUE}
                                 />
@@ -1981,8 +2197,10 @@ export function IndustrialControl({ device, onBack }) {
                     holdingData={holdingData}
                     openingRatio={returnValveOpening}
                     onOpeningRatioChange={(value) => {
+                        const normalizedValue = normalizeValveOpeningInputValue(value);
                         isEditingReturnValveOpeningRef.current = true;
-                        setReturnValveOpening(value);
+                        setReturnValveOpening(normalizedValue);
+                        setReturnValveError('');
                     }}
                     onOpeningRatioFocus={() => {
                         isEditingReturnValveOpeningRef.current = true;
@@ -2001,7 +2219,8 @@ export function IndustrialControl({ device, onBack }) {
                     targetFrequency={circulatingPumpSv}
                     onTargetFrequencyChange={(value) => {
                         isEditingCirculatingPumpSvRef.current = true;
-                        setCirculatingPumpSv(value);
+                        setCirculatingPumpSv(normalizePumpFrequencyInputValue(value));
+                        setPumpError('');
                     }}
                     onTargetFrequencyFocus={() => {
                         isEditingCirculatingPumpSvRef.current = true;
@@ -2046,7 +2265,7 @@ export function IndustrialControl({ device, onBack }) {
                     <div className="space-y-4 items-center gap-2">
                         <div className="flex space-x-4">
                             <h3 className="uppercase tracking-wider font-bold text-slate-400">{t('industrial.oneClickEnableAll')}</h3>
-                            <Toggle checked={allFansEnabled} onChange={handleToggleAllFans} />
+                            <Toggle checked={allFansEnabled} onChange={handleToggleAllFans} disabled={isEmergencyEnabled} />
                             {/*<PVText value={sensorValues.rpm} />*/}
                         </div>
                         <div className="flex items-center gap-4">
@@ -2055,9 +2274,11 @@ export function IndustrialControl({ device, onBack }) {
                                     <input
                                         type="number"
                                         value={allFansRpmTarget ?? ''}
+                                        disabled={isEmergencyEnabled}
                                         onChange={(event) => {
                                             isEditingAllFansRpmTargetRef.current = true;
-                                            setAllFansRpmTarget(event.target.value);
+                                            setAllFansRpmTarget(normalizeFanSvInputValue(event.target.value));
+                                            setAllFansError('');
                                         }}
                                         onFocus={() => {
                                             isEditingAllFansRpmTargetRef.current = true;
@@ -2065,8 +2286,9 @@ export function IndustrialControl({ device, onBack }) {
                                         onBlur={() => {
                                             isEditingAllFansRpmTargetRef.current = false;
                                         }}
+                                        onKeyDown={(event) => submitOnEnter(event, handleSubmitAllFansSv, isSubmittingAllFans)}
                                         placeholder={FALLBACK_VALUE}
-                                        className={`text-left w-full bg-white border-none rounded-lg px-3 py-2 text-[14px] ring-1 focus:ring-primary outline-none ${allFansError ? 'ring-red-500' : 'ring-slate-200'}`}
+                                        className={`text-left w-full border-none rounded-lg px-3 py-2 text-[14px] ring-1 outline-none disabled:opacity-50 ${allFansError ? 'bg-red-50 ring-red-500' : 'bg-white ring-slate-200 focus:ring-primary'}`}
                                     />
                                     <span className="absolute right-3 top-2.5 text-[10px] text-slate-400 font-bold">%</span>
                                 </div>
@@ -2074,7 +2296,7 @@ export function IndustrialControl({ device, onBack }) {
                                     <button
                                         type="button"
                                         onClick={handleSubmitAllFansSv}
-                                        disabled={isSubmittingAllFans}
+                                        disabled={isSubmittingAllFans || isEmergencyEnabled}
                                         className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold border border-primary/20 hover:bg-primary hover:text-white transition-all disabled:opacity-50"
                                     >
                                         {t('common.confirm')}
@@ -2102,7 +2324,8 @@ export function IndustrialControl({ device, onBack }) {
                                         value={pressureTarget}
                                         onChange={(event) => {
                                             isEditingPressureTargetRef.current = true;
-                                            setPressureTarget(event.target.value);
+                                            setPressureTarget(normalizePressureTargetInputValue(event.target.value));
+                                            setPressureError('');
                                         }}
                                         onFocus={() => {
                                             isEditingPressureTargetRef.current = true;
@@ -2207,6 +2430,7 @@ export function IndustrialControl({ device, onBack }) {
                             onToggle={handleToggleFan}
                             isSubmitting={submittingFanId === fan.id}
                             error={fanErrors[fan.id]}
+                            svLocked={isEmergencyEnabled}
                         />
                     ))}
                 </motion.div>
