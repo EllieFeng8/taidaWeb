@@ -372,7 +372,7 @@ const submitOnEnter = (event, onSubmit, disabled = false) => {
     }
 };
 
-const PIDInput = ({ label, pvValue, value, onChange, onFocus, onBlur, isModified, error }) => (
+const PIDInput = ({ label, pvValue, value, onChange, onFocus, onBlur, onSubmit, isModified, isSubmitting, error }) => (
     <div className="space-y-1.5 space-x-1.5">
         <label className="text-[14px] font-bold text-slate-500 uppercase">{label}</label>
         <PVText value={toPidDisplay(pvValue)} />
@@ -391,6 +391,7 @@ const PIDInput = ({ label, pvValue, value, onChange, onFocus, onBlur, isModified
                 onChange={onChange}
                 onFocus={onFocus}
                 onBlur={onBlur}
+                onKeyDown={(event) => submitOnEnter(event, onSubmit, isSubmitting)}
                 placeholder={FALLBACK_VALUE}
             />
             {error && <span className="absolute -top-4 right-0 text-[10px] font-bold text-red-500">{error}</span>}
@@ -453,6 +454,7 @@ const ValveControl = ({
                             onChange={(event) => onPercentageChange?.(event.target.value)}
                             onFocus={onPercentageFocus}
                             onBlur={onPercentageBlur}
+                            onKeyDown={(event) => submitOnEnter(event, onSubmit, isSubmitting)}
                             placeholder={FALLBACK_VALUE}
                         />
                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-slate-400 font-bold">%</span>
@@ -467,7 +469,9 @@ const ValveControl = ({
                         onChange={(event) => onPidChange?.('p', event.target.value)}
                         onFocus={() => onPidFocus?.('p')}
                         onBlur={() => onPidBlur?.('p')}
+                        onSubmit={onSubmit}
                         isModified={modifiedPidFields?.p}
+                        isSubmitting={isSubmitting}
                         error={error}
                     />
                     <PIDInput
@@ -477,7 +481,9 @@ const ValveControl = ({
                         onChange={(event) => onPidChange?.('i', event.target.value)}
                         onFocus={() => onPidFocus?.('i')}
                         onBlur={() => onPidBlur?.('i')}
+                        onSubmit={onSubmit}
                         isModified={modifiedPidFields?.i}
+                        isSubmitting={isSubmitting}
                         error={error}
                     />
                     <PIDInput
@@ -487,7 +493,9 @@ const ValveControl = ({
                         onChange={(event) => onPidChange?.('d', event.target.value)}
                         onFocus={() => onPidFocus?.('d')}
                         onBlur={() => onPidBlur?.('d')}
+                        onSubmit={onSubmit}
                         isModified={modifiedPidFields?.d}
+                        isSubmitting={isSubmitting}
                         error={error}
                     />
                 </div>
@@ -537,6 +545,7 @@ const ReturnValveControl = ({
                                 onChange={(event) => onOpeningRatioChange?.(event.target.value)}
                                 onFocus={onOpeningRatioFocus}
                                 onBlur={onOpeningRatioBlur}
+                                onKeyDown={(event) => submitOnEnter(event, onSubmit, isSubmitting)}
                                 placeholder={FALLBACK_VALUE}
                             />
                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">%</span>
@@ -747,6 +756,7 @@ const MotorControl = ({
                                     onChange={(event) => onTargetFrequencyChange?.(event.target.value)}
                                     onFocus={onTargetFrequencyFocus}
                                     onBlur={onTargetFrequencyBlur}
+                                    onKeyDown={(event) => submitOnEnter(event, onSubmit, isSubmitting)}
                                     placeholder={FALLBACK_VALUE}
                                     // disabled={!enabled}
                                 />
@@ -2145,6 +2155,7 @@ export function IndustrialControl({ device, onBack }) {
                                         setOutletTargetTempSv(normalizeOutletTargetTempInputValue(event.target.value));
                                         setTempError('');
                                     }}
+                                    onKeyDown={(event) => submitOnEnter(event, handleSubmitOutletTargetTemp, isSubmittingOutletTargetTemp)}
                                     placeholder={FALLBACK_VALUE}
                                 />
                                 {tempError && <span className="absolute -top-4 right-0 text-[10px] font-bold text-red-500">{tempError}</span>}
@@ -2333,6 +2344,7 @@ export function IndustrialControl({ device, onBack }) {
                                         onBlur={() => {
                                             isEditingPressureTargetRef.current = false;
                                         }}
+                                        onKeyDown={(event) => submitOnEnter(event, handleSubmitPressureTarget, isSubmittingPressureTarget)}
                                         placeholder={FALLBACK_VALUE}
                                         className={`text-left w-full border-none rounded-lg px-3 py-2 text-[14px] ring-1 outline-none transition-colors ${
                                             pressureError ? 'bg-red-50 ring-red-500' : 'bg-white ring-slate-200 focus:ring-primary'
@@ -2387,6 +2399,7 @@ export function IndustrialControl({ device, onBack }) {
                                                     isEditingPidValuesRef.current = true;
                                                     handlePidChange(item.key, event.target.value);
                                                 }}
+                                                onKeyDown={(event) => submitOnEnter(event, handleSubmitPidValues, isSubmittingPid)}
                                                 step="0.01"
                                                 min="0"
                                                 max="10.00"

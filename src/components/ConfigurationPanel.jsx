@@ -98,6 +98,14 @@ export default function ConfigurationPanel({ onClose, onSaved }) {
                             type="text"
                             value={groupName}
                             onChange={(event) => setGroupName(event.target.value)}
+                            onKeyDown={(event) => {
+                                if (event.key !== 'Enter' || isSaving) {
+                                    return;
+                                }
+
+                                event.preventDefault();
+                                handleSave();
+                            }}
                             placeholder={t('config.groupNamePlaceholder')}
                         />
 

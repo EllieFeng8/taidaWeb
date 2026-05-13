@@ -651,96 +651,104 @@ export default function HistoryList() {
                         )}
 
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('select_device')}</label>
-                                <div className="relative">
-                                    <Database className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                    <select
-                                        className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all appearance-none cursor-pointer"
-                                        value={selectedDevice}
-                                        onChange={handleDeviceChange}
-                                    >
-                                        <option value="">{t('please_select_device')}</option>
-                                        {devices.map((device) => (
-                                            <option key={device.id} value={device.name}>
-                                                {device.name}
-                                            </option>
-                                        ))}
-                                    </select>
+                        <form
+                            onSubmit={(event) => {
+                                event.preventDefault();
+                                handleQuery();
+                            }}
+                        >
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('select_device')}</label>
+                                    <div className="relative">
+                                        <Database className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                        <select
+                                            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all appearance-none cursor-pointer"
+                                            value={selectedDevice}
+                                            onChange={handleDeviceChange}
+                                        >
+                                            <option value="">{t('please_select_device')}</option>
+                                            {devices.map((device) => (
+                                                <option key={device.id} value={device.name}>
+                                                    {device.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                    {t('start_datetime')} <span className="text-slate-400 font-normal">({t('optional')}, {t('default')}: {formatDateTimeLabel(getStartOfToday())})</span>
-                                </label>
-                                <div className="relative">
-                                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                    <input
-                                        className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
-                                        type="datetime-local"
-                                        value={fromDateTime}
-                                        onChange={(e) => setFromDateTime(e.target.value)}
-                                        placeholder="2025-01-01T00:00"
-                                    />
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                        {t('start_datetime')} <span className="text-slate-400 font-normal">({t('optional')}, {t('default')}: {formatDateTimeLabel(getStartOfToday())})</span>
+                                    </label>
+                                    <div className="relative">
+                                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                        <input
+                                            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                                            type="datetime-local"
+                                            value={fromDateTime}
+                                            onChange={(e) => setFromDateTime(e.target.value)}
+                                            placeholder="2025-01-01T00:00"
+                                        />
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                    {t('end_datetime')} <span className="text-slate-400 font-normal">({t('optional')}, {t('default')}: {formatDateTimeLabel(getEndOfToday())})</span>
-                                </label>
-                                <div className="relative">
-                                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                    <input
-                                        className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
-                                        type="datetime-local"
-                                        value={toDateTime}
-                                        onChange={(e) => setToDateTime(e.target.value)}
-                                        placeholder="今日"
-                                    />
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                        {t('end_datetime')} <span className="text-slate-400 font-normal">({t('optional')}, {t('default')}: {formatDateTimeLabel(getEndOfToday())})</span>
+                                    </label>
+                                    <div className="relative">
+                                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                        <input
+                                            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                                            type="datetime-local"
+                                            value={toDateTime}
+                                            onChange={(e) => setToDateTime(e.target.value)}
+                                            placeholder="今日"
+                                        />
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <div className="mt-6 flex flex-wrap justify-end gap-3">
-                            <button
-                                onClick={handleExportCsv}
-                                disabled={loading || isExporting || appliedDevice === ''}
-                                className="px-6 py-2.5 bg-white text-slate-700 border border-slate-200 rounded-lg text-sm font-semibold hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
-                            >
-                                {isExporting ? (
-                                    <>
-                                        <div
-                                            className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-                                        {t('history.exporting')}
-                                    </>
-                                ) : (
-                                    <>
-                                        <Download size={16} />
-                                        {t('history.export')} CSV
-                                    </>
-                                )}
-                            </button>
-                            <button
-                                onClick={() => handleQuery()}
-                                disabled={loading}
-                                className="px-6 py-2.5 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
-                            >
-                                {loading ? (
-                                    <>
-                                        <div
-                                            className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                        {t('querying')}
-                                    </>
-                                ) : (
-                                    <>
-                                        <Search size={16} />
-                                        {t('query_data')}
-                                    </>
-                                )}
-                            </button>
-                        </div>
+                            <div className="mt-6 flex flex-wrap justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={handleExportCsv}
+                                    disabled={loading || isExporting || appliedDevice === ''}
+                                    className="px-6 py-2.5 bg-white text-slate-700 border border-slate-200 rounded-lg text-sm font-semibold hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                                >
+                                    {isExporting ? (
+                                        <>
+                                            <div
+                                                className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                                            {t('history.exporting')}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Download size={16} />
+                                            {t('history.export')} CSV
+                                        </>
+                                    )}
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="px-6 py-2.5 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                                >
+                                    {loading ? (
+                                        <>
+                                            <div
+                                                className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                            {t('querying')}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Search size={16} />
+                                            {t('query_data')}
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </form>
                     </section>
 
                     {/* Table */}
