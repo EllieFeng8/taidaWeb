@@ -945,6 +945,8 @@ export function IndustrialControl({ device, onBack }) {
     const isEditingOutletValveOpeningRef = useRef(false);
     const isEditingPressureTargetRef = useRef(false);
     const isEditingReturnValveOpeningRef = useRef(false);
+    const preserveOutletValveOpeningRef = useRef(false);
+    const preserveReturnValveOpeningRef = useRef(false);
     const isEditingPidValuesRef = useRef(false);
     const isEditingValvePidValuesRef = useRef(false);
     const isModifiedOutletTargetTempRef = useRef(false);
@@ -963,6 +965,11 @@ export function IndustrialControl({ device, onBack }) {
 
     const deviceIdentifier = device?.name ?? device?.deviceName ?? device?.id ?? device?.deviceId;
     const sensorValues = mapSensorValues(sensorData);
+
+    useEffect(() => {
+        preserveOutletValveOpeningRef.current = false;
+        preserveReturnValveOpeningRef.current = false;
+    }, [deviceIdentifier]);
 
     useEffect(() => { isSubmittingPidRef.current = isSubmittingPid; }, [isSubmittingPid]);
     useEffect(() => { isSubmittingValvePidRef.current = isSubmittingValvePid; }, [isSubmittingValvePid]);
@@ -1158,10 +1165,10 @@ export function IndustrialControl({ device, onBack }) {
                 if (!isEditingCirculatingPumpSvRef.current && !isSubmittingPumpFrequencyRef.current) {
                     setCirculatingPumpSv(String(toDisplay(data?.circulating_pump_sv, MAX_FREQ_60) || ''));
                 }
-                if (!isEditingOutletValveOpeningRef.current && !isSubmittingOutletValveOpeningRef.current && !modifiedValvePidFieldsRef.current.opening) {
+                if (!preserveOutletValveOpeningRef.current && !isEditingOutletValveOpeningRef.current && !isSubmittingOutletValveOpeningRef.current && !modifiedValvePidFieldsRef.current.opening) {
                     setOutletValveOpening(String(toDisplay(data?.outlet_electric_valve_opening_sv, MAX_VALVE_100) || ''));
                 }
-                if (!isEditingReturnValveOpeningRef.current) {
+                if (!preserveReturnValveOpeningRef.current && !isEditingReturnValveOpeningRef.current) {
                     setReturnValveOpening(String(toDisplay(data?.return_electric_valve_opening_sv, MAX_VALVE_100) || ''));
                 }
                 if (!isEditingPressureTargetRef.current && !isSubmittingPressureTargetRef.current) {
@@ -1609,6 +1616,7 @@ export function IndustrialControl({ device, onBack }) {
     const handleOutletValveOpeningChange = (value) => {
         const normalizedValue = normalizeValveOpeningInputValue(value);
         isEditingOutletValveOpeningRef.current = true;
+        preserveOutletValveOpeningRef.current = true;
         setOutletValveOpening(normalizedValue);
         setValvePidError('');
         setModifiedValvePidFields((prev) => {
@@ -1914,7 +1922,6 @@ export function IndustrialControl({ device, onBack }) {
 
             isEditingOutletValveOpeningRef.current = false;
             isEditingValvePidValuesRef.current = false;
-            fetchFanHoldingData();
         } catch (error) {
             console.error('出水閥開度及 PID 設定失敗:', error);
         } finally {
@@ -2007,7 +2014,6 @@ export function IndustrialControl({ device, onBack }) {
             }
             setReturnValveOpening(String(nextValue));
             isEditingReturnValveOpeningRef.current = false;
-            fetchFanHoldingData();
         } catch (error) {
             console.error('混水閥開度設定失敗:', error);
         } finally {
@@ -2228,6 +2234,7 @@ export function IndustrialControl({ device, onBack }) {
                     onOpeningRatioChange={(value) => {
                         const normalizedValue = normalizeValveOpeningInputValue(value);
                         isEditingReturnValveOpeningRef.current = true;
+                        preserveReturnValveOpeningRef.current = true;
                         setReturnValveOpening(normalizedValue);
                         setReturnValveError('');
                     }}
