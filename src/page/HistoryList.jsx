@@ -102,6 +102,15 @@ const escapeCsvValue = (value) => {
     return `"${text}"`;
 };
 
+const submitOnEnter = (event, onSubmit) => {
+    if (event.key !== 'Enter') {
+        return;
+    }
+
+    event.preventDefault();
+    onSubmit?.();
+};
+
 export default function HistoryList() {
     const { t } = useLanguage();
 
@@ -682,6 +691,7 @@ export default function HistoryList() {
                                         type="datetime-local"
                                         value={fromDateTime}
                                         onChange={(e) => setFromDateTime(e.target.value)}
+                                        onKeyDown={(event) => submitOnEnter(event, handleQuery)}
                                         placeholder="2025-01-01T00:00"
                                     />
                                 </div>
@@ -698,6 +708,7 @@ export default function HistoryList() {
                                         type="datetime-local"
                                         value={toDateTime}
                                         onChange={(e) => setToDateTime(e.target.value)}
+                                        onKeyDown={(event) => submitOnEnter(event, handleQuery)}
                                         placeholder="今日"
                                     />
                                 </div>
@@ -851,11 +862,7 @@ export default function HistoryList() {
                                             max={totalPages}
                                             value={jumpToPage}
                                             onChange={(e) => setJumpToPage(e.target.value)}
-                                            onKeyPress={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    handlePageJump();
-                                                }
-                                            }}
+                                            onKeyDown={(event) => submitOnEnter(event, handlePageJump)}
                                             placeholder={currentPage.toString()}
                                             className="w-16 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-center font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
                                         />

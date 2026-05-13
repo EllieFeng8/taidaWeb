@@ -68,6 +68,18 @@ export default function ConnectSetting({ isOpen, onClose, device }) {
     const [feedback, setFeedback] = useState(null);
     const { t } = useLanguage();
 
+    const handleSubmitOnEnter = (event) => {
+        if (event.key !== 'Enter') {
+            return;
+        }
+
+        event.preventDefault();
+
+        if (!isLoading && !isSubmitting) {
+            handleApply();
+        }
+    };
+
     useEffect(() => {
         let isActive = true;
 
@@ -282,6 +294,7 @@ export default function ConnectSetting({ isOpen, onClose, device }) {
                                     value={samplingFrequency}
                                     placeholder={isLoading ? t('common.loading') : ''}
                                     onChange={(event) => setSamplingFrequency(event.target.value)}
+                                    onKeyDown={handleSubmitOnEnter}
                                     disabled={isLoading || isSubmitting}
                                 />
                             </div>
@@ -316,7 +329,7 @@ export default function ConnectSetting({ isOpen, onClose, device }) {
     );
 }
 
-function InputField({ label, value, onChange, type = 'text', placeholder = '', readOnly = false, disabled = false }) {
+function InputField({ label, value, onChange, onKeyDown, type = 'text', placeholder = '', readOnly = false, disabled = false }) {
     return (
         <div className="space-y-2">
             <label className="ml-1 text-sm font-bold text-slate-700">{label}</label>
@@ -329,6 +342,7 @@ function InputField({ label, value, onChange, type = 'text', placeholder = '', r
                 type={type}
                 value={value ?? ''}
                 onChange={onChange}
+                onKeyDown={onKeyDown}
                 placeholder={placeholder}
                 readOnly={readOnly}
                 disabled={disabled}

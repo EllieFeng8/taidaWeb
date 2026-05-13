@@ -23,6 +23,15 @@ const formatDisplayValue = (value) => {
   return Number.isNaN(numericValue) ? FALLBACK_VALUE : numericValue.toFixed(2);
 };
 
+const submitOnEnter = (event, onSubmit) => {
+  if (event.key !== 'Enter') {
+    return;
+  }
+
+  event.preventDefault();
+  onSubmit?.();
+};
+
 export const GroupControl = ({ group, onBack }) => {
   const { t } = useLanguage();
   const [pidOn, setPidOn] = useState(true);
@@ -431,6 +440,7 @@ export const GroupControl = ({ group, onBack }) => {
                     onChange={() => {
                       isEditingTempRef.current = true;
                     }}
+                    onKeyDown={(event) => submitOnEnter(event, handleSubmitTargetTemp)}
                     className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-3 font-medium text-slate-700 outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/5"
                   />
                   <button
@@ -478,6 +488,7 @@ export const GroupControl = ({ group, onBack }) => {
                     onChange={() => {
                       isEditingTargetPressureRef.current = true;
                     }}
+                    onKeyDown={(event) => submitOnEnter(event, handleSubmitTargetPressure)}
                     className="flex-1 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20"
                   />
                   <button
@@ -520,6 +531,7 @@ export const GroupControl = ({ group, onBack }) => {
                           onChange={() => {
                             isEditingCvOutputRef.current = true;
                           }}
+                          onKeyDown={(event) => submitOnEnter(event, handleSubmitFanOutput)}
                           className="w-28 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/5"
                         />
                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">RPM</span>

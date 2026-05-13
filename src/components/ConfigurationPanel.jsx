@@ -9,6 +9,18 @@ export default function ConfigurationPanel({ onClose, onSaved }) {
     const [isSaving, setIsSaving] = useState(false);
     const [saveError, setSaveError] = useState('');
 
+    const handleSubmitOnEnter = (event) => {
+        if (event.key !== 'Enter') {
+            return;
+        }
+
+        event.preventDefault();
+
+        if (!isSaving) {
+            handleSave();
+        }
+    };
+
     useEffect(() => {
         if (!showSavedToast) {
             return undefined;
@@ -98,6 +110,7 @@ export default function ConfigurationPanel({ onClose, onSaved }) {
                             type="text"
                             value={groupName}
                             onChange={(event) => setGroupName(event.target.value)}
+                            onKeyDown={handleSubmitOnEnter}
                             placeholder={t('config.groupNamePlaceholder')}
                         />
 
