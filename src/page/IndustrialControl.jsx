@@ -43,6 +43,23 @@ const toDisplay16 = (modbusValue, maxRange) => {
     // 確保數值固定為兩位小數
     return val.toFixed(2);
 };
+//開度
+const SCALE_MIN = 4095 * 0.2;
+const SCALE_MAX = 4095 * 0.95;
+
+const toOpeningRatio = (displayValue, maxRange) => {
+    const val = Number(displayValue);
+
+    if (Number.isNaN(val)) return Math.round(SCALE_MIN);
+
+    // 限制輸入範圍
+    const clampedVal = Math.max(0, Math.min(val, maxRange));
+
+    // 線性映射
+    return Math.round(
+        SCALE_MIN + (clampedVal / maxRange) * (SCALE_MAX - SCALE_MIN)
+    );
+};
 
 const toModbus = (displayValue, maxRange) => {
     const val = Number(displayValue);
@@ -372,7 +389,7 @@ const submitOnEnter = (event, onSubmit, disabled = false) => {
     }
 };
 
-const PIDInput = ({ label, pvValue, value, onChange, onFocus, onBlur, isModified, error, onSubmit, submitDisabled = false }) => (
+const PIDInput = ({ label, pvValue, value, onChange, onFocus, onBlur, onSubmit, isModified, isSubmitting, error }) => (
     <div className="space-y-1.5 space-x-1.5">
         <label className="text-[14px] font-bold text-slate-500 uppercase">{label}</label>
         <PVText value={toPidDisplay(pvValue)} />
@@ -391,7 +408,7 @@ const PIDInput = ({ label, pvValue, value, onChange, onFocus, onBlur, isModified
                 onChange={onChange}
                 onFocus={onFocus}
                 onBlur={onBlur}
-                onKeyDown={(event) => submitOnEnter(event, onSubmit, submitDisabled)}
+                onKeyDown={(event) => submitOnEnter(event, onSubmit, isSubmitting)}
                 placeholder={FALLBACK_VALUE}
             />
             {error && <span className="absolute -top-4 right-0 text-[10px] font-bold text-red-500">{error}</span>}
@@ -469,10 +486,10 @@ const ValveControl = ({
                         onChange={(event) => onPidChange?.('p', event.target.value)}
                         onFocus={() => onPidFocus?.('p')}
                         onBlur={() => onPidBlur?.('p')}
-                        isModified={modifiedPidFields?.p}
-                        error={error}
                         onSubmit={onSubmit}
-                        submitDisabled={isSubmitting}
+                        isModified={modifiedPidFields?.p}
+                        isSubmitting={isSubmitting}
+                        error={error}
                     />
                     <PIDInput
                         label="I:"
@@ -481,10 +498,10 @@ const ValveControl = ({
                         onChange={(event) => onPidChange?.('i', event.target.value)}
                         onFocus={() => onPidFocus?.('i')}
                         onBlur={() => onPidBlur?.('i')}
-                        isModified={modifiedPidFields?.i}
-                        error={error}
                         onSubmit={onSubmit}
-                        submitDisabled={isSubmitting}
+                        isModified={modifiedPidFields?.i}
+                        isSubmitting={isSubmitting}
+                        error={error}
                     />
                     <PIDInput
                         label="D:"
@@ -493,10 +510,10 @@ const ValveControl = ({
                         onChange={(event) => onPidChange?.('d', event.target.value)}
                         onFocus={() => onPidFocus?.('d')}
                         onBlur={() => onPidBlur?.('d')}
-                        isModified={modifiedPidFields?.d}
-                        error={error}
                         onSubmit={onSubmit}
-                        submitDisabled={isSubmitting}
+                        isModified={modifiedPidFields?.d}
+                        isSubmitting={isSubmitting}
+                        error={error}
                     />
                 </div>
                 <button
@@ -1531,7 +1548,7 @@ export function IndustrialControl({ device, onBack }) {
         cooling_fan7_sv: toModbus(clampFanSvValue((currentFans ?? fans).find((fan) => fan.id === '07')?.svRpm), 100),
         cooling_fan8_sv: toModbus(clampFanSvValue((currentFans ?? fans).find((fan) => fan.id === '08')?.svRpm), 100),
         cooling_fan9_sv: toModbus(clampFanSvValue((currentFans ?? fans).find((fan) => fan.id === '09')?.svRpm), 100),
-        return_electric_valve_opening_sv: toModbus(currentReturnValveOpening ?? returnValveOpening, MAX_VALVE_100),
+        return_electric_valve_opening_sv: toOpeningRatio(currentReturnValveOpening ?? returnValveOpening, MAX_VALVE_100),
         group1_pid_p_sv: toPidModbus(clampPidValue((currentPidValues ?? pidValues).p)),
         group1_pid_i_sv: toPidModbus(clampPidValue((currentPidValues ?? pidValues).i)),
         group1_pid_d_sv: toPidModbus(clampPidValue((currentPidValues ?? pidValues).d)),
@@ -1855,7 +1872,7 @@ export function IndustrialControl({ device, onBack }) {
 
         const payload = {
             // ...buildSvPayload(null, null, currentValvePidValues),
-            outlet_electric_valve_opening_sv: toModbus(nextValue, MAX_VALVE_100),
+            outlet_electric_valve_opening_sv: toOpeningRatio(nextValue, MAX_VALVE_100),
             group2_pid_p_sv: toPidModbus(pVal),
             group2_pid_i_sv: toPidModbus(iVal),
             group2_pid_d_sv: toPidModbus(dVal),
@@ -1964,7 +1981,7 @@ export function IndustrialControl({ device, onBack }) {
         setIsSubmittingReturnValveOpening(true);
 
         const payload = {
-            value: toModbus(nextValue, MAX_VALVE_100),
+            value: toOpeningRatio(nextValue, MAX_VALVE_100),
         };
         const requestUrl = `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent('return_electric_valve_opening_sv')}`;
         console.log('[return_electric_valve_opening_sv] request url:', requestUrl);
