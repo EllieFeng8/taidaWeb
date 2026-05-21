@@ -6,7 +6,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, Check, Settings } from 'lucide-react';
-import Swal from 'sweetalert2';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatApiNumber } from '../utils/formatApiNumber';
 
@@ -311,16 +310,14 @@ const buildFansFromHolding = (holdingPayload) => Array.from({ length: 9 }, (_, i
     const displaySvPercent = toDisplay(modbusSv, 100);
     const displayPvRpm = toDisplay(modbusPv, FAN_MAX_RPM_3570);
 
-    const isActive = modbusSv > 0 || modbusPv > 0;
-
     return {
         id,
-        status: isActive ? 'running' : 'stopped',
+        status: 'stopped',
         pvPercent: displayPvPercent,
         pvRpm: displayPvRpm,
         svRpm: Math.round(Number(displaySvPercent)).toString(),
         lastActiveSvRpm: displaySvPercent > 0 ? displaySvPercent : displayPvPercent,
-        isActive,
+        isActive: false,
     };
 });
 
@@ -329,6 +326,46 @@ const buildAllFansTargetFromHolding = (holdingPayload) => {
 
     return fanSvValues.every((value) => value === fanSvValues[0]) ? fanSvValues[0] : '';
 };
+
+const buildAllFansToggleState = (currentFans, rawAllFansRpmTarget, enabled) => {
+    const normalizedAllFansTarget = Number(rawAllFansRpmTarget);
+    const nextFans = currentFans.map((fan) =>
+        fan.status === 'fault'
+            ? fan
+            : {
+                ...fan,
+                svRpm: enabled
+                    ? (Number.isNaN(normalizedAllFansTarget) ? (fan.lastActiveSvRpm || fan.svRpm || fan.pvRpm || 0) : normalizedAllFansTarget)
+                    : 0,
+                lastActiveSvRpm: enabled
+                    ? (Number.isNaN(normalizedAllFansTarget) ? (fan.lastActiveSvRpm || fan.svRpm || fan.pvRpm || 0) : normalizedAllFansTarget)
+                    : (fan.lastActiveSvRpm || fan.svRpm || fan.pvRpm || 0),
+                isActive: enabled,
+                status: enabled ? 'running' : 'stopped',
+            }
+    );
+    const nextFanPayloadValue = enabled
+        ? (Number.isNaN(normalizedAllFansTarget) ? 0 : normalizedAllFansTarget)
+        : 0;
+
+    return {
+        normalizedAllFansTarget,
+        nextFans,
+        nextFanPayloadValue,
+    };
+};
+
+const buildPressureAutoFansFromHolding = (holdingPayload) => buildFansFromHolding(holdingPayload).map((fan) => {
+    const mirroredSvValue = String(Math.round(Number(fan.pvPercent) || 0));
+
+    return {
+        ...fan,
+        svRpm: mirroredSvValue,
+        lastActiveSvRpm: mirroredSvValue,
+        isActive: true,
+        status: 'running',
+    };
+});
 
 const TelemetryCard = ({ data }) => (
     <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
@@ -1131,7 +1168,10 @@ export function IndustrialControl({ device, onBack }) {
             .then((data) => {
                 setHoldingData(data ?? {});
                 setFans((prev) => {
-                    const nextFans = buildFansFromHolding(data ?? {});
+                    const shouldMirrorFanPvToSv = data?.pid1_switch === 1;
+                    const nextFans = shouldMirrorFanPvToSv
+                        ? buildPressureAutoFansFromHolding(data ?? {})
+                        : buildFansFromHolding(data ?? {});
 
                     return nextFans.map((nextFan) => {
                         const currentFan = prev.find((fan) => fan.id === nextFan.id);
@@ -1151,13 +1191,19 @@ export function IndustrialControl({ device, onBack }) {
                                 ? currentFan.svRpm
                                 : nextFan.svRpm,
                             lastActiveSvRpm: currentFan.lastActiveSvRpm ?? nextFan.lastActiveSvRpm,
+                            isActive: shouldMirrorFanPvToSv ? true : currentFan.isActive,
+                            status: shouldMirrorFanPvToSv ? 'running' : currentFan.status,
                         };
                     });
                 });
 
                 if (!isEditingAllFansRpmTargetRef.current && !isSubmittingAllFansRef.current) {
-                    const allFansDisplay = toDisplay(buildAllFansTargetFromHolding(data ?? {}), MAX_VALVE_100);
-                    setAllFansRpmTarget(allFansDisplay >= 0 ? String(allFansDisplay) : '');
+                    if (data?.pid1_switch === 1) {
+                        setAllFansRpmTarget('');
+                    } else {
+                        const allFansDisplay = toDisplay(buildAllFansTargetFromHolding(data ?? {}), MAX_VALVE_100);
+                        setAllFansRpmTarget(allFansDisplay >= 0 ? String(allFansDisplay) : '');
+                    }
                 }
                 if (!isEditingOutletTargetTempRef.current && !isSubmittingOutletTargetTempRef.current && !isModifiedOutletTargetTempRef.current) {
                     setOutletTargetTempSv(String(toDisplay16(data?.outlet_target_temp_sv, MAX_TEMP_100) || ''));
@@ -1220,6 +1266,10 @@ export function IndustrialControl({ device, onBack }) {
         }
 
         const value = enabled ? 1 : 0;
+        const shouldSyncPressureAutoFans = key === 'pid1_switch' && enabled;
+        const nextPressureAutoFans = shouldSyncPressureAutoFans
+            ? buildPressureAutoFansFromHolding(holdingData)
+            : null;
         console.log('[PID Switch] 開始更新 ${key} 為 ${value} (enabled: ${enabled})');
         setIsSubmittingPidSwitch(true);
         isSubmittingPidSwitchRef.current = true;
@@ -1236,16 +1286,25 @@ export function IndustrialControl({ device, onBack }) {
             });
 
             console.log(`[PID Switch] 收到回應: ${response.status} ${response.statusText}`);
+            const responseText = await response.text();
+            console.log(`[PID Switch] response body:`, responseText || '(empty)');
 
             if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`HTTP ${response.status}: ${errorText}`);
+                throw new Error(`HTTP ${response.status}: ${responseText}`);
             }
 
             // Update local state immediately for better UX
-            if (key === 'pid2_switch') setOutletPidMonitoringEnabled(enabled);
+            if (key === 'pid2_switch') {
+                setOutletPidMonitoringEnabled(enabled);
+            }
             if (key === 'pid2_direction') setOutletCorrectionEnabled(enabled);
-            if (key === 'pid1_switch') setPidMonitoringEnabled(enabled);
+            if (key === 'pid1_switch') {
+                setPidMonitoringEnabled(enabled);
+                if (enabled && nextPressureAutoFans) {
+                    setFans(nextPressureAutoFans);
+                    setAllFansRpmTarget('');
+                }
+            }
             if (key === 'pid1_direction') setFansCorrectionEnabled(enabled);
             console.log(`[PID Switch] ${key} 更新成功`);
             fetchFanHoldingData();
@@ -1257,15 +1316,6 @@ export function IndustrialControl({ device, onBack }) {
         }
     };
 
-    const showEmergencyFanSvLockedAlert = () => {
-        Swal.fire({
-            icon: 'warning',
-            title: '緊急開關已啟用',
-            text: '請先關閉緊急開關，才能重新設置風扇 SV。',
-            confirmButtonText: '確定',
-        });
-    };
-
     const handleToggleFan = async (fanId) => {
         if (!deviceIdentifier) {
             return;
@@ -1273,17 +1323,16 @@ export function IndustrialControl({ device, onBack }) {
 
         if (isEmergencyEnabled) {
             console.log(`[Fan ${fanId} Toggle] blocked: emergency switch is enabled`);
-            showEmergencyFanSvLockedAlert();
-            return;
-        }
-
-        const fanNumber = Number(fanId);
-        if (Number.isNaN(fanNumber)) {
             return;
         }
 
         const targetFan = fans.find((fan) => fan.id === fanId);
         if (!targetFan || targetFan.status === 'fault') {
+            return;
+        }
+
+        const fanNumber = Number(fanId);
+        if (Number.isNaN(fanNumber)) {
             return;
         }
 
@@ -1295,61 +1344,69 @@ export function IndustrialControl({ device, onBack }) {
         const nextIsActive = !targetFan.isActive;
         const nextValue = nextIsActive ? restoredValue : 0;
         const normalizedValue = clampFanSvValue(nextValue);
-        const normalizedPvValue = clampFanSvValue(targetFan.pvPercent);
-        const modbusValue = toModbus(normalizedValue, 100);
-
-        if (nextIsActive && normalizedPvValue === 0 && normalizedValue === 0) {
-            console.log(`[Fan ${fanId} Toggle] blocked: pv and sv are 0`);
-            Swal.fire({
-                icon: 'warning',
-                title: '請先設置 SV',
-                text: '風扇 PV 和 SV 都是 0，請先輸入 SV 再開啟風扇。',
-                confirmButtonText: '確定',
-            });
-            return;
-        }
-
-        setSubmittingFanId(fanId);
-        submittingFanIdRef.current = fanId;
+        const nextFans = fans.map((fan) => (
+            fan.id === fanId
+                ? {
+                    ...fan,
+                    svRpm: String(normalizedValue),
+                    lastActiveSvRpm: nextIsActive ? normalizedValue : (fan.lastActiveSvRpm || restoredValue),
+                    isActive: nextIsActive,
+                    status: nextIsActive ? 'running' : 'stopped',
+                }
+                : fan
+        ));
 
         console.log(`[Fan ${fanId} Toggle] current sv input:`, targetFan.svRpm);
         console.log(`[Fan ${fanId} Toggle] next active:`, nextIsActive);
         console.log(`[Fan ${fanId} Toggle] normalized sv:`, normalizedValue);
-        console.log(`[Fan ${fanId} Toggle] modbus value:`, modbusValue);
+
+        if (nextIsActive) {
+            setFanErrors((prev) => ({ ...prev, [fanId]: '' }));
+            setFans(nextFans);
+            return;
+        }
+
+        const previousFans = fans;
+        const isAutoPressureActive = pidMonitoringEnabled;
+        const payload = isAutoPressureActive
+            ? {
+                ...buildSvPayload(nextFans),
+                pid1_switch: 0,
+            }
+            : { value: toModbus(0, 100) };
+        const requestUrl = isAutoPressureActive
+            ? `/api/modbus/sv-with-coils/${encodeURIComponent(deviceIdentifier)}`
+            : `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent(`cooling_fan${fanNumber}_sv`)}`;
+
+        console.log(`[Fan ${fanId} Toggle] request url:`, requestUrl);
+        console.log(`[Fan ${fanId} Toggle] payload:`, payload);
+
+        setFanErrors((prev) => ({ ...prev, [fanId]: '' }));
+        setSubmittingFanId(fanId);
+        submittingFanIdRef.current = fanId;
+        setFans(nextFans);
 
         try {
-            const response = await fetch(
-                `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent(`cooling_fan${fanNumber}_sv`)}`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        value: modbusValue,
-                    }),
-                }
-            );
+            const response = await fetch(requestUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+            const responseText = await response.clone().text();
+            console.log(`[Fan ${fanId} Toggle] response body:`, responseText || '(empty)');
 
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
 
-            setFans((prev) =>
-                prev.map((fan) => (
-                    fan.id === fanId
-                        ? {
-                            ...fan,
-                            svRpm: normalizedValue,
-                            lastActiveSvRpm: nextIsActive ? normalizedValue : (fan.lastActiveSvRpm || restoredValue),
-                            isActive: nextIsActive,
-                            status: nextIsActive ? 'running' : 'stopped',
-                        }
-                        : fan
-                ))
-            );
+            if (isAutoPressureActive) {
+                setPidMonitoringEnabled(false);
+            }
         } catch (error) {
             console.error(`風扇 ${fanId} 開關設定失敗:`, error);
+            setFans(previousFans);
         } finally {
             setSubmittingFanId(null);
             submittingFanIdRef.current = null;
@@ -1363,29 +1420,10 @@ export function IndustrialControl({ device, onBack }) {
 
         if (isEmergencyEnabled) {
             console.log('[All Fans Toggle] blocked: emergency switch is enabled');
-            showEmergencyFanSvLockedAlert();
             return;
         }
 
-        const normalizedAllFansTarget = Number(allFansRpmTarget);
-        const nextFans = fans.map((fan) =>
-            fan.status === 'fault'
-                ? fan
-                : {
-                    ...fan,
-                    svRpm: enabled
-                        ? (Number.isNaN(normalizedAllFansTarget) ? (fan.lastActiveSvRpm || fan.svRpm || fan.pvRpm || 0) : normalizedAllFansTarget)
-                        : 0,
-                    lastActiveSvRpm: enabled
-                        ? (Number.isNaN(normalizedAllFansTarget) ? (fan.lastActiveSvRpm || fan.svRpm || fan.pvRpm || 0) : normalizedAllFansTarget)
-                        : (fan.lastActiveSvRpm || fan.svRpm || fan.pvRpm || 0),
-                    isActive: enabled,
-                    status: enabled ? 'running' : 'stopped',
-                }
-        );
-        const nextFanPayloadValue = enabled
-            ? (Number.isNaN(normalizedAllFansTarget) ? 0 : normalizedAllFansTarget)
-            : 0;
+        const { normalizedAllFansTarget, nextFans, nextFanPayloadValue } = buildAllFansToggleState(fans, allFansRpmTarget, enabled);
 
         setIsSubmittingAllFans(true);
         isSubmittingAllFansRef.current = true;
@@ -1407,10 +1445,21 @@ export function IndustrialControl({ device, onBack }) {
             // group1_pid_i_sv: Number(pidValues.i) || 0,
             // group1_pid_d_sv: Number(pidValues.d) || 0,
         }
-        const requestUrl = `/api/modbus/sv/${encodeURIComponent(deviceIdentifier)}`;
+        const shouldDisablePressureAuto = !enabled && outletPidMonitoringEnabled;
+        const shouldDisableFanAuto = pidMonitoringEnabled;
+        const requestUrl = shouldDisablePressureAuto || shouldDisableFanAuto
+            ? `/api/modbus/sv-with-coils/${encodeURIComponent(deviceIdentifier)}`
+            : `/api/modbus/sv/${encodeURIComponent(deviceIdentifier)}`;
+        const requestPayload = shouldDisablePressureAuto || shouldDisableFanAuto
+            ? {
+                ...payload,
+                ...(shouldDisablePressureAuto ? { pid2_switch: 0 } : {}),
+                ...(shouldDisableFanAuto ? { pid1_switch: 0 } : {}),
+            }
+            : payload;
 
         console.log('[All Fans Toggle] request url:', requestUrl);
-        console.log('[All Fans Toggle] payload:', payload);
+        console.log('[All Fans Toggle] payload:', requestPayload);
 
         try {
             const response = await fetch(requestUrl, {
@@ -1418,7 +1467,7 @@ export function IndustrialControl({ device, onBack }) {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(payload),
+                body: JSON.stringify(requestPayload),
             });
             const responseText = await response.clone().text();
             console.log('[All Fans Toggle] response body:', responseText || '(empty)');
@@ -1428,6 +1477,12 @@ export function IndustrialControl({ device, onBack }) {
             }
 
             setFans(nextFans);
+            if (!enabled && outletPidMonitoringEnabled) {
+                setOutletPidMonitoringEnabled(false);
+            }
+            if (pidMonitoringEnabled) {
+                setPidMonitoringEnabled(false);
+            }
             if (enabled && !Number.isNaN(normalizedAllFansTarget)) {
                 // 如果是開啟且有有效數值，同步到 input
                 setAllFansRpmTarget(String(normalizedAllFansTarget));
@@ -1485,7 +1540,6 @@ export function IndustrialControl({ device, onBack }) {
 
         if (isEmergencyEnabled) {
             console.log(`[Fan ${fanId} SV Submit] blocked: emergency switch is enabled`);
-            showEmergencyFanSvLockedAlert();
             return;
         }
 
@@ -1501,9 +1555,28 @@ export function IndustrialControl({ device, onBack }) {
         setSubmittingFanId(fanId);
         submittingFanIdRef.current = fanId;
 
-        const payload = {value: toModbus(nextValue, 100),}
+        const nextFans = fans.map((fan) => (
+            fan.id === fanId
+                ? {
+                    ...fan,
+                    svRpm: nextValue,
+                    lastActiveSvRpm: nextValue <= 0 ? fan.lastActiveSvRpm : nextValue,
+                    isActive: true,
+                    status: 'running',
+                }
+                : fan
+        ));
+        const isAutoPressureActive = pidMonitoringEnabled;
+        const payload = isAutoPressureActive
+            ? {
+                ...buildSvPayload(nextFans),
+                pid1_switch: 0,
+            }
+            : { value: toModbus(nextValue, 100) };
 
-        const requestUrl = `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent(`cooling_fan${fanNumber}_sv`)}`;
+        const requestUrl = isAutoPressureActive
+            ? `/api/modbus/sv-with-coils/${encodeURIComponent(deviceIdentifier)}`
+            : `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent(`cooling_fan${fanNumber}_sv`)}`;
         console.log(`[Fan ${fanId} SV Submit] request url:`, requestUrl);
         console.log(`[Fan ${fanId} SV Submit] payload:`, payload);
         try {
@@ -1523,19 +1596,10 @@ export function IndustrialControl({ device, onBack }) {
                 throw new Error(`HTTP ${response.status}`);
             }
 
-            setFans((prev) =>
-                prev.map((fan) => (
-                    fan.id === fanId
-                        ? {
-                            ...fan,
-                            svRpm: nextValue,
-                            lastActiveSvRpm: nextValue <= 0 ? fan.lastActiveSvRpm : nextValue,
-                            isActive: nextValue > 0,
-                            status: nextValue > 0 ? 'running' : 'stopped',
-                        }
-                        : fan
-                ))
-            );
+            setFans(nextFans);
+            if (isAutoPressureActive) {
+                setPidMonitoringEnabled(false);
+            }
             editingFanIdsRef.current.delete(fanId);
         } catch (error) {
             console.error(`風扇 ${fanId} SV 設定失敗:`, error);
@@ -1702,7 +1766,6 @@ export function IndustrialControl({ device, onBack }) {
 
         if (isEmergencyEnabled) {
             console.log('[All Fans SV] blocked: emergency switch is enabled');
-            showEmergencyFanSvLockedAlert();
             return;
         }
 
@@ -1722,7 +1785,6 @@ export function IndustrialControl({ device, onBack }) {
         isSubmittingAllFansRef.current = true;
 
         const payload = {
-            // ...buildSvPayload(nextFans),
             cooling_fan1_sv: toModbus(normalizedValue, 100),
             cooling_fan2_sv: toModbus(normalizedValue, 100),
             cooling_fan3_sv: toModbus(normalizedValue, 100),
@@ -1732,6 +1794,7 @@ export function IndustrialControl({ device, onBack }) {
             cooling_fan7_sv: toModbus(normalizedValue, 100),
             cooling_fan8_sv: toModbus(normalizedValue, 100),
             cooling_fan9_sv: toModbus(normalizedValue, 100),
+            ...(pidMonitoringEnabled ? { pid1_switch: 0 } : {}),
         };
 
         console.log('[All Fans SV] 開始更新全部風扇 SV, payload:', payload);
@@ -1752,6 +1815,9 @@ export function IndustrialControl({ device, onBack }) {
 
             setFans(nextFans);
             setAllFansRpmTarget(String(normalizedValue));
+            if (pidMonitoringEnabled) {
+                setPidMonitoringEnabled(false);
+            }
             isEditingAllFansRpmTargetRef.current = false;
             fetchFanHoldingData();
         } catch (error) {

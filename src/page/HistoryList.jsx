@@ -20,6 +20,56 @@ const EMPTY_STATE = {
     NO_DATA: 'no-data',
     NO_MATCH: 'no-match',
 };
+const HOLDING_COLUMN_LABEL_KEYS = {
+    h1: 'history.holding.h1',
+    h2: 'history.holding.h2',
+    h3: 'history.holding.h3',
+    h4: 'history.holding.h4',
+    h9: 'history.holding.h9',
+    h10: 'history.holding.h10',
+    h11: 'history.holding.h11',
+    h12: 'history.holding.h12',
+    h17: 'history.holding.h17',
+    h18: 'history.holding.h18',
+    h19: 'history.holding.h19',
+    h20: 'history.holding.h20',
+    h21: 'history.holding.h21',
+    h22: 'history.holding.h22',
+    h23: 'history.holding.h23',
+    h24: 'history.holding.h24',
+    h25: 'history.holding.h25',
+    h26: 'history.holding.h26',
+    h31: 'history.holding.h31',
+    h32: 'history.holding.h32',
+    h33: 'history.holding.h33',
+    h34: 'history.holding.h34',
+    h39: 'history.holding.h39',
+    h40: 'history.holding.h40',
+    h41: 'history.holding.h41',
+    h42: 'history.holding.h42',
+    h47: 'history.holding.h47',
+    h48: 'history.holding.h48',
+    h49: 'history.holding.h49',
+    h50: 'history.holding.h50',
+    h51: 'history.holding.h51',
+    h52: 'history.holding.h52',
+    h53: 'history.holding.h53',
+    h54: 'history.holding.h54',
+    h55: 'history.holding.h55',
+    h56: 'history.holding.h56',
+    h57: 'history.holding.h57',
+    h58: 'history.holding.h58',
+    h59: 'history.holding.h59',
+    h60: 'history.holding.h60',
+    h61: 'history.holding.h61',
+    h62: 'history.holding.h62',
+    h63: 'history.holding.h63',
+    h64: 'history.holding.h64',
+    h71: 'history.holding.h71',
+    h72: 'history.holding.h72',
+    h73: 'history.holding.h73',
+};
+const HOLDING_COLUMN_ORDER = Object.keys(HOLDING_COLUMN_LABEL_KEYS);
 
 const padNumber = (value) => String(value).padStart(2, '0');
 
@@ -95,11 +145,43 @@ const buildSensorColumns = (data) => {
         : SENSOR_KEYS.map((key) => ({ key, label: key }));
 };
 
+const buildHoldingColumns = (records) => {
+    const availableKeys = new Set();
+
+    if (Array.isArray(records)) {
+        records.forEach((record) => {
+            Object.keys(record ?? {}).forEach((key) => {
+                if (HOLDING_COLUMN_LABEL_KEYS[key]) {
+                    availableKeys.add(key);
+                }
+            });
+        });
+    }
+
+    return HOLDING_COLUMN_ORDER
+        .filter((key) => availableKeys.has(key))
+        .map((key) => ({
+            key,
+            labelKey: HOLDING_COLUMN_LABEL_KEYS[key],
+        }));
+};
+
+const formatHoldingColumnLabel = (translate, column) => `${translate(column.labelKey)} (${column.key})`;
+
 const escapeCsvValue = (value) => {
     const normalizedValue = value ?? '';
     const text = String(normalizedValue).replace(/"/gu, '""');
 
     return `"${text}"`;
+};
+
+const submitOnEnter = (event, onSubmit) => {
+    if (event.key !== 'Enter') {
+        return;
+    }
+
+    event.preventDefault();
+    onSubmit?.();
 };
 
 export default function HistoryList() {
@@ -262,28 +344,7 @@ export default function HistoryList() {
                 ? columns
                 : SENSOR_KEYS.map((key) => ({ key, label: key }));
 
-            // Collect all unique keys from holding register data for dynamic columns
-            const holdingKeysSet = new Set();
-            if (Array.isArray(holdingItems)) {
-                holdingItems.forEach(item => {
-                    Object.keys(item).forEach(key => {
-                        if (key !== 'ts' && key !== 'deviceid' && key !== 'id') {
-                            holdingKeysSet.add(key);
-                        }
-                    });
-                });
-            }
-
-            // Convert to column definitions and sort them (e.g., h1, h2, h10...)
-            const nextHoldingColumns = Array.from(holdingKeysSet)
-                .sort((a, b) => {
-                    const aNum = parseInt(a.replace(/\D/g, ''), 10);
-                    const bNum = parseInt(b.replace(/\D/g, ''), 10);
-                    if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
-                    return a.localeCompare(b);
-                })
-                .map(key => ({ key, label: key }));
-
+            const nextHoldingColumns = buildHoldingColumns(holdingItems);
             setHoldingColumns(nextHoldingColumns);
 
             // Create a map of holding data indexed by ts
@@ -551,7 +612,7 @@ export default function HistoryList() {
                 t('time'),
                 t('device_id'),
                 ...sensorColumns.map((column) => column.label),
-                ...holdingColumns.map((column) => column.label)
+                ...holdingColumns.map((column) => formatHoldingColumnLabel(t, column))
             ];
             const dataRows = allExportData.map((row) => ([
                 row.time,
@@ -651,31 +712,25 @@ export default function HistoryList() {
                         )}
 
 
-                        <form
-                            onSubmit={(event) => {
-                                event.preventDefault();
-                                handleQuery();
-                            }}
-                        >
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('select_device')}</label>
-                                    <div className="relative">
-                                        <Database className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                        <select
-                                            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all appearance-none cursor-pointer"
-                                            value={selectedDevice}
-                                            onChange={handleDeviceChange}
-                                        >
-                                            <option value="">{t('please_select_device')}</option>
-                                            {devices.map((device) => (
-                                                <option key={device.id} value={device.name}>
-                                                    {device.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{t('select_device')}</label>
+                                <div className="relative">
+                                    <Database className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                    <select
+                                        className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all appearance-none cursor-pointer"
+                                        value={selectedDevice}
+                                        onChange={handleDeviceChange}
+                                    >
+                                        <option value="">{t('please_select_device')}</option>
+                                        {devices.map((device) => (
+                                            <option key={device.id} value={device.name}>
+                                                {device.name}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
+                            </div>
 
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -688,6 +743,7 @@ export default function HistoryList() {
                                             type="datetime-local"
                                             value={fromDateTime}
                                             onChange={(e) => setFromDateTime(e.target.value)}
+                                        onKeyDown={(event) => submitOnEnter(event, handleQuery)}
                                             placeholder="2025-01-01T00:00"
                                         />
                                     </div>
@@ -704,6 +760,7 @@ export default function HistoryList() {
                                             type="datetime-local"
                                             value={toDateTime}
                                             onChange={(e) => setToDateTime(e.target.value)}
+                                        onKeyDown={(event) => submitOnEnter(event, handleQuery)}
                                             placeholder="今日"
                                         />
                                     </div>
@@ -711,7 +768,6 @@ export default function HistoryList() {
                             </div>
                             <div className="mt-6 flex flex-wrap justify-end gap-3">
                                 <button
-                                    type="button"
                                     onClick={handleExportCsv}
                                     disabled={loading || isExporting || appliedDevice === ''}
                                     className="px-6 py-2.5 bg-white text-slate-700 border border-slate-200 rounded-lg text-sm font-semibold hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
@@ -730,7 +786,7 @@ export default function HistoryList() {
                                     )}
                                 </button>
                                 <button
-                                    type="submit"
+                                onClick={() => handleQuery()}
                                     disabled={loading}
                                     className="px-6 py-2.5 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
                                 >
@@ -748,7 +804,6 @@ export default function HistoryList() {
                                     )}
                                 </button>
                             </div>
-                        </form>
                     </section>
 
                     {/* Table */}
@@ -782,7 +837,7 @@ export default function HistoryList() {
                                         <th key={column.key} className="px-6 py-4 whitespace-nowrap min-w-[140px]">{column.label}</th>
                                     ))}
                                     {holdingColumns.map((column) => (
-                                        <th key={column.key} className="px-6 py-4 whitespace-nowrap min-w-[140px]">{column.label}</th>
+                                        <th key={column.key} className="px-6 py-4 whitespace-nowrap min-w-[140px]">{formatHoldingColumnLabel(t, column)}</th>
                                     ))}
                                 </tr>
                                 </thead>
@@ -859,11 +914,7 @@ export default function HistoryList() {
                                             max={totalPages}
                                             value={jumpToPage}
                                             onChange={(e) => setJumpToPage(e.target.value)}
-                                            onKeyPress={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    handlePageJump();
-                                                }
-                                            }}
+                                            onKeyDown={(event) => submitOnEnter(event, handlePageJump)}
                                             placeholder={currentPage.toString()}
                                             className="w-16 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-center font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
                                         />
