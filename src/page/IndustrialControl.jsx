@@ -1316,6 +1316,10 @@ export function IndustrialControl({ device, onBack }) {
     };
 
     const handleToggleFan = async (fanId) => {
+        if (!deviceIdentifier) {
+            return;
+        }
+
         if (isEmergencyEnabled) {
             console.log(`[Fan ${fanId} Toggle] blocked: emergency switch is enabled`);
             return;
@@ -1339,11 +1343,42 @@ export function IndustrialControl({ device, onBack }) {
         console.log(`[Fan ${fanId} Toggle] next active:`, nextIsActive);
         console.log(`[Fan ${fanId} Toggle] normalized sv:`, normalizedValue);
 
-        try {
-            await disableFanPressureAutoMode();
-        } catch (error) {
-            console.error('關閉自動控壓差失敗:', error);
-            return;
+        if (!nextIsActive) {
+            console.log(`[Fan ${fanId} Toggle] closing fan, will set SV to 0 and post API`);
+            try {
+                await disableFanPressureAutoMode();
+            } catch (error) {
+                console.error('關閉自動控壓差失敗:', error);
+                return;
+            }
+
+            try {
+                const fanNumber = Number(fanId);
+                const requestUrl = `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent(`cooling_fan${fanNumber}_sv`)}`;
+                console.log(`[Fan ${fanId} Toggle] request url:`, requestUrl);
+                const response = await fetch(requestUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        value: 0,
+                    }),
+                });
+                console.log(`[Fan ${fanId} Toggle] request body:`, { value: 0 });
+
+                if (!response.ok) {
+                    const responseText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${responseText}`);
+                }
+
+                console.log(`[Fan ${fanId} Toggle] SV reset to 0 successfully`);
+            } catch (error) {
+                console.error(`風扇 ${fanId} 關閉時寫入 SV=0 失敗:`, error);
+                return;
+            }
+        } else if (pidMonitoringEnabled) {
+            setPidMonitoringEnabled(false);
         }
 
         setFans((prev) =>
@@ -1351,7 +1386,9 @@ export function IndustrialControl({ device, onBack }) {
                 fan.id === fanId
                     ? {
                         ...fan,
-                        svRpm: nextIsActive && Number(fan.svRpm) <= 0 ? String(normalizedValue) : fan.svRpm,
+                        svRpm: nextIsActive
+                            ? (Number(fan.svRpm) <= 0 ? String(normalizedValue) : fan.svRpm)
+                            : '0',
                         lastActiveSvRpm: nextIsActive ? normalizedValue : (fan.lastActiveSvRpm || restoredValue),
                         isActive: nextIsActive,
                         status: nextIsActive ? 'running' : 'stopped',
