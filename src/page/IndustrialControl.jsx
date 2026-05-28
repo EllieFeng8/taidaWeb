@@ -972,6 +972,7 @@ export function IndustrialControl({ device, onBack }) {
     const preserveReturnValveOpeningRef = useRef(false);
     const isEditingPidValuesRef = useRef(false);
     const isEditingValvePidValuesRef = useRef(false);
+    const isModifiedAllFansRpmTargetRef = useRef(false);
     const isModifiedOutletTargetTempRef = useRef(false);
     const isSubmittingPidRef = useRef(false);
     const isSubmittingValvePidRef = useRef(false);
@@ -993,6 +994,7 @@ export function IndustrialControl({ device, onBack }) {
     useEffect(() => {
         preserveOutletValveOpeningRef.current = false;
         preserveReturnValveOpeningRef.current = false;
+        isModifiedAllFansRpmTargetRef.current = false;
         hasInitializedFanStateFromPvRef.current = false;
     }, [deviceIdentifier]);
 
@@ -1219,7 +1221,7 @@ export function IndustrialControl({ device, onBack }) {
                     });
                 });
 
-                if (!isEditingAllFansRpmTargetRef.current && !isSubmittingAllFansRef.current) {
+                if (!isEditingAllFansRpmTargetRef.current && !isSubmittingAllFansRef.current && !isModifiedAllFansRpmTargetRef.current) {
                     if (data?.pid1_switch === 1) {
                         setAllFansRpmTarget('');
                     } else {
@@ -1498,6 +1500,7 @@ export function IndustrialControl({ device, onBack }) {
                 // 關閉時清空 input (placeholder 顯示 0)
                 setAllFansRpmTarget('');
             }
+            isModifiedAllFansRpmTargetRef.current = false;
             fetchFanHoldingData();
         } catch (error) {
             console.error('全部風扇開關設定失敗:', error);
@@ -1848,6 +1851,7 @@ export function IndustrialControl({ device, onBack }) {
 
             setFans(nextFans);
             setAllFansRpmTarget(String(normalizedValue));
+            isModifiedAllFansRpmTargetRef.current = false;
             if (pidMonitoringEnabled) {
                 setPidMonitoringEnabled(false);
             }
@@ -2153,6 +2157,7 @@ export function IndustrialControl({ device, onBack }) {
         if (enabled) {
             setFans(nextFans);
             setAllFansRpmTarget('0');
+            isModifiedAllFansRpmTargetRef.current = false;
         }
 
         try {
@@ -2412,6 +2417,7 @@ export function IndustrialControl({ device, onBack }) {
                                         disabled={isEmergencyEnabled}
                                         onChange={(event) => {
                                             isEditingAllFansRpmTargetRef.current = true;
+                                            isModifiedAllFansRpmTargetRef.current = true;
                                             setAllFansRpmTarget(normalizeFanSvInputValue(event.target.value));
                                             setAllFansError('');
                                         }}

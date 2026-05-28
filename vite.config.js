@@ -31,13 +31,13 @@ export default defineConfig(({ mode }) => {
       hmr: process.env.DISABLE_HMR !== 'true',
 
       // ⭐ 新增 proxy（解決 CORS）
-      // proxy: {
-      //   "/api": {
-      //     target: "http://127.0.0.1:8081",
-      //     changeOrigin: true,
-      //     secure: false,
-      //   }
-      // }
+      proxy: {
+        "/api": {
+          target: "http://127.0.0.1:8081",
+          changeOrigin: true,
+          secure: false,
+        }
+      }
     }
   };
 });
