@@ -232,8 +232,8 @@ const TELEMETRY_SENSOR_ORDER = [
     'InletAirTemp', //S11 入風溫
     'InletAirHumidity', //S12 入風濕
     'FlowRate', //S13 流量計
-    'OutletWaterPV', //S14 出水閥SV
-    'OutletWaterSV', //S15 出水閥PV
+    'OutletWaterSV', //S14 出水閥SV
+    'OutletWaterPV', //S15 出水閥PV
     'returnWaterSV', //S16 混水閥SV
     'MixWaterPV', //S17 混水閥PV
     'FanSV', //S18 no show on UI風扇SV
