@@ -214,51 +214,38 @@ const normalizeValveOpeningInputValue = (value) => {
 
     return String(clampValveOpeningValue(numericValue));
 };
-// const TELEMETRY_SENSOR_ORDER = [
-//     'inletWaterTemp',
-//     'inletWaterPressure',
-//     'outletWaterTemp',
-//     'outletWaterPressure',
-//     'returnWaterTemp',
-//     'returnWaterPressure',
-//     'inletAirTemp',
-//     'inletAirHumidity',
-//     'outletAirTemp',
-//     'outletAirHumidity',
-//     'coolingL1',
-//     'coolingL2',
-//     'coolingR1',
-//     'coolingR2',
-//     'rpm',
-//     'hz',
-//     'flowRate',
-//     'heatExchange',
-//     'pidP',
-//     'pidI',
-// ];
+
 
 
 const TELEMETRY_SENSOR_ORDER = [
-    'inletWaterTemp', //S1
-    'inletWaterPressure', //S2
-    'returnWaterTemp', //S3
-    'returnWaterPressure', //S4
-    'outletWaterTemp', //S5
-    'outletWaterPressure', //S6
-    'coolingL1', //S7
-    'coolingL2', //S8
-    'coolingR1', //S9
-    'coolingR2', //S10
-    'inletAirTemp', //S11
-    'inletAirHumidity', //S12
-    'flowRate', //S13
-    'outletWaterPV', //S14
-    'returnWaterPV', //S15
-    'fanAutoSpeed', //S16 no show on UI
-    'outletAirTemp', //S17
-    'pressureDifference', //S18
-    'TBD', //S19 to be defined
-    'heatExchange', //S20
+    'InletWaterTemp', //S1 入水溫
+    'InletWaterPressure', //S2 入水壓
+    'OutletWaterTemp', //S3 出水溫
+    'OutletWaterPressure', //S4 出水壓
+    'InletPumpTemp', //S5 泵普入水溫
+    'InletPumpPressure', //S6 泵普入水壓
+    'InletLeftCoilTemp', //S7 盤管左入溫
+    'OutletLeftCoilTemp', //S8 盤管左出溫
+    'InletRightCoilTemp', //S9 盤管右入溫
+    'OutletRightCoilTemp', //S10 盤管右出溫
+    'InletAirTemp', //S11 入風溫
+    'InletAirHumidity', //S12 入風濕
+    'FlowRate', //S13 流量計
+    'OutletWaterPV', //S14 出水閥SV
+    'OutletWaterSV', //S15 出水閥PV
+    'returnWaterSV', //S16 混水閥SV
+    'MixWaterPV', //S17 混水閥PV
+    'FanSV', //S18 no show on UI風扇SV
+    'FanPV', //S19 no show on UI風扇PV
+    'OutletAirTemp', //S20 //出風溫
+    'DifferentialPressureSV', //S21 //壓差SV
+    'DifferentialPressurePV', //S22 //壓差PV
+    'HeatLoad', //S23/熱交換
+    'AutoFanControl', //S24風扇自動
+    'AutoTempControl', //S25 溫度自動
+    'PumpSV', //S26 泵浦SV
+    'PumpPV', //S27 泵浦PV
+
 ];
 
 const mapSensorValues = (sensorPayload) => {
@@ -495,7 +482,7 @@ const ValveControl = ({
             <div className="p-6 flex-1 flex flex-col gap-6">
                 <div className="space-y-2 space-x-1.5">
                     <label className="text-xs text-[14px] font-semibold text-slate-600 ">{t('industrial.openingRatio')}</label>
-                    <PVText value={sensorValues.outletWaterPV} unit="%" />
+                    <PVText value={sensorValues.OutletWaterPV} unit="%" />
                     <div className="relative">
                         <input
                             className={`text-left w-full border rounded-lg px-3 py-2 text-[14px] font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors ${
@@ -588,7 +575,7 @@ const ReturnValveControl = ({
                 <div className="grid grid-cols-1 gap-4">
                     <div className="space-y-1.5 space-x-1.5">
                         <label className="text-[14px] font-bold text-slate-500 uppercase">{t('industrial.openingRatio')}</label>
-                        <PVText value={sensorValues.returnWaterPV} unit="%" />
+                        <PVText value={sensorValues.MixWaterPV} unit="%" />
                         <div className="relative">
                             <input
                                 className={`text-left w-full border rounded-lg px-3 py-2 text-[14px] font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors ${
@@ -831,13 +818,13 @@ const MotorControl = ({
                     <div className="px-6 py-3 bg-primary/5 rounded-xl border border-primary/10">
                         <p className="text-[12px] font-bold text-primary uppercase">{t('industrial.currentFlowRate')}</p>
                         <p className="text-[14px] font-extrabold text-primary leading-tight">
-                            {formatDisplayValue(sensorValues.flowRate)} <span className="text-xs font-medium">{t('industrial.flowUnit')}</span>
+                            {formatDisplayValue(sensorValues.FlowRate)} <span className="text-xs font-medium">{t('industrial.flowUnit')}</span>
                         </p>
                     </div>
                     <div className="px-6 py-3 bg-primary/5 rounded-xl border border-primary/10">
                         <p className="text-[12px] font-bold text-primary uppercase">{t('industrial.currentHeatExchange')}</p>
                         <p className="text-[14px] font-extrabold text-primary leading-tight">
-                            {formatDisplayValue(sensorValues.heatExchange)} <span className="text-xs font-medium">kW</span>
+                            {formatDisplayValue(sensorValues.HeatLoad)} <span className="text-xs font-medium">kW</span>
                         </p>
                     </div>
                 </div>
@@ -1024,42 +1011,46 @@ export function IndustrialControl({ device, onBack }) {
             label: t('industrial.telemetry.inletWaterData'),
             colorClass: 'text-primary',
             metrics: [
-                { name: t('industrial.temperature'), value: sensorValues.inletWaterTemp, unit: '°C' },
-                { name: t('industrial.pressure'), value: sensorValues.inletWaterPressure, unit: 'pa' },
+                { name: t('industrial.temperature'), value: sensorValues.InletWaterTemp, unit: '°C' },
+                { name: t('industrial.pressure'), value: sensorValues.InletWaterPressure, unit: 'pa' },
             ],
         },
         {
             label: t('industrial.telemetry.outletWaterData'),
             colorClass: 'text-orange-500',
             metrics: [
-                { name: t('industrial.temperature'), value: sensorValues.outletWaterTemp, unit: '°C' },
-                { name: t('industrial.pressure'), value: sensorValues.outletWaterPressure, unit: 'pa' },
+                { name: t('industrial.temperature'), value: sensorValues.InletPumpTemp, unit: '°C' },
+                { name: t('industrial.pressure'), value: sensorValues.InletPumpPressure, unit: 'pa' },
             ],
         },
         {
             label: t('industrial.telemetry.returnWaterData'),
             colorClass: 'text-indigo-500',
             metrics: [
-                { name: t('industrial.temperature'), value: sensorValues.returnWaterTemp, unit: '°C' },
-                { name: t('industrial.pressure'), value: sensorValues.returnWaterPressure, unit: 'pa' },
+                { name: t('industrial.temperature'), value: sensorValues.OutletWaterTemp, unit: '°C' },
+                { name: t('industrial.pressure'), value: sensorValues.OutletWaterPressure, unit: 'pa' },
             ],
         },
         {
             label: t('industrial.telemetry.coilWaterMonitoring'),
             colorClass: 'text-emerald-600',
             metrics: [
-                { name: t('industrial.metric.leftIn'), value: sensorValues.coolingL1, unit: '°C' },
-                { name: t('industrial.metric.leftOut'), value: sensorValues.coolingL2, unit: '°C' },
-                { name: t('industrial.metric.rightIn'), value: sensorValues.coolingR1, unit: '°C' },
-                { name: t('industrial.metric.rightOut'), value: sensorValues.coolingR2, unit: '°C' },
+                //左入
+                { name: t('industrial.metric.leftIn'), value: sensorValues.InletLeftCoilTemp, unit: '°C' },
+                //左出
+                { name: t('industrial.metric.leftOut'), value: sensorValues.OutletLeftCoilTemp, unit: '°C' },
+                //右入
+                { name: t('industrial.metric.rightIn'), value: sensorValues.InletRightCoilTemp, unit: '°C' },
+                //右出
+                { name: t('industrial.metric.rightOut'), value: sensorValues.OutletRightCoilTemp, unit: '°C' },
             ],
         },
         {
             label: t('industrial.telemetry.inletAirTempHumidity'),
             colorClass: 'text-sky-500',
             metrics: [
-                { name: t('industrial.temperature'), value: sensorValues.inletAirTemp, unit: '°C' },
-                { name: t('industrial.metric.humidity'), value: sensorValues.inletAirHumidity, unit: '%RH' },
+                { name: t('industrial.temperature'), value: sensorValues.InletAirTemp, unit: '°C' },
+                { name: t('industrial.metric.humidity'), value: sensorValues.InletAirHumidity, unit: '%RH' },
             ],
         },
     ];
@@ -2228,7 +2219,7 @@ export function IndustrialControl({ device, onBack }) {
                     <div className="flex justify-between items-center text-xs mb-2">
                         <span className="text-[14px]">{t('industrial.temperature')}:</span>
                         <span className="font-bold text-[14px]">
-                            {formatDisplayValue(sensorValues.outletAirTemp)}
+                            {formatDisplayValue(sensorValues.OutletAirTemp)}
                             <span className="text-slate-400 font-normal">°C</span>
                         </span>
                     </div>
@@ -2425,7 +2416,7 @@ export function IndustrialControl({ device, onBack }) {
                             <div className="flex flex-col">
                                 <span className="text-[12px] text-slate-400 font-bold">PV</span>
                                 <span className="text-s font-bold text-slate-700">
-                                    {formatDisplayValue(sensorValues.pressureDifference)} Pa
+                                    {formatDisplayValue(sensorValues.DifferentialPressurePV)} Pa
                                 </span>
                             </div>
                             <div className="flex-1 flex gap-2">
