@@ -982,6 +982,7 @@ export function IndustrialControl({ device, onBack }) {
     const isSubmittingPressureTargetRef = useRef(false);
     const isSubmittingOutletTargetTempRef = useRef(false);
     const submittingFanIdRef = useRef(null);
+    const hasInitializedFanStateFromPvRef = useRef(false);
     const modifiedPidFieldsRef = useRef({ p: false, i: false, d: false });
     const modifiedValvePidFieldsRef = useRef({ p: false, i: false, d: false, opening: false });
     const editingFanIdsRef = useRef(new Set());
@@ -992,6 +993,7 @@ export function IndustrialControl({ device, onBack }) {
     useEffect(() => {
         preserveOutletValveOpeningRef.current = false;
         preserveReturnValveOpeningRef.current = false;
+        hasInitializedFanStateFromPvRef.current = false;
     }, [deviceIdentifier]);
 
     useEffect(() => { isSubmittingPidRef.current = isSubmittingPid; }, [isSubmittingPid]);
@@ -1005,6 +1007,36 @@ export function IndustrialControl({ device, onBack }) {
     useEffect(() => { submittingFanIdRef.current = submittingFanId; }, [submittingFanId]);
     useEffect(() => { modifiedPidFieldsRef.current = modifiedPidFields; }, [modifiedPidFields]);
     useEffect(() => { modifiedValvePidFieldsRef.current = modifiedValvePidFields; }, [modifiedValvePidFields]);
+
+    useEffect(() => {
+        if (hasInitializedFanStateFromPvRef.current) {
+            return;
+        }
+
+        const hasFanPvData = Array.from({ length: 9 }, (_, index) => `cooling_fan${index + 1}_pv`)
+            .some((key) => holdingData?.[key] !== undefined && holdingData?.[key] !== null);
+
+        if (!hasFanPvData) {
+            return;
+        }
+
+        setFans((prev) => prev.map((fan) => {
+            const fanNumber = Number(fan.id);
+            const pvValue = Number(holdingData?.[`cooling_fan${fanNumber}_pv`] ?? 0);
+
+            if (pvValue <= 0) {
+                return fan;
+            }
+
+            return {
+                ...fan,
+                isActive: true,
+                status: 'running',
+            };
+        }));
+
+        hasInitializedFanStateFromPvRef.current = true;
+    }, [holdingData]);
 
     const telemetry = [
         {
