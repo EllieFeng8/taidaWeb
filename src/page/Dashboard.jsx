@@ -136,7 +136,7 @@ const normalizeDevice = (device, index, sensorPayload, sensorMapping = DEFAULT_S
     const name = device?.name ?? device?.deviceName ?? `Device ${index + 1}`;
     const id = String(device?.id ?? device?.deviceId ?? name);
     const sensorValues = mapSensorValues(sensorPayload, sensorMapping);
-    console.log('Normalized sensor values:', sensorValues);
+    // console.log('Normalized sensor values:', sensorValues);
 
     return {
         ...device,
@@ -412,7 +412,7 @@ export const Dashboard = ({onSelectDevice}) => {
                             const mapping = await sensorResponse.json();
                             if (Array.isArray(mapping) && mapping.length > 0) {
                                 setSensorMapping(mapping);
-                                console.log('Fetched sensor mapping from API:', mapping);
+                                // console.log('Fetched sensor mapping from API:', mapping);
                                 return;
                             }
                         }
@@ -482,7 +482,7 @@ export const Dashboard = ({onSelectDevice}) => {
                                 method: 'GET',
                             });
                             const sensorData = await sensorResponse.json();
-                            console.log('sensorData:', sensorData);
+                            // console.log('sensorData:', sensorData);
 
                             return normalizeDevice(device, index, sensorData, sensorMapping);
                         } catch (error) {
