@@ -60,6 +60,19 @@ const toOpeningRatio = (displayValue, maxRange) => {
     );
 };
 
+const fromOpeningRatio = (modbusValue, maxRange) => {
+    const val = Number(modbusValue);
+
+    if (!Number.isFinite(val)) {
+        return '0.00';
+    }
+
+    const ratio = ((val - SCALE_MIN) / (SCALE_MAX - SCALE_MIN)) * maxRange;
+    const clampedRatio = Math.max(0, Math.min(ratio, maxRange));
+
+    return clampedRatio.toFixed(2);
+};
+
 const toModbus = (displayValue, maxRange) => {
     const val = Number(displayValue);
     if (Number.isNaN(val)) return 0;
@@ -1236,10 +1249,10 @@ export function IndustrialControl({ device, onBack }) {
                     setCirculatingPumpSv(String(toDisplay(data?.circulating_pump_sv, MAX_FREQ_60) || ''));
                 }
                 if (!preserveOutletValveOpeningRef.current && !isEditingOutletValveOpeningRef.current && !isSubmittingOutletValveOpeningRef.current && !modifiedValvePidFieldsRef.current.opening) {
-                    setOutletValveOpening(String(toDisplay(data?.outlet_electric_valve_opening_sv, MAX_VALVE_100) || ''));
+                    setOutletValveOpening(String(fromOpeningRatio(data?.outlet_electric_valve_opening_sv, MAX_VALVE_100) || ''));
                 }
                 if (!preserveReturnValveOpeningRef.current && !isEditingReturnValveOpeningRef.current) {
-                    setReturnValveOpening(String(toDisplay(data?.return_electric_valve_opening_sv, MAX_VALVE_100) || ''));
+                    setReturnValveOpening(String(fromOpeningRatio(data?.return_electric_valve_opening_sv, MAX_VALVE_100) || ''));
                 }
                 if (!isEditingPressureTargetRef.current && !isSubmittingPressureTargetRef.current) {
                     setPressureTarget(String(toDisplay16(data?.target_pressure_diff_sv, MAX_PRESSURE_1000) || ''));

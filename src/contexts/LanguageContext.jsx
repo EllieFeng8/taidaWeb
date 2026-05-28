@@ -110,9 +110,9 @@ const translations = {
     'dashboard.deviceCard.disconnectedBadge': '未連線',
     'dashboard.deviceCard.connectedBadge': '已連線',
     'dashboard.deviceCard.waterSection.title': '進/出/回水監測',
-    'dashboard.deviceCard.waterSection.in': '入水',
-    'dashboard.deviceCard.waterSection.out': '出水',
-    'dashboard.deviceCard.waterSection.return': '回水',
+    'dashboard.deviceCard.waterSection.in': '設備入水',
+    'dashboard.deviceCard.waterSection.out': '設備出水',
+    'dashboard.deviceCard.waterSection.return': '泵浦入水',
     'dashboard.deviceCard.airSection.title': '進風/出風狀態',
     'dashboard.deviceCard.airSection.in': '進風',
     'dashboard.deviceCard.airSection.out': '出風',
@@ -528,6 +528,7 @@ const translations = {
     'dashboard.deviceCard.disconnectedBadge': 'Disconnected',
     'dashboard.deviceCard.connectedBadge': 'Connected',
     'dashboard.deviceCard.waterSection.title': 'Inlet/Outlet/Return Water Monitoring',
+
     'dashboard.deviceCard.waterSection.in': 'Inlet Water',
     'dashboard.deviceCard.waterSection.out': 'Outlet Water',
     'dashboard.deviceCard.waterSection.return': 'Return Water',
@@ -543,6 +544,9 @@ const translations = {
     'dashboard.deviceCard.powerSection.pressureDifference': 'Pressure Difference',
     'dashboard.deviceCard.powerSection.flowRate': 'Flow Rate',
     'dashboard.noMatchingDevices': 'No devices match the current filters.',
+
+
+
 
     // Group Settings
     'groups.title': 'Group Settings',
