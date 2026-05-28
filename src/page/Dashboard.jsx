@@ -15,27 +15,36 @@ import {useLanguage} from '../contexts/LanguageContext';
 import {formatApiNumber} from '../utils/formatApiNumber';
 
 const ALL_GROUP_OPTION = {id: 'all', name: 'ALL_DEVICES_PLACEHOLDER', devices: []};
-const SENSOR_FIELD_ORDER = [
-    'inletWaterTemp',
-    'inletWaterPressure',
-    'returnWaterTemp',
-    'returnWaterPressure',
-    'outletWaterTemp',
-    'outletWaterPressure',
-    'coolingL1',
-    'coolingL2',
-    'coolingR1',
-    'coolingR2',
-    'inletAirTemp',
-    'inletAirHumidity',
-    'flowRate',
-    'outletWaterPV',
-    'returnWaterPV',
-    'fanAutoSpeed',
-    'outletAirTemp',
-    'pressureDifference',
-    'TBD',
-    'heatExchange',
+
+// Fallback mapping, will be overridden by API
+const DEFAULT_SENSOR_FIELD_ORDER = [
+    { key: 's1', name: 'InletWaterTemp' },
+    { key: 's2', name: 'InletWaterPressure' },
+    { key: 's3', name: 'OutletWaterTemp' },
+    { key: 's4', name: 'OutletWaterPressure' },
+    { key: 's5', name: 'InletPumpTemp' },
+    { key: 's6', name: 'InletPumpPressure' },
+    { key: 's7', name: 'InletLeftCoilTemp' },
+    { key: 's8', name: 'OutletLeftCoilTemp' },
+    { key: 's9', name: 'InletRightCoilTemp' },
+    { key: 's10', name: 'OutletRightCoilTemp' },
+    { key: 's11', name: 'InletAirTemp' },
+    { key: 's12', name: 'InletAirHumidity' },
+    { key: 's13', name: 'FlowRate' },
+    { key: 's14', name: 'OutletWaterSV' },
+    { key: 's15', name: 'OutletWaterPV' },
+    { key: 's16', name: 'MixWaterSV' },
+    { key: 's17', name: 'MixWaterPV' },
+    { key: 's18', name: 'FanSV' },
+    { key: 's19', name: 'FanPV' },
+    { key: 's20', name: 'OutletAirTemp' },
+    { key: 's21', name: 'DifferentialPressureSV' },
+    { key: 's22', name: 'DifferentialPressurePV' },
+    { key: 's23', name: 'HeatLoad' },
+    { key: 's24', name: 'AutoFanControl' },
+    { key: 's25', name: 'AutoTempControl' },
+    { key: 's26', name: 'PumpSV' },
+    { key: 's27', name: 'PumpPV' },
 ];
 
 const formatMetric = (value, unit = '') => {
@@ -94,21 +103,40 @@ const normalizeDeviceStatus = (status, sensorPayload) => {
     return 'online';
 };
 
-const mapSensorValues = (sensorPayload) => {
+const mapSensorValues = (sensorPayload, sensorMapping = DEFAULT_SENSOR_FIELD_ORDER) => {
     const mappedValues = {};
 
-    SENSOR_FIELD_ORDER.forEach((fieldName, index) => {
-        mappedValues[fieldName] = sensorPayload?.[`s${index + 1}`] ?? '--';
+    // Map using the provided sensor mapping (from API or default)
+    sensorMapping.forEach(({ key, name }) => {
+        mappedValues[name] = sensorPayload?.[key] ?? '--';
     });
+
+    // Create legacy field name aliases for backward compatibility with UI
+    // mappedValues.inletWaterTemp = mappedValues.InletWaterTemp;
+    // mappedValues.inletWaterPressure = mappedValues.InletWaterPressure;
+    // mappedValues.outletWaterTemp = mappedValues.OutletWaterTemp;
+    // mappedValues.outletWaterPressure = mappedValues.OutletWaterPressure;
+    // mappedValues.inletAirTemp = mappedValues.InletAirTemp;
+    // mappedValues.inletAirHumidity = mappedValues.InletAirHumidity;
+    // mappedValues.outletAirTemp = mappedValues.OutletAirTemp;
+    // mappedValues.flowRate = mappedValues.FlowRate;
+    // mappedValues.pressureDifference = mappedValues.DifferentialPressurePV;
+    // mappedValues.coolingL1 = mappedValues.InletLeftCoilTemp;
+    // mappedValues.coolingL2 = mappedValues.OutletLeftCoilTemp;
+    // mappedValues.coolingR1 = mappedValues.InletRightCoilTemp;
+    // mappedValues.coolingR2 = mappedValues.OutletRightCoilTemp;
+    // mappedValues.outletWaterPV = mappedValues.OutletWaterPV;
+    // mappedValues.returnWaterPV = mappedValues.MixWaterPV;
 
     return mappedValues;
 };
 
-const normalizeDevice = (device, index, sensorPayload) => {
+const normalizeDevice = (device, index, sensorPayload, sensorMapping = DEFAULT_SENSOR_FIELD_ORDER) => {
     // console.log('Normalizing device', {device, sensorPayload});
     const name = device?.name ?? device?.deviceName ?? `Device ${index + 1}`;
     const id = String(device?.id ?? device?.deviceId ?? name);
-    const sensorValues = mapSensorValues(sensorPayload);
+    const sensorValues = mapSensorValues(sensorPayload, sensorMapping);
+    console.log('Normalized sensor values:', sensorValues);
 
     return {
         ...device,
@@ -117,29 +145,27 @@ const normalizeDevice = (device, index, sensorPayload) => {
         name,
         status: normalizeDeviceStatus(device?.status, sensorPayload),
         water: {
-            in: device?.water?.in ?? formatCombinedMetric(sensorValues.inletWaterTemp ?? device?.inletWaterTemp, '°C', sensorValues.inletWaterPressure ?? device?.inletWaterPressure, 'b'),
-            out: device?.water?.out ?? formatCombinedMetric(sensorValues.outletWaterTemp ?? device?.outletWaterTemp, '°C', sensorValues.outletWaterPressure ?? device?.outletWaterPressure, 'b'),
-            return: device?.water?.return ?? formatCombinedMetric(sensorValues.returnWaterTemp ?? device?.returnWaterTemp, '°C', sensorValues.returnWaterPressure ?? device?.returnWaterPressure, 'b'),
+            in: formatCombinedMetric(sensorValues.InletWaterTemp, '°C', sensorValues.InletWaterPressure, 'pa'),
+            out: formatCombinedMetric(sensorValues.InletPumpTemp, '°C', sensorValues.InletPumpPressure, 'pa'),
+            return: formatCombinedMetric(sensorValues.OutletWaterTemp, '°C', sensorValues.OutletWaterPressure, 'pa'),
         },
         air: {
-            in: device?.air?.in ?? formatCombinedMetric(sensorValues.inletAirTemp ?? device?.inletAirTemp, '°C', sensorValues.inletAirHumidity ?? device?.inletAirHumidity, '%'),
-            out: device?.air?.out ?? formatCombinedMetric(sensorValues.outletAirTemp ?? device?.outletAirTemp, '°C', sensorValues.outletAirHumidity ?? device?.outletAirHumidity, '%'),
+            in: formatCombinedMetric(sensorValues.InletAirTemp, '°C', sensorValues.InletAirHumidity, '%'),
+            out: formatCombinedMetric(sensorValues.OutletAirTemp, '°C', '--', ''),
         },
         cooling: {
-            l1: device?.cooling?.l1 ?? sensorValues.coolingL1 ?? device?.coolingL1 ?? '--',
-            l2: device?.cooling?.l2 ?? sensorValues.coolingL2 ?? device?.coolingL2 ?? '--',
-            r1: device?.cooling?.r1 ?? sensorValues.coolingR1 ?? device?.coolingR1 ?? '--',
-            r2: device?.cooling?.r2 ?? sensorValues.coolingR2 ?? device?.coolingR2 ?? '--',
+            l1: sensorValues.InletLeftCoilTemp ?? '--',
+            l2: sensorValues.OutletLeftCoilTemp ?? '--',
+            r1: sensorValues.InletRightCoilTemp ?? '--',
+            r2: sensorValues.OutletRightCoilTemp ?? '--',
         },
         power: {
-            fanAutoSpeed: device?.power?.rpm ?? sensorValues.rpm ?? device?.rpm ?? '--',
-            hz: device?.power?.hz ?? sensorValues.hz ?? device?.hz ?? '--',
+            fanAutoSpeed: sensorValues.FanPV ?? '--',
+            hz: sensorValues.PumpPV ?? '--',
         },
         system: {
-            pressureDifference: sensorValues.pressureDifference ?? device?.pressureDifference ?? '--',
-            flowRate: sensorValues.flowRate ?? device?.flowRate ?? '--',
-            // pidP: sensorValues.pidP ?? device?.pidP ?? '--',
-            // pidI: sensorValues.pidI ?? device?.pidI ?? '--',
+            pressureDifference: sensorValues.DifferentialPressurePV ?? '--',
+            flowRate: sensorValues.FlowRate ?? '--',
         },
     };
 };
@@ -367,6 +393,40 @@ export const Dashboard = ({onSelectDevice}) => {
     const [groups, setGroups] = useState([]);
     const [devices, setDevices] = useState([]);
     const [connectionStatusMap, setConnectionStatusMap] = useState({});
+    const [sensorMapping, setSensorMapping] = useState(DEFAULT_SENSOR_FIELD_ORDER);
+
+    // Fetch sensor configuration from API
+    useEffect(() => {
+        const fetchSensorMapping = async () => {
+            try {
+                // Try to fetch from any device first
+                const devResponse = await fetch('/api/devices', { method: 'GET' });
+                const deviceList = await devResponse.json();
+                if (Array.isArray(deviceList) && deviceList.length > 0) {
+                    const deviceId = deviceList[0]?.name ?? deviceList[0]?.deviceName ?? deviceList[0]?.id;
+                    if (deviceId) {
+                        const sensorResponse = await fetch(`/api/settings/sensors/${encodeURIComponent(deviceId)}`, {
+                            method: 'GET',
+                        });
+                        if (sensorResponse.ok) {
+                            const mapping = await sensorResponse.json();
+                            if (Array.isArray(mapping) && mapping.length > 0) {
+                                setSensorMapping(mapping);
+                                console.log('Fetched sensor mapping from API:', mapping);
+                                return;
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching sensor mapping:', error);
+            }
+            // Fall back to default
+            setSensorMapping(DEFAULT_SENSOR_FIELD_ORDER);
+        };
+
+        fetchSensorMapping();
+    }, []);
 
 
     useEffect(() => {
@@ -408,13 +468,13 @@ export const Dashboard = ({onSelectDevice}) => {
                         const deviceIdentifier = device?.name ?? device?.deviceName ?? device?.id ?? device?.deviceId;
 
                         if (!deviceIdentifier) {
-                            return normalizeDevice(device, index);
+                            return normalizeDevice(device, index, null, sensorMapping);
                         }
 
                         // 如果連線狀態為 false，則不 call sensor api
                         const isConnected = currentConnectionStatusMap[String(deviceIdentifier)] ?? true;
                         if (!isConnected) {
-                            return normalizeDevice(device, index);
+                            return normalizeDevice(device, index, null, sensorMapping);
                         }
 
                         try {
@@ -422,11 +482,12 @@ export const Dashboard = ({onSelectDevice}) => {
                                 method: 'GET',
                             });
                             const sensorData = await sensorResponse.json();
+                            console.log('sensorData:', sensorData);
 
-                            return normalizeDevice(device, index, sensorData);
+                            return normalizeDevice(device, index, sensorData, sensorMapping);
                         } catch (error) {
                             console.error(`設備 ${deviceIdentifier} 感測資料獲取失敗:`, error);
-                            return normalizeDevice(device, index);
+                            return normalizeDevice(device, index, null, sensorMapping);
                         }
                     })
                 );
@@ -442,7 +503,7 @@ export const Dashboard = ({onSelectDevice}) => {
         const interval = setInterval(fetchDevices, 1000);
 
         return () => clearInterval(interval);
-    }, []);
+    }, [sensorMapping]);
 
     // 移除重複的 fetchConnectionStatuses useEffect，已整合進 fetchDevices
 
