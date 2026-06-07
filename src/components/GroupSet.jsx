@@ -126,6 +126,7 @@ export default function GroupSet({ group, onBack }) {
         setIsSaving(true);
 
         try {
+            //一次全拋
             await Promise.all([
                 ...devicesToAdd.map((device) =>
                     fetch(`/api/groups/${encodeURIComponent(group.id)}/devices/${encodeURIComponent(device.id)}`, {
