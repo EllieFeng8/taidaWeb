@@ -22,6 +22,9 @@ const MAX_FREQ_60 = 60;
 const MAX_PID_100 = 100;
 const MAX_PID_10 = 10;
 const MAX_PRESSURE_1000 = 1000;
+const MAX_DIFFERENTIAL_PRESSURE_INPUT = 10000;
+const DIFFERENTIAL_PRESSURE_OUTPUT_MIN = -1250;
+const DIFFERENTIAL_PRESSURE_OUTPUT_MAX = 1250;
 const FAN_MAX_RPM_3570 = 3570;
 
 const toDisplay = (modbusValue, maxRange) => {
@@ -58,19 +61,6 @@ const toOpeningRatio = (displayValue, maxRange) => {
     return Math.round(
         SCALE_MIN + (clampedVal / maxRange) * (SCALE_MAX - SCALE_MIN)
     );
-};
-
-const fromOpeningRatio = (modbusValue, maxRange) => {
-    const val = Number(modbusValue);
-
-    if (!Number.isFinite(val)) {
-        return '0.00';
-    }
-
-    const ratio = ((val - SCALE_MIN) / (SCALE_MAX - SCALE_MIN)) * maxRange;
-    const clampedRatio = Math.max(0, Math.min(ratio, maxRange));
-
-    return clampedRatio.toFixed(2);
 };
 
 const toModbus = (displayValue, maxRange) => {
@@ -128,7 +118,7 @@ const clampPressureTargetValue = (value) => {
         return 0;
     }
 
-    return Math.min(MAX_PRESSURE_1000, Math.max(0, Number(value)));
+    return Math.min(MAX_DIFFERENTIAL_PRESSURE_INPUT, Math.max(0, Number(value)));
 };
 
 const normalizePressureTargetInputValue = (value) => {
@@ -142,6 +132,16 @@ const normalizePressureTargetInputValue = (value) => {
     }
 
     return String(clampPressureTargetValue(numericValue));
+};
+
+const convertDifferentialPressureSvInput = (inputValue) => {
+    const normalizedValue = clampPressureTargetValue(inputValue);
+    const convertedValue =
+        DIFFERENTIAL_PRESSURE_OUTPUT_MIN
+        + (normalizedValue / MAX_DIFFERENTIAL_PRESSURE_INPUT)
+        * (DIFFERENTIAL_PRESSURE_OUTPUT_MAX - DIFFERENTIAL_PRESSURE_OUTPUT_MIN);
+
+    return Number(convertedValue.toFixed(2));
 };
 
 const clampPidValue = (value) => {
@@ -1249,10 +1249,10 @@ export function IndustrialControl({ device, onBack }) {
                     setCirculatingPumpSv(String(toDisplay(data?.circulating_pump_sv, MAX_FREQ_60) || ''));
                 }
                 if (!preserveOutletValveOpeningRef.current && !isEditingOutletValveOpeningRef.current && !isSubmittingOutletValveOpeningRef.current && !modifiedValvePidFieldsRef.current.opening) {
-                    setOutletValveOpening(String(fromOpeningRatio(data?.outlet_electric_valve_opening_sv, MAX_VALVE_100) || ''));
+                    setOutletValveOpening(String(toDisplay(data?.outlet_electric_valve_opening_sv, MAX_VALVE_100) || ''));
                 }
                 if (!preserveReturnValveOpeningRef.current && !isEditingReturnValveOpeningRef.current) {
-                    setReturnValveOpening(String(fromOpeningRatio(data?.return_electric_valve_opening_sv, MAX_VALVE_100) || ''));
+                    setReturnValveOpening(String(toDisplay(data?.return_electric_valve_opening_sv, MAX_VALVE_100) || ''));
                 }
                 if (!isEditingPressureTargetRef.current && !isSubmittingPressureTargetRef.current) {
                     setPressureTarget(String(toDisplay16(data?.target_pressure_diff_sv, MAX_PRESSURE_1000) || ''));
@@ -2054,16 +2054,20 @@ export function IndustrialControl({ device, onBack }) {
         }
 
         const nextValue = clampPressureTargetValue(pressureTarget);
+        const convertedPressureTarget = convertDifferentialPressureSvInput(nextValue);
         setPressureError('');
 
         setIsSubmittingPressureTarget(true);
         isSubmittingPressureTargetRef.current = true;
 
         const payload = {
-            value: toModbus16(nextValue, MAX_PRESSURE_1000),
+            value: convertedPressureTarget,
         };
         const requestUrl = `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent('target_pressure_diff_sv')}`;
         console.log('[Pressure Target] request url:', requestUrl);
+        console.log('[Pressure Target] formula: converted = -1250 + (input / 10000) * 2500');
+        console.log('[Pressure Target] input value:', nextValue);
+        console.log('[Pressure Target] converted value:', convertedPressureTarget);
         console.log('[Pressure Target] request body:', payload);
 
         try {
