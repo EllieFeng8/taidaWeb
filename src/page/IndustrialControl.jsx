@@ -301,7 +301,14 @@ const mapSensorValues = (sensorPayload) => {
     const mappedValues = {};
 
     TELEMETRY_SENSOR_ORDER.forEach((fieldName, index) => {
-        mappedValues[fieldName] = sensorPayload?.[`s${index + 1}`] ?? FALLBACK_VALUE;
+        const rawValue = sensorPayload?.[`s${index + 1}`] ?? FALLBACK_VALUE;
+
+        if (fieldName === 'DifferentialPressureSV') {
+            mappedValues[fieldName] = fromDifferentialPressureApiValue(rawValue);
+            return;
+        }
+
+        mappedValues[fieldName] = rawValue;
     });
 
     return mappedValues;
