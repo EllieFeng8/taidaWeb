@@ -21,10 +21,9 @@ const MAX_TEMP_100 = 100;
 const MAX_FREQ_60 = 60;
 const MAX_PID_100 = 100;
 const MAX_PID_10 = 10;
-const MAX_PRESSURE_1000 = 1000;
-const MAX_DIFFERENTIAL_PRESSURE_INPUT = 10000;
-const DIFFERENTIAL_PRESSURE_OUTPUT_MIN = -1250;
-const DIFFERENTIAL_PRESSURE_OUTPUT_MAX = 1250;
+const DIFFERENTIAL_PRESSURE_INPUT_MIN = -1250;
+const DIFFERENTIAL_PRESSURE_INPUT_MAX = 1250;
+const MAX_DIFFERENTIAL_PRESSURE_API_VALUE = 10000;
 const FAN_MAX_RPM_3570 = 3570;
 
 const toDisplay = (modbusValue, maxRange) => {
@@ -118,7 +117,7 @@ const clampPressureTargetValue = (value) => {
         return 0;
     }
 
-    return Math.min(MAX_DIFFERENTIAL_PRESSURE_INPUT, Math.max(0, Number(value)));
+    return Math.min(DIFFERENTIAL_PRESSURE_INPUT_MAX, Math.max(DIFFERENTIAL_PRESSURE_INPUT_MIN, Number(value)));
 };
 
 const normalizePressureTargetInputValue = (value) => {
@@ -137,11 +136,24 @@ const normalizePressureTargetInputValue = (value) => {
 const convertDifferentialPressureSvInput = (inputValue) => {
     const normalizedValue = clampPressureTargetValue(inputValue);
     const convertedValue =
-        DIFFERENTIAL_PRESSURE_OUTPUT_MIN
-        + (normalizedValue / MAX_DIFFERENTIAL_PRESSURE_INPUT)
-        * (DIFFERENTIAL_PRESSURE_OUTPUT_MAX - DIFFERENTIAL_PRESSURE_OUTPUT_MIN);
+        ((normalizedValue - DIFFERENTIAL_PRESSURE_INPUT_MIN)
+            / (DIFFERENTIAL_PRESSURE_INPUT_MAX - DIFFERENTIAL_PRESSURE_INPUT_MIN))
+        * MAX_DIFFERENTIAL_PRESSURE_API_VALUE;
 
     return Number(convertedValue.toFixed(2));
+};
+
+const convertDifferentialPressureSvApiValueToInput = (apiValue) => {
+    if (apiValue === undefined || apiValue === null || Number.isNaN(Number(apiValue))) {
+        return '0.00';
+    }
+
+    const convertedValue =
+        DIFFERENTIAL_PRESSURE_INPUT_MIN
+        + (Number(apiValue) / MAX_DIFFERENTIAL_PRESSURE_API_VALUE)
+        * (DIFFERENTIAL_PRESSURE_INPUT_MAX - DIFFERENTIAL_PRESSURE_INPUT_MIN);
+
+    return convertedValue.toFixed(2);
 };
 
 const clampPidValue = (value) => {
@@ -1255,7 +1267,7 @@ export function IndustrialControl({ device, onBack }) {
                     setReturnValveOpening(String(toDisplay(data?.return_electric_valve_opening_sv, MAX_VALVE_100) || ''));
                 }
                 if (!isEditingPressureTargetRef.current && !isSubmittingPressureTargetRef.current) {
-                    setPressureTarget(String(toDisplay16(data?.target_pressure_diff_sv, MAX_PRESSURE_1000) || ''));
+                    setPressureTarget(convertDifferentialPressureSvApiValueToInput(data?.target_pressure_diff_sv));
                 }
                 if (!isEditingPidValuesRef.current && !isSubmittingPidRef.current && !Object.values(modifiedPidFieldsRef.current).some(Boolean)) {
                     setPidValues({
@@ -2065,7 +2077,7 @@ export function IndustrialControl({ device, onBack }) {
         };
         const requestUrl = `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent('target_pressure_diff_sv')}`;
         console.log('[Pressure Target] request url:', requestUrl);
-        console.log('[Pressure Target] formula: converted = -1250 + (input / 10000) * 2500');
+        console.log('[Pressure Target] formula: converted = ((input + 1250) / 2500) * 10000');
         console.log('[Pressure Target] input value:', nextValue);
         console.log('[Pressure Target] converted value:', convertedPressureTarget);
         console.log('[Pressure Target] request body:', payload);
