@@ -33,13 +33,13 @@ export default defineConfig(({ mode }) => {
       // ⭐ 新增 proxy（解決 CORS）
       // run -> 要使用
       // build -> 不要使用
-      // proxy: {
-      //   "/api": {
-      //     target: "http://127.0.0.1:8081",
-      //     changeOrigin: true,
-      //     secure: false,
-      //   }
-      // }
+      proxy: {
+        "/api": {
+          target: "http://127.0.0.1:8081",
+          changeOrigin: true,
+          secure: false,
+        }
+      }
     }
   };
 });
