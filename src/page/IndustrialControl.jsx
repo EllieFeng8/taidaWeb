@@ -21,6 +21,7 @@ const MAX_TEMP_100 = 100;
 const MAX_FREQ_60 = 60;
 const MAX_PID_100 = 100;
 const MAX_PID_10 = 10;
+const DRY_MODE_COUNTDOWN_SECONDS = 30 * 60;
 const DIFF_PRESSURE_MIN = -1250;
 const DIFF_PRESSURE_MAX = 1250;
 const DIFF_PRESSURE_API_MIN = 0;
@@ -977,6 +978,8 @@ const FanUnitCard = ({ fan, onSvChange, onSvFocus, onSvBlur, onSubmit, onToggle,
 export function IndustrialControl({ device, onBack }) {
     const { t } = useLanguage();
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [dryModeEnabled, setDryModeEnabled] = useState(false);
+    const [dryModeCountdown, setDryModeCountdown] = useState(DRY_MODE_COUNTDOWN_SECONDS);
     const [allFansEnabled, setAllFansEnabled] = useState(false);
     const [outletPidMonitoringEnabled, setOutletPidMonitoringEnabled] = useState(false);
     const [outletCorrectionEnabled, setOutletCorrectionEnabled] = useState(false);
@@ -1046,6 +1049,7 @@ export function IndustrialControl({ device, onBack }) {
 
     const deviceIdentifier = device?.name ?? device?.deviceName ?? device?.id ?? device?.deviceId;
     const sensorValues = mapSensorValues(sensorData);
+    const formattedDryModeCountdown = `${String(Math.floor(dryModeCountdown / 60)).padStart(2, '0')}:${String(dryModeCountdown % 60).padStart(2, '0')}`;
 
     useEffect(() => {
         preserveOutletValveOpeningRef.current = false;
@@ -1053,6 +1057,27 @@ export function IndustrialControl({ device, onBack }) {
         isModifiedAllFansRpmTargetRef.current = false;
         hasInitializedFanStateFromPvRef.current = false;
     }, [deviceIdentifier]);
+
+    useEffect(() => {
+        if (!dryModeEnabled) {
+            setDryModeCountdown(DRY_MODE_COUNTDOWN_SECONDS);
+            return undefined;
+        }
+
+        const timer = window.setInterval(() => {
+            setDryModeCountdown((prev) => {
+                if (prev <= 1) {
+                    window.clearInterval(timer);
+                    setDryModeEnabled(false);
+                    return 0;
+                }
+
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => window.clearInterval(timer);
+    }, [dryModeEnabled]);
 
     useEffect(() => { isSubmittingPidRef.current = isSubmittingPid; }, [isSubmittingPid]);
     useEffect(() => { isSubmittingValvePidRef.current = isSubmittingValvePid; }, [isSubmittingValvePid]);
@@ -2301,12 +2326,24 @@ export function IndustrialControl({ device, onBack }) {
                         </div>
                     </div>
                 </div>
-                <button
-                    onClick={() => setIsModalOpen(true)}
-                    className="flex items-center justify-center rounded-xl h-10 w-10 bg-blue-600 text-white shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all"
-                >
-                    <Settings size={20} />
-                </button>
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                        <span className="whitespace-nowrap text-sm font-medium text-slate-700">{t('industrial.dryMoldPrevention')}</span>
+                        <Toggle checked={dryModeEnabled} onChange={setDryModeEnabled} />
+                        {dryModeEnabled && (
+                            <div className="flex min-w-[88px] flex-col rounded-lg bg-slate-50 px-3 py-1 text-center">
+                                <span className="text-[11px] font-medium text-slate-500">{t('industrial.countdown')}</span>
+                                <span className="text-sm font-semibold tabular-nums text-slate-700">{formattedDryModeCountdown}</span>
+                            </div>
+                        )}
+                    </div>
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="flex items-center justify-center rounded-xl h-10 w-10 bg-blue-600 text-white shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all"
+                    >
+                        <Settings size={20} />
+                    </button>
+                </div>
             </header>
 
             <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
