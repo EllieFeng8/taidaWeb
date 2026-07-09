@@ -106,8 +106,7 @@ const normalizeDeviceStatus = (status, sensorPayload) => {
 const mapSensorValues = (sensorPayload, sensorMapping = DEFAULT_SENSOR_FIELD_ORDER) => {
     const mappedValues = {};
 
-    // Map using the provided sensor mapping (from API or default)
-    sensorMapping.forEach(({ key, name }) => {
+    DEFAULT_SENSOR_FIELD_ORDER.forEach(({ key, name }) => {
         mappedValues[name] = sensorPayload?.[key] ?? '--';
     });
 
