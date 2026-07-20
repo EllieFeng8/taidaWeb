@@ -786,7 +786,8 @@ const translations = {
     'industrial.status.warningShort': 'Warning',
     'industrial.status.optimalShort': 'Optimal',
     'industrial.error.fetchSensor': 'Failed to fetch device sensor data:',
-
+    'industrial.dryMoldPrevention': 'Drying and preventing mold',
+    'industrial.countdown': 'Countdown',
     // Group Control
     'groupControl.title': 'Group Control',
     'groupControl.back': 'Back',
