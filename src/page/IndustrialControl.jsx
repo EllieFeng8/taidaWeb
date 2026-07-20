@@ -27,6 +27,7 @@ const DIFF_PRESSURE_API_MIN = 0;
 const DIFF_PRESSURE_API_MAX = 10000;
 const FAN_MAX_RPM_3570 = 3570;
 const DRY_MODE_DURATION_SECONDS = 30 * 60;
+const DRY_MODE_INPUT_SYNC_DELAY_MS = 3000;
 
 const toDisplay = (modbusValue, maxRange) => {
     if (modbusValue === undefined || modbusValue === null || Number.isNaN(Number(modbusValue))) {
@@ -1050,6 +1051,7 @@ export function IndustrialControl({ device, onBack }) {
     const modifiedValvePidFieldsRef = useRef({ p: false, i: false, d: false, opening: false });
     const editingFanIdsRef = useRef(new Set());
     const dryModeEndTimeRef = useRef(null);
+    const dryModeInputSyncResumeAtRef = useRef(0);
     const isAutoStoppingDryModeRef = useRef(false);
 
     const deviceIdentifier = device?.name ?? device?.deviceName ?? device?.id ?? device?.deviceId;
@@ -1094,6 +1096,7 @@ export function IndustrialControl({ device, onBack }) {
         isModifiedAllFansRpmTargetRef.current = false;
         hasInitializedFanStateFromPvRef.current = false;
         dryModeEndTimeRef.current = null;
+        dryModeInputSyncResumeAtRef.current = 0;
         isAutoStoppingDryModeRef.current = false;
         setDryModeEnabled(false);
         setDryModeRemainingSeconds(0);
@@ -1109,6 +1112,7 @@ export function IndustrialControl({ device, onBack }) {
 
         const updateFromInput = async () => {
             if (!deviceIdentifier || !connectionStatus) return;
+            if (Date.now() < dryModeInputSyncResumeAtRef.current) return;
             const data = await fetchInputRegisters();
             if (cancelled || !data) return;
             const counter = Number(data?.dry_counter ?? data?.dryCounter ?? NaN);
@@ -1131,6 +1135,7 @@ export function IndustrialControl({ device, onBack }) {
         if (
             !dryModeEnabled
             || dryModeRemainingSeconds > 0
+            || isSubmittingDryMode
             || isAutoStoppingDryModeRef.current
             || !deviceIdentifier
         ) {
@@ -1333,32 +1338,29 @@ export function IndustrialControl({ device, onBack }) {
         const previousValue = dryModeEnabled;
         const previousRemainingSeconds = dryModeRemainingSeconds;
         const previousEndTime = dryModeEndTimeRef.current;
+        const previousSyncResumeAt = dryModeInputSyncResumeAtRef.current;
 
         setDryModeEnabled(enabled);
         setIsSubmittingDryMode(true);
+        dryModeInputSyncResumeAtRef.current = enabled
+            ? Date.now() + DRY_MODE_INPUT_SYNC_DELAY_MS
+            : 0;
+
+        if (enabled) {
+            dryModeEndTimeRef.current = Date.now() + (DRY_MODE_DURATION_SECONDS * 1000);
+            setDryModeRemainingSeconds(DRY_MODE_DURATION_SECONDS);
+        } else {
+            dryModeEndTimeRef.current = null;
+            setDryModeRemainingSeconds(0);
+        }
 
         try {
             await postDryModeState(enabled);
-
-            if (enabled) {
-                // fetch initial counter from device
-                const data = await fetchInputRegisters();
-                const counter = Number(data?.dry_counter ?? data?.dryCounter ?? NaN);
-                if (Number.isFinite(counter)) {
-                    setDryModeRemainingSeconds(Math.max(0, Math.floor(counter)));
-                } else {
-                    // fallback to default duration
-                    dryModeEndTimeRef.current = Date.now() + (DRY_MODE_DURATION_SECONDS * 1000);
-                    setDryModeRemainingSeconds(DRY_MODE_DURATION_SECONDS);
-                }
-            } else {
-                dryModeEndTimeRef.current = null;
-                setDryModeRemainingSeconds(0);
-            }
         } catch (error) {
             console.error('乾燥防霉開關設定失敗:', error);
             setDryModeEnabled(previousValue);
             dryModeEndTimeRef.current = previousEndTime;
+            dryModeInputSyncResumeAtRef.current = previousSyncResumeAt;
             setDryModeRemainingSeconds(previousRemainingSeconds);
         } finally {
             setIsSubmittingDryMode(false);

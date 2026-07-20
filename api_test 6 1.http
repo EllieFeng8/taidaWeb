@@ -1,0 +1,358 @@
+### FansServer API Test
+# 本檔案提供所有 FansServer 的 API 測試範例。
+# 可以在 IntelliJ IDEA, VS Code (REST Client) 或其他工具中運行。
+
+@host = http://127.0.0.1:8081
+#@host = http://192.168.0.178
+#@host = http://192.168.0.102
+#@deviceName = YS20260302-1No1
+@deviceName = Device 1
+@groupName = Group A
+@fromTs = 1700000000
+@toTs = 2000000060
+@fromDt = 2024-01-01T00:00:00Z
+@toDt = 2029-01-01T01:00:00Z
+
+### 1. Server伺服器健康檢查 (Root)
+GET {{host}}/
+
+### 2. Server伺服器健康檢查與資料庫狀態
+GET {{host}}/api/test
+
+### 3. 獲取所有感測器設定 (代理至所有設備)
+GET {{host}}/api/settings/sensors
+
+### 4. 根據設備名稱獲取感測器設定
+GET {{host}}/api/settings/sensors/{{deviceName}}
+
+### 5. 更新感測器設定 (同步到所有設備)
+PUT {{host}}/api/settings/sensors
+Content-Type: application/json
+
+[
+  { "key": "s1", "name": "inletWaterTemp" },
+  { "key": "s2", "name": "inletWaterPressure" },
+  { "key": "s3", "name": "returnWaterTemp" },
+  { "key": "s4", "name": "returnWaterPressure" },
+  { "key": "s5", "name": "outletWaterTemp" },
+  { "key": "s6", "name": "outletWaterPressure" },
+  { "key": "s7", "name": "coolingL1" },
+  { "key": "s8", "name": "coolingL2" },
+  { "key": "s9", "name": "coolingR1" },
+  { "key": "s10", "name": "coolingR2" },
+  { "key": "s11", "name": "inletAirTemp" },
+  { "key": "s12", "name": "inletAirHumidity" },
+  { "key": "s13", "name": "flowRate" },
+  { "key": "s14", "name": "outletWaterPV" },
+  { "key": "s15", "name": "returnWaterPV" },
+  { "key": "s16", "name": "fanAutoSpeed" },
+  { "key": "s17", "name": "outletAirTemp" },
+  { "key": "s18", "name": "pressureDifference" },
+  { "key": "s19", "name": "TBD" },
+  { "key": "s20", "name": "heatExchange" }
+]
+
+### 6. 根據設備名稱更新感測器設定
+PUT {{host}}/api/settings/sensors/{{deviceName}}
+Content-Type: application/json
+
+[
+  { "key": "s1", "name": "inletWaterTemp" },
+  { "key": "s2", "name": "inletWaterPressure" },
+  { "key": "s3", "name": "returnWaterTemp" },
+  { "key": "s4", "name": "returnWaterPressure" },
+  { "key": "s5", "name": "outletWaterTemp" },
+  { "key": "s6", "name": "outletWaterPressure" },
+  { "key": "s7", "name": "coolingL1" },
+  { "key": "s8", "name": "coolingL2" },
+  { "key": "s9", "name": "coolingR1" },
+  { "key": "s10", "name": "coolingR2" },
+  { "key": "s11", "name": "inletAirTemp" },
+  { "key": "s12", "name": "inletAirHumidity" },
+  { "key": "s13", "name": "flowRate" },
+  { "key": "s14", "name": "outletWaterPV" },
+  { "key": "s15", "name": "returnWaterPV" },
+  { "key": "s16", "name": "fanAutoSpeed" },
+  { "key": "s17", "name": "outletAirTemp" },
+  { "key": "s18", "name": "pressureDifference" },
+  { "key": "s19", "name": "TBD" },
+  { "key": "s20", "name": "heatExchange" }
+]
+
+
+
+### 7. 獲取讀取頻率 (代理至所有設備)
+GET {{host}}/api/settings/frequency
+
+### 8. 根據設備名稱獲取讀取頻率
+GET {{host}}/api/settings/frequency/{{deviceName}}
+
+### 9. 設定讀取頻率 (同步到所有設備)
+PUT {{host}}/api/settings/frequency
+Content-Type: application/json
+
+{
+  "read_frequency": 1000
+}
+
+### 10. 根據設備名稱設定讀取頻率
+PUT {{host}}/api/settings/frequency/{{deviceName}}
+Content-Type: application/json
+
+{
+  "read_frequency": 400
+}
+
+### 11. 根據群組名稱設定讀取頻率
+PUT {{host}}/api/settings/frequency/group/{{groupName}}
+Content-Type: application/json
+
+{
+  "read_frequency": 600
+}
+
+### 12. 查詢感測器數據範圍 (預設第一個設備)
+GET {{host}}/api/sensor/range?from={{fromTs}}&to={{toTs}}
+
+### 13. 根據設備名稱查詢數據範圍
+GET {{host}}/api/sensor/range/{{deviceName}}?from={{fromTs}}&to={{toTs}}
+
+### 14. 根據群組名稱查詢數據範圍
+GET {{host}}/api/sensor/range/group/{{groupName}}?from={{fromTs}}&to={{toTs}}
+
+### 15. 根據日期時間查詢數據範圍 (預設第一個設備)
+GET {{host}}/api/sensor/rangeDateTime?from={{fromDt}}&to={{toDt}}
+
+### 16. 根據設備名稱與日期時間查詢數據
+GET {{host}}/api/sensor/rangeDateTime/{{deviceName}}?from={{fromDt}}&to={{toDt}}
+
+### 17. 根據群組名稱與日期時間查詢數據
+GET {{host}}/api/sensor/rangeDateTime/group/{{groupName}}?from={{fromDt}}&to={{toDt}}
+
+### 18. 獲取最新感測器數據 (預設第一個設備)
+GET {{host}}/api/sensor/last
+
+### 19. 根據設備名稱獲取最新數據
+GET {{host}}/api/sensor/last/{{deviceName}}
+
+### 20. 根據群組名稱獲取最新數據
+GET {{host}}/api/sensor/last/group/{{groupName}}
+
+### 21. 設備管理 - 列出所有設備
+GET {{host}}/api/devices
+
+### 22. 設備管理 - 新增設備
+POST {{host}}/api/devices
+Content-Type: application/json
+
+{
+  "name": "sn004",
+  "ip": "127.0.0.1:8090"
+}
+
+### 23. 設備管理 - 刪除設備 (ID: 1)
+#DELETE {{host}}/api/devices/2
+
+### 23a. 設備管理 - 修改設備 IP (ID: 1)
+PUT {{host}}/api/devices/1/ip
+Content-Type: application/json
+
+{
+  "ip": "192.168.0.106:8080"
+}
+
+### 23b. 設備管理 - 修改設備所有內容 (ID: 1)
+# 包含 IP, Name, Read Frequency
+PUT {{host}}/api/devices/2
+Content-Type: application/json
+
+{
+  "name": "YS20260302-1No2",
+  "ip": "192.168.0.104:80"
+}
+
+### 24. 群組管理 - 列出所有群組
+GET {{host}}/api/groups
+
+### 25. 群組管理 - 獲取特定群組 (ID: 1)
+GET {{host}}/api/groups/1
+
+### 26. 群組管理 - 建立新群組
+POST {{host}}/api/groups
+Content-Type: application/json
+
+{
+  "name": "New Test Group"
+}
+
+### 27. 群組管理 - 更新群組名稱 (ID: 1)
+PUT {{host}}/api/groups/1
+Content-Type: application/json
+
+{
+  "name": "Updated Group Name"
+}
+
+### 28. 群組管理 - 將設備加入群組 (GroupId: 1, DeviceId: 1)
+POST {{host}}/api/groups/1/devices/2
+
+### 29. 群組管理 - 將設備移除群組 (GroupId: 1, DeviceId: 1)
+DELETE {{host}}/api/groups/2/devices/1
+
+### 31. Modbus - 讀取 Input Registers
+GET {{host}}/api/modbus/input/{{deviceName}}
+# 回傳範例 (s1-s36): 
+# { 
+#   "power_phase_detection": 0, "fan1_abnormal": 0, ..., 
+#   "version_no1": 1, "version_no2": 2, "version_no3": 3, 
+#   "compile_year": 2026, "compile_month_day": 405,
+#   "abnormal_code": 0, "abnormal_description": "Normal"
+# }
+
+### 32. Modbus - 讀取 Holding Registers (PV/SV)
+GET {{host}}/api/modbus/holding/{{deviceName}}
+
+### 33. Modbus - 控制指令 (例如: 風扇電源啟動 地址 71)
+POST {{host}}/api/modbus/control/{{deviceName}}/71
+Content-Type: application/json
+
+{
+  "value": 1
+}
+
+### 34. Modbus - 設定 SV (一次設定全部，不連動 Coils)
+# 現在 SV 位址區間為 31-73
+POST {{host}}/api/modbus/sv/{{deviceName}}
+Content-Type: application/json
+
+{
+  "circulating_pump_sv": 100,
+  "cooling_fan1_sv": 200,
+  "cooling_fan2_sv": 200,
+  "cooling_fan3_sv": 200,
+  "cooling_fan4_sv": 200,
+  "cooling_fan5_sv": 200,
+  "cooling_fan6_sv": 200,
+  "cooling_fan7_sv": 200,
+  "cooling_fan8_sv": 200,
+  "cooling_fan9_sv": 200,
+  "return_electric_valve_opening_sv": 50,
+  "outlet_electric_valve_opening_sv": 40,
+  "group1_pid_p_sv": 10,
+  "group1_pid_i_sv": 5,
+  "group1_pid_d_sv": 2,
+  "group2_pid_p_sv": 10,
+  "group2_pid_i_sv": 5,
+  "group2_pid_d_sv": 2,
+  "outlet_target_temp_sv": 25,
+  "target_pressure_diff_sv": 15,
+  "pid1_direction": 0,
+  "pid2_direction": 1,
+  "fan_power_start": 1,
+  "pump_start": 1,
+  "abnormal_reset": 0
+}
+
+### 34a. Modbus - 設定 SV 並同步更新 Coils
+POST {{host}}/api/modbus/sv-with-coils/{{deviceName}}
+Content-Type: application/json
+
+{
+  "pump_start": 1
+}
+
+
+### 35. Modbus - 單點控制 (透過英文鍵名)
+POST {{host}}/api/modbus/control/{{deviceName}}/key/circulating_pump_sv
+Content-Type: application/json
+
+{
+  "value": 100
+}
+
+### 36. Modbus - 單點控制 (透過標準 ID 4xxxx)
+# 40031 對應循環水泵 SV
+POST {{host}}/api/modbus/control/{{deviceName}}/id/40031
+Content-Type: application/json
+
+{
+  "value": 130
+}
+
+### 37. Modbus - 讀取 Coils (1-16)
+GET {{host}}/api/modbus/coils/{{deviceName}}
+
+### 38. Modbus - 控制 Coil (例如: 循環水泵 地址 1)
+POST {{host}}/api/modbus/coil/{{deviceName}}/0
+Content-Type: application/json
+
+{
+  "value": true
+}
+
+### 39. Modbus - 獲取 ID 與 鍵名 映射 (標準 Modbus ID 3xxxx/4xxxx/1-16)
+GET {{host}}/api/modbus/keys
+
+### 40. 設備連線狀態 - 獲取所有設備狀態
+GET {{host}}/api/devices/connection/status
+
+### 41. 設備連線狀態 - 獲取單一設備狀態
+GET {{host}}/api/devices/connection/status/{{deviceName}}
+
+### 42. 獲取警報歷史紀錄 (含分頁與過濾)
+GET {{host}}/api/alarms?page=0&size=10&sort=occurrenceTime,desc
+
+### 43. 根據設備名稱過濾警報
+GET {{host}}/api/alarms?deviceName={{deviceName}}
+
+### 44. 根據時間區間過濾警報
+GET {{host}}/api/alarms?from=2024-01-01T00:00:00Z&to=2028-01-01T00:00:00Z
+
+### 45. 根據異常類型過濾警報 (CONNECTION_ERROR, HTTP_ERROR, SYSTEM_ERROR)
+GET {{host}}/api/alarms?type=CONNECTION_ERROR
+
+### 46. 獲取所有警報類型定義
+GET {{host}}/api/alarms/types
+
+### 47. 查詢 Holding Register 數據範圍 (預設第一個設備)
+GET {{host}}/api/holding/range?from={{fromTs}}&to={{toTs}}
+
+### 48. 根據設備名稱查詢 Holding Register 數據範圍
+GET {{host}}/api/holding/range/{{deviceName}}?from={{fromTs}}&to={{toTs}}
+
+### 49. 根據群組名稱查詢 Holding Register 數據範圍
+GET {{host}}/api/holding/range/group/{{groupName}}?from={{fromTs}}&to={{toTs}}
+
+### 50. 根據日期時間查詢 Holding Register 數據範圍 (預設第一個設備)
+GET {{host}}/api/holding/rangeDateTime?from={{fromDt}}&to={{toDt}}
+
+### 51. 根據設備名稱與日期時間查詢 Holding Register 數據
+GET {{host}}/api/holding/rangeDateTime/{{deviceName}}?from={{fromDt}}&to={{toDt}}
+
+### 52. 根據群組名稱與日期時間查詢 Holding Register 數據
+GET {{host}}/api/holding/rangeDateTime/group/{{groupName}}?from={{fromDt}}&to={{toDt}}
+
+### 53. 獲取最新 Holding Register 數據 (預設第一個設備)
+GET {{host}}/api/holding/last
+
+### 54. 根據設備名稱獲取最新 Holding Register 數據
+GET {{host}}/api/holding/last/{{deviceName}}
+
+### 55. 根據群組名稱獲取最新 Holding Register 數據
+GET {{host}}/api/holding/last/group/{{groupName}}
+
+### 56. 根據日期時間查詢傳感器數據 (分頁)
+GET {{host}}/api/sensor/rangeDateTimePage?from={{fromDt}}&to={{toDt}}&page=2&pageSize=5
+
+### 56a. 根據設備名稱與日期時間查詢傳感器數據 (分頁)
+GET {{host}}/api/sensor/rangeDateTimePage/{{deviceName}}?from={{fromDt}}&to={{toDt}}&page=2&pageSize=10
+#/api/holding/rangeDateTimePage/sn000000?from=2026-04-05T16%3A00%3A00Z&to=2026-04-06T15%3A59%3A59Z&page=1&pageSize=20
+### 57. 根據日期時間查詢 Holding Register 數據 (分頁)
+GET {{host}}/api/holding/rangeDateTimePage?from={{fromDt}}&to={{toDt}}&page=2&pageSize=5
+
+### 57a. 根據設備名稱與日期時間查詢 Holding Register 數據 (分頁)
+GET {{host}}/api/holding/rangeDateTimePage/{{deviceName}}?from={{fromDt}}&to={{toDt}}&page=1&pageSize=20
+
+### 58. 獲取伺服器版本號
+GET {{host}}/api/version
+
