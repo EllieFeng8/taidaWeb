@@ -21,12 +21,12 @@ const MAX_TEMP_100 = 100;
 const MAX_FREQ_60 = 60;
 const MAX_PID_100 = 100;
 const MAX_PID_10 = 10;
-const DRY_MODE_COUNTDOWN_SECONDS = 30 * 60;
 const DIFF_PRESSURE_MIN = -1250;
 const DIFF_PRESSURE_MAX = 1250;
 const DIFF_PRESSURE_API_MIN = 0;
 const DIFF_PRESSURE_API_MAX = 10000;
 const FAN_MAX_RPM_3570 = 3570;
+const DRY_MODE_DURATION_SECONDS = 30 * 60;
 
 const toDisplay = (modbusValue, maxRange) => {
     if (modbusValue === undefined || modbusValue === null || Number.isNaN(Number(modbusValue))) {
@@ -409,6 +409,8 @@ const buildPressureAutoFansFromHolding = (holdingPayload) => buildFansFromHoldin
         status: 'running',
     };
 });
+
+const formatCountdown = (seconds) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 
 const TelemetryCard = ({ data }) => (
     <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
@@ -979,7 +981,8 @@ export function IndustrialControl({ device, onBack }) {
     const { t } = useLanguage();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [dryModeEnabled, setDryModeEnabled] = useState(false);
-    const [dryModeCountdown, setDryModeCountdown] = useState(DRY_MODE_COUNTDOWN_SECONDS);
+    const [isSubmittingDryMode, setIsSubmittingDryMode] = useState(false);
+    const [dryModeRemainingSeconds, setDryModeRemainingSeconds] = useState(0);
     const [allFansEnabled, setAllFansEnabled] = useState(false);
     const [outletPidMonitoringEnabled, setOutletPidMonitoringEnabled] = useState(false);
     const [outletCorrectionEnabled, setOutletCorrectionEnabled] = useState(false);
@@ -1046,38 +1049,107 @@ export function IndustrialControl({ device, onBack }) {
     const modifiedPidFieldsRef = useRef({ p: false, i: false, d: false });
     const modifiedValvePidFieldsRef = useRef({ p: false, i: false, d: false, opening: false });
     const editingFanIdsRef = useRef(new Set());
+    const dryModeEndTimeRef = useRef(null);
+    const isAutoStoppingDryModeRef = useRef(false);
 
     const deviceIdentifier = device?.name ?? device?.deviceName ?? device?.id ?? device?.deviceId;
     const sensorValues = mapSensorValues(sensorData);
-    const formattedDryModeCountdown = `${String(Math.floor(dryModeCountdown / 60)).padStart(2, '0')}:${String(dryModeCountdown % 60).padStart(2, '0')}`;
+    const formattedDryModeCountdown = formatCountdown(dryModeRemainingSeconds);
+    const postDryModeState = async (enabled) => {
+        const response = await fetch(`/api/modbus/coil/${encodeURIComponent(deviceIdentifier)}/17`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                value: enabled,
+            }),
+        });
+
+        if (!response.ok) {
+            const responseText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${responseText}`);
+        }
+    };
+
+    const fetchInputRegisters = async () => {
+        if (!deviceIdentifier) return null;
+        try {
+            const response = await fetch(`/api/modbus/input/${encodeURIComponent(deviceIdentifier)}`, { method: 'GET' });
+            if (!response.ok) {
+                console.error('Failed to fetch input registers:', response.status);
+                return null;
+            }
+            const data = await response.json();
+            return data;
+        } catch (err) {
+            console.error('Error fetching input registers:', err);
+            return null;
+        }
+    };
 
     useEffect(() => {
         preserveOutletValveOpeningRef.current = false;
         preserveReturnValveOpeningRef.current = false;
         isModifiedAllFansRpmTargetRef.current = false;
         hasInitializedFanStateFromPvRef.current = false;
+        dryModeEndTimeRef.current = null;
+        isAutoStoppingDryModeRef.current = false;
+        setDryModeEnabled(false);
+        setDryModeRemainingSeconds(0);
     }, [deviceIdentifier]);
 
     useEffect(() => {
         if (!dryModeEnabled) {
-            setDryModeCountdown(DRY_MODE_COUNTDOWN_SECONDS);
+            setDryModeRemainingSeconds(0);
             return undefined;
         }
 
-        const timer = window.setInterval(() => {
-            setDryModeCountdown((prev) => {
-                if (prev <= 1) {
-                    window.clearInterval(timer);
-                    setDryModeEnabled(false);
-                    return 0;
-                }
+        let cancelled = false;
 
-                return prev - 1;
+        const updateFromInput = async () => {
+            if (!deviceIdentifier || !connectionStatus) return;
+            const data = await fetchInputRegisters();
+            if (cancelled || !data) return;
+            const counter = Number(data?.dry_counter ?? data?.dryCounter ?? NaN);
+            if (Number.isFinite(counter)) {
+                setDryModeRemainingSeconds(Math.max(0, Math.floor(counter)));
+            }
+        };
+
+        updateFromInput();
+        const intervalId = setInterval(updateFromInput, 1000);
+
+        return () => {
+            cancelled = true;
+            clearInterval(intervalId);
+        };
+    }, [dryModeEnabled, deviceIdentifier, connectionStatus]);
+
+    useEffect(() => {
+        if (
+            !dryModeEnabled
+            || dryModeRemainingSeconds > 0
+            || isAutoStoppingDryModeRef.current
+            || !deviceIdentifier
+            || !dryModeEndTimeRef.current
+        ) {
+            return;
+        }
+
+        isAutoStoppingDryModeRef.current = true;
+        setIsSubmittingDryMode(true);
+        setDryModeEnabled(false);
+
+        postDryModeState(false)
+            .catch((error) => {
+                console.error('乾燥防霉倒數結束自動關閉失敗:', error);
+            })
+            .finally(() => {
+                isAutoStoppingDryModeRef.current = false;
+                setIsSubmittingDryMode(false);
             });
-        }, 1000);
-
-        return () => window.clearInterval(timer);
-    }, [dryModeEnabled]);
+    }, [deviceIdentifier, dryModeEnabled, dryModeRemainingSeconds]);
 
     useEffect(() => { isSubmittingPidRef.current = isSubmittingPid; }, [isSubmittingPid]);
     useEffect(() => { isSubmittingValvePidRef.current = isSubmittingValvePid; }, [isSubmittingValvePid]);
@@ -1252,6 +1324,46 @@ export function IndustrialControl({ device, onBack }) {
 
         return () => clearInterval(intervalId);
     }, [deviceIdentifier, t, connectionStatus]);
+
+    const handleToggleDryMode = async (enabled) => {
+        if (!deviceIdentifier || isSubmittingDryMode) {
+            return;
+        }
+
+        const previousValue = dryModeEnabled;
+        const previousRemainingSeconds = dryModeRemainingSeconds;
+        const previousEndTime = dryModeEndTimeRef.current;
+
+        setDryModeEnabled(enabled);
+        setIsSubmittingDryMode(true);
+
+        try {
+            await postDryModeState(enabled);
+
+            if (enabled) {
+                // fetch initial counter from device
+                const data = await fetchInputRegisters();
+                const counter = Number(data?.dry_counter ?? data?.dryCounter ?? NaN);
+                if (Number.isFinite(counter)) {
+                    setDryModeRemainingSeconds(Math.max(0, Math.floor(counter)));
+                } else {
+                    // fallback to default duration
+                    dryModeEndTimeRef.current = Date.now() + (DRY_MODE_DURATION_SECONDS * 1000);
+                    setDryModeRemainingSeconds(DRY_MODE_DURATION_SECONDS);
+                }
+            } else {
+                dryModeEndTimeRef.current = null;
+                setDryModeRemainingSeconds(0);
+            }
+        } catch (error) {
+            console.error('乾燥防霉開關設定失敗:', error);
+            setDryModeEnabled(previousValue);
+            dryModeEndTimeRef.current = previousEndTime;
+            setDryModeRemainingSeconds(previousRemainingSeconds);
+        } finally {
+            setIsSubmittingDryMode(false);
+        }
+    };
 
     const fetchFanHoldingData = () => {
         if (!deviceIdentifier) {
@@ -2329,7 +2441,7 @@ export function IndustrialControl({ device, onBack }) {
                 <div className="flex items-center gap-3">
                     <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
                         <span className="whitespace-nowrap text-sm font-medium text-slate-700">{t('industrial.dryMoldPrevention')}</span>
-                        <Toggle checked={dryModeEnabled} onChange={setDryModeEnabled} />
+                        <Toggle checked={dryModeEnabled} onChange={handleToggleDryMode} disabled={isSubmittingDryMode} />
                         {dryModeEnabled && (
                             <div className="flex min-w-[88px] flex-col rounded-lg bg-slate-50 px-3 py-1 text-center">
                                 <span className="text-[11px] font-medium text-slate-500">{t('industrial.countdown')}</span>
@@ -2346,6 +2458,10 @@ export function IndustrialControl({ device, onBack }) {
                 </div>
             </header>
 
+            <fieldset
+                disabled={dryModeEnabled}
+                className="contents [&_input:disabled]:bg-slate-100 [&_input:disabled]:text-slate-500 [&_input:disabled]:border-slate-200 [&_input:disabled]:cursor-not-allowed"
+            >
             <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
                 {telemetry.map((item) => (
                     <TelemetryCard key={item.label} data={item} />
@@ -2683,6 +2799,7 @@ export function IndustrialControl({ device, onBack }) {
                 onClose={() => setIsModalOpen(false)}
                 device={device}
             />
+            </fieldset>
         </div>
     );
 }
