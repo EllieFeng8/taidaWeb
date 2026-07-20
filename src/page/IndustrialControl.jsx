@@ -1114,6 +1114,7 @@ export function IndustrialControl({ device, onBack }) {
             const counter = Number(data?.dry_counter ?? data?.dryCounter ?? NaN);
             if (Number.isFinite(counter)) {
                 setDryModeRemainingSeconds(Math.max(0, Math.floor(counter)));
+                dryModeEndTimeRef.current = Date.now() + Math.max(0, Math.floor(counter)) * 1000;
             }
         };
 
@@ -1132,7 +1133,6 @@ export function IndustrialControl({ device, onBack }) {
             || dryModeRemainingSeconds > 0
             || isAutoStoppingDryModeRef.current
             || !deviceIdentifier
-            || !dryModeEndTimeRef.current
         ) {
             return;
         }
