@@ -21,10 +21,12 @@ const MAX_TEMP_100 = 100;
 const MAX_FREQ_60 = 60;
 const MAX_PID_100 = 100;
 const MAX_PID_10 = 10;
-const DIFFERENTIAL_PRESSURE_INPUT_MIN = -1250;
-const DIFFERENTIAL_PRESSURE_INPUT_MAX = 1250;
-const MAX_DIFFERENTIAL_PRESSURE_API_VALUE = 10000;
+const DIFF_PRESSURE_MIN = -1250;
+const DIFF_PRESSURE_MAX = 1250;
+const DIFF_PRESSURE_API_MIN = 0;
+const DIFF_PRESSURE_API_MAX = 10000;
 const FAN_MAX_RPM_3570 = 3570;
+const DRY_MODE_INPUT_SYNC_DELAY_MS = 3000;
 
 const toDisplay = (modbusValue, maxRange) => {
     if (modbusValue === undefined || modbusValue === null || Number.isNaN(Number(modbusValue))) {
@@ -60,6 +62,19 @@ const toOpeningRatio = (displayValue, maxRange) => {
     return Math.round(
         SCALE_MIN + (clampedVal / maxRange) * (SCALE_MAX - SCALE_MIN)
     );
+};
+
+const fromOpeningRatio = (modbusValue, maxRange) => {
+    const val = Number(modbusValue);
+
+    if (!Number.isFinite(val)) {
+        return '0.00';
+    }
+
+    const ratio = ((val - SCALE_MIN) / (SCALE_MAX - SCALE_MIN)) * maxRange;
+    const clampedRatio = Math.max(0, Math.min(ratio, maxRange));
+
+    return clampedRatio.toFixed(2);
 };
 
 const toModbus = (displayValue, maxRange) => {
@@ -117,7 +132,7 @@ const clampPressureTargetValue = (value) => {
         return 0;
     }
 
-    return Math.min(DIFFERENTIAL_PRESSURE_INPUT_MAX, Math.max(DIFFERENTIAL_PRESSURE_INPUT_MIN, Number(value)));
+    return Math.min(DIFF_PRESSURE_MAX, Math.max(DIFF_PRESSURE_MIN, Number(value)));
 };
 
 const normalizePressureTargetInputValue = (value) => {
@@ -133,27 +148,37 @@ const normalizePressureTargetInputValue = (value) => {
     return String(clampPressureTargetValue(numericValue));
 };
 
-const convertDifferentialPressureSvInput = (inputValue) => {
-    const normalizedValue = clampPressureTargetValue(inputValue);
-    const convertedValue =
-        ((normalizedValue - DIFFERENTIAL_PRESSURE_INPUT_MIN)
-            / (DIFFERENTIAL_PRESSURE_INPUT_MAX - DIFFERENTIAL_PRESSURE_INPUT_MIN))
-        * MAX_DIFFERENTIAL_PRESSURE_API_VALUE;
+const toDifferentialPressureApiValue = (displayValue) => {
+    const clampedValue = clampPressureTargetValue(displayValue);
+    const convertedValue = Math.round(
+        ((clampedValue - DIFF_PRESSURE_MIN) / (DIFF_PRESSURE_MAX - DIFF_PRESSURE_MIN))
+        * (DIFF_PRESSURE_API_MAX - DIFF_PRESSURE_API_MIN)
+        + DIFF_PRESSURE_API_MIN
+    );
 
-    return Number(convertedValue.toFixed(2));
+    console.log('[DifferentialPressurePV] convert to api value:', {
+        input: displayValue,
+        clampedValue,
+        convertedValue,
+    });
+
+    return convertedValue;
 };
 
-const convertDifferentialPressureSvApiValueToInput = (apiValue) => {
-    if (apiValue === undefined || apiValue === null || Number.isNaN(Number(apiValue))) {
+const fromDifferentialPressureApiValue = (apiValue) => {
+    const numericValue = Number(apiValue);
+
+    if (!Number.isFinite(numericValue)) {
         return '0.00';
     }
 
-    const convertedValue =
-        DIFFERENTIAL_PRESSURE_INPUT_MIN
-        + (Number(apiValue) / MAX_DIFFERENTIAL_PRESSURE_API_VALUE)
-        * (DIFFERENTIAL_PRESSURE_INPUT_MAX - DIFFERENTIAL_PRESSURE_INPUT_MIN);
+    const clampedValue = Math.min(DIFF_PRESSURE_API_MAX, Math.max(DIFF_PRESSURE_API_MIN, numericValue));
+    const displayValue = (
+        ((clampedValue - DIFF_PRESSURE_API_MIN) / (DIFF_PRESSURE_API_MAX - DIFF_PRESSURE_API_MIN))
+        * (DIFF_PRESSURE_MAX - DIFF_PRESSURE_MIN)
+    ) + DIFF_PRESSURE_MIN;
 
-    return convertedValue.toFixed(2);
+    return displayValue.toFixed(2);
 };
 
 const clampPidValue = (value) => {
@@ -277,7 +302,14 @@ const mapSensorValues = (sensorPayload) => {
     const mappedValues = {};
 
     TELEMETRY_SENSOR_ORDER.forEach((fieldName, index) => {
-        mappedValues[fieldName] = sensorPayload?.[`s${index + 1}`] ?? FALLBACK_VALUE;
+        const rawValue = sensorPayload?.[`s${index + 1}`] ?? FALLBACK_VALUE;
+
+        if (fieldName === 'DifferentialPressureSV') {
+            mappedValues[fieldName] = fromDifferentialPressureApiValue(rawValue);
+            return;
+        }
+
+        mappedValues[fieldName] = rawValue;
     });
 
     return mappedValues;
@@ -377,6 +409,8 @@ const buildPressureAutoFansFromHolding = (holdingPayload) => buildFansFromHoldin
         status: 'running',
     };
 });
+
+const formatCountdown = (seconds) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 
 const TelemetryCard = ({ data }) => (
     <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
@@ -946,6 +980,10 @@ const FanUnitCard = ({ fan, onSvChange, onSvFocus, onSvBlur, onSubmit, onToggle,
 export function IndustrialControl({ device, onBack }) {
     const { t } = useLanguage();
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [dryModeEnabled, setDryModeEnabled] = useState(false);
+    const [isSubmittingDryMode, setIsSubmittingDryMode] = useState(false);
+    const [dryModeRemainingSeconds, setDryModeRemainingSeconds] = useState(0);
+    const [isDryModeCounterReady, setIsDryModeCounterReady] = useState(false);
     const [allFansEnabled, setAllFansEnabled] = useState(false);
     const [outletPidMonitoringEnabled, setOutletPidMonitoringEnabled] = useState(false);
     const [outletCorrectionEnabled, setOutletCorrectionEnabled] = useState(false);
@@ -1012,16 +1050,115 @@ export function IndustrialControl({ device, onBack }) {
     const modifiedPidFieldsRef = useRef({ p: false, i: false, d: false });
     const modifiedValvePidFieldsRef = useRef({ p: false, i: false, d: false, opening: false });
     const editingFanIdsRef = useRef(new Set());
+    const dryModeEndTimeRef = useRef(null);
+    const dryModeInputSyncResumeAtRef = useRef(0);
+    const isAutoStoppingDryModeRef = useRef(false);
 
     const deviceIdentifier = device?.name ?? device?.deviceName ?? device?.id ?? device?.deviceId;
     const sensorValues = mapSensorValues(sensorData);
+    const formattedDryModeCountdown = isDryModeCounterReady ? formatCountdown(dryModeRemainingSeconds) : '--:--';
+    const postDryModeState = async (enabled) => {
+        const response = await fetch(`/api/modbus/coil/${encodeURIComponent(deviceIdentifier)}/17`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                value: enabled,
+            }),
+        });
+
+        if (!response.ok) {
+            const responseText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${responseText}`);
+        }
+    };
+
+    const fetchInputRegisters = async () => {
+        if (!deviceIdentifier) return null;
+        try {
+            const response = await fetch(`/api/modbus/input/${encodeURIComponent(deviceIdentifier)}`, { method: 'GET' });
+            if (!response.ok) {
+                console.error('Failed to fetch input registers:', response.status);
+                return null;
+            }
+            const data = await response.json();
+            return data;
+        } catch (err) {
+            console.error('Error fetching input registers:', err);
+            return null;
+        }
+    };
 
     useEffect(() => {
         preserveOutletValveOpeningRef.current = false;
         preserveReturnValveOpeningRef.current = false;
         isModifiedAllFansRpmTargetRef.current = false;
         hasInitializedFanStateFromPvRef.current = false;
+        dryModeEndTimeRef.current = null;
+        dryModeInputSyncResumeAtRef.current = 0;
+        isAutoStoppingDryModeRef.current = false;
+        setDryModeEnabled(false);
+        setDryModeRemainingSeconds(0);
+        setIsDryModeCounterReady(false);
     }, [deviceIdentifier]);
+
+    useEffect(() => {
+        if (!dryModeEnabled) {
+            setDryModeRemainingSeconds(0);
+            setIsDryModeCounterReady(false);
+            return undefined;
+        }
+
+        let cancelled = false;
+
+        const updateFromInput = async () => {
+            if (!deviceIdentifier || !connectionStatus) return;
+            if (Date.now() < dryModeInputSyncResumeAtRef.current) return;
+            const data = await fetchInputRegisters();
+            if (cancelled || !data) return;
+            const counter = Number(data?.dry_counter ?? data?.dryCounter ?? NaN);
+            if (Number.isFinite(counter)) {
+                setDryModeRemainingSeconds(Math.max(0, Math.floor(counter)));
+                dryModeEndTimeRef.current = Date.now() + Math.max(0, Math.floor(counter)) * 1000;
+                setIsDryModeCounterReady(true);
+            }
+        };
+
+        updateFromInput();
+        const intervalId = setInterval(updateFromInput, 1000);
+
+        return () => {
+            cancelled = true;
+            clearInterval(intervalId);
+        };
+    }, [dryModeEnabled, deviceIdentifier, connectionStatus]);
+
+    useEffect(() => {
+        if (
+            !dryModeEnabled
+            || !isDryModeCounterReady
+            || dryModeRemainingSeconds > 0
+            || isSubmittingDryMode
+            || isAutoStoppingDryModeRef.current
+            || !deviceIdentifier
+        ) {
+            return;
+        }
+
+        isAutoStoppingDryModeRef.current = true;
+        setIsSubmittingDryMode(true);
+        setDryModeEnabled(false);
+
+        postDryModeState(false)
+            .catch((error) => {
+                console.error('乾燥防霉倒數結束自動關閉失敗:', error);
+            })
+            .finally(() => {
+                isAutoStoppingDryModeRef.current = false;
+                setIsSubmittingDryMode(false);
+            });
+    }, [deviceIdentifier, dryModeEnabled, dryModeRemainingSeconds]);
 
     useEffect(() => { isSubmittingPidRef.current = isSubmittingPid; }, [isSubmittingPid]);
     useEffect(() => { isSubmittingValvePidRef.current = isSubmittingValvePid; }, [isSubmittingValvePid]);
@@ -1197,6 +1334,45 @@ export function IndustrialControl({ device, onBack }) {
         return () => clearInterval(intervalId);
     }, [deviceIdentifier, t, connectionStatus]);
 
+    const handleToggleDryMode = async (enabled) => {
+        if (!deviceIdentifier || isSubmittingDryMode) {
+            return;
+        }
+
+        const previousValue = dryModeEnabled;
+        const previousRemainingSeconds = dryModeRemainingSeconds;
+        const previousCounterReady = isDryModeCounterReady;
+        const previousEndTime = dryModeEndTimeRef.current;
+        const previousSyncResumeAt = dryModeInputSyncResumeAtRef.current;
+
+        setDryModeEnabled(enabled);
+        setIsSubmittingDryMode(true);
+        dryModeInputSyncResumeAtRef.current = enabled
+            ? Date.now() + DRY_MODE_INPUT_SYNC_DELAY_MS
+            : 0;
+
+        if (enabled) {
+            setIsDryModeCounterReady(false);
+        } else {
+            dryModeEndTimeRef.current = null;
+            setDryModeRemainingSeconds(0);
+            setIsDryModeCounterReady(false);
+        }
+
+        try {
+            await postDryModeState(enabled);
+        } catch (error) {
+            console.error('乾燥防霉開關設定失敗:', error);
+            setDryModeEnabled(previousValue);
+            dryModeEndTimeRef.current = previousEndTime;
+            dryModeInputSyncResumeAtRef.current = previousSyncResumeAt;
+            setDryModeRemainingSeconds(previousRemainingSeconds);
+            setIsDryModeCounterReady(previousCounterReady);
+        } finally {
+            setIsSubmittingDryMode(false);
+        }
+    };
+
     const fetchFanHoldingData = () => {
         if (!deviceIdentifier) {
             setFans([]);
@@ -1261,13 +1437,13 @@ export function IndustrialControl({ device, onBack }) {
                     setCirculatingPumpSv(String(toDisplay(data?.circulating_pump_sv, MAX_FREQ_60) || ''));
                 }
                 if (!preserveOutletValveOpeningRef.current && !isEditingOutletValveOpeningRef.current && !isSubmittingOutletValveOpeningRef.current && !modifiedValvePidFieldsRef.current.opening) {
-                    setOutletValveOpening(String(toDisplay(data?.outlet_electric_valve_opening_sv, MAX_VALVE_100) || ''));
+                    setOutletValveOpening(String(fromOpeningRatio(data?.outlet_electric_valve_opening_sv, MAX_VALVE_100) || ''));
                 }
                 if (!preserveReturnValveOpeningRef.current && !isEditingReturnValveOpeningRef.current) {
-                    setReturnValveOpening(String(toDisplay(data?.return_electric_valve_opening_sv, MAX_VALVE_100) || ''));
+                    setReturnValveOpening(String(fromOpeningRatio(data?.return_electric_valve_opening_sv, MAX_VALVE_100) || ''));
                 }
                 if (!isEditingPressureTargetRef.current && !isSubmittingPressureTargetRef.current) {
-                    setPressureTarget(convertDifferentialPressureSvApiValueToInput(data?.target_pressure_diff_sv));
+                    setPressureTarget(String(fromDifferentialPressureApiValue(data?.target_pressure_diff_sv) || ''));
                 }
                 if (!isEditingPidValuesRef.current && !isSubmittingPidRef.current && !Object.values(modifiedPidFieldsRef.current).some(Boolean)) {
                     setPidValues({
@@ -2066,20 +2242,22 @@ export function IndustrialControl({ device, onBack }) {
         }
 
         const nextValue = clampPressureTargetValue(pressureTarget);
-        const convertedPressureTarget = convertDifferentialPressureSvInput(nextValue);
         setPressureError('');
 
         setIsSubmittingPressureTarget(true);
         isSubmittingPressureTargetRef.current = true;
 
+        const convertedValue = toDifferentialPressureApiValue(nextValue);
         const payload = {
-            value: convertedPressureTarget,
+            value: convertedValue,
         };
         const requestUrl = `/api/modbus/control/${encodeURIComponent(deviceIdentifier)}/key/${encodeURIComponent('target_pressure_diff_sv')}`;
+        console.log('[Pressure Target] conversion detail:', {
+            rawInput: pressureTarget,
+            clampedValue: nextValue,
+            apiValue: convertedValue,
+        });
         console.log('[Pressure Target] request url:', requestUrl);
-        console.log('[Pressure Target] formula: converted = ((input + 1250) / 2500) * 10000');
-        console.log('[Pressure Target] input value:', nextValue);
-        console.log('[Pressure Target] converted value:', convertedPressureTarget);
         console.log('[Pressure Target] request body:', payload);
 
         try {
@@ -2268,14 +2446,30 @@ export function IndustrialControl({ device, onBack }) {
                         </div>
                     </div>
                 </div>
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                        <span className="whitespace-nowrap text-sm font-medium text-slate-700">{t('industrial.dryMoldPrevention')}</span>
+                        <Toggle checked={dryModeEnabled} onChange={handleToggleDryMode} disabled={isSubmittingDryMode} />
+                        {dryModeEnabled && (
+                            <div className="flex min-w-[88px] flex-col rounded-lg bg-slate-50 px-3 py-1 text-center">
+                                <span className="text-[11px] font-medium text-slate-500">{t('industrial.countdown')}</span>
+                                <span className="text-sm font-semibold tabular-nums text-slate-700">{formattedDryModeCountdown}</span>
+                            </div>
+                        )}
+                    </div>
                 <button
                     onClick={() => setIsModalOpen(true)}
                     className="flex items-center justify-center rounded-xl h-10 w-10 bg-blue-600 text-white shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all"
                 >
                     <Settings size={20} />
                 </button>
+                </div>
             </header>
 
+            <fieldset
+                disabled={dryModeEnabled}
+                className="contents [&_input:disabled]:bg-slate-100 [&_input:disabled]:text-slate-500 [&_input:disabled]:border-slate-200 [&_input:disabled]:cursor-not-allowed"
+            >
             <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
                 {telemetry.map((item) => (
                     <TelemetryCard key={item.label} data={item} />
@@ -2613,6 +2807,7 @@ export function IndustrialControl({ device, onBack }) {
                 onClose={() => setIsModalOpen(false)}
                 device={device}
             />
+            </fieldset>
         </div>
     );
 }

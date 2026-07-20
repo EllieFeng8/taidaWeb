@@ -126,6 +126,7 @@ const translations = {
     'dashboard.deviceCard.powerSection.flowRate': '水流量',
     'dashboard.noMatchingDevices': '目前沒有符合條件的設備。',
 
+
     // Group Settings
     'groups.title': '群組設定',
     'groups.createNew': '建立新群組',
@@ -360,6 +361,10 @@ const translations = {
     'industrial.status.warningShort': '警告',
     'industrial.status.optimalShort': '最佳',
     'industrial.error.fetchSensor': '設備感測資料獲取失敗:',
+    'industrial.dryMoldPrevention': '乾燥防霉',
+    'industrial.countdown': '倒數計時',
+
+
 
     // Group Control
     'groupControl.title': '群組控制',
@@ -782,6 +787,8 @@ const translations = {
     'industrial.status.warningShort': 'Warning',
     'industrial.status.optimalShort': 'Optimal',
     'industrial.error.fetchSensor': 'Failed to fetch device sensor data:',
+    'industrial.dryMoldPrevention': 'Drying and preventing mold',
+    'industrial.countdown': 'Countdown',
 
     // Group Control
     'groupControl.title': 'Group Control',
