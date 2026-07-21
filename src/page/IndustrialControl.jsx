@@ -472,7 +472,7 @@ const submitOnEnter = (event, onSubmit, disabled = false) => {
     }
 };
 
-const PIDInput = ({ label, pvValue, value, onChange, onFocus, onBlur, onSubmit, isModified, isSubmitting, error }) => (
+const PIDInput = ({ label, pvValue, value, onChange, onFocus, onBlur, onSubmit, isModified, isSubmitting, error, disabled = false }) => (
     <div className="space-y-1.5 space-x-1.5">
         <label className="text-[14px] font-bold text-slate-500 uppercase">{label}</label>
         <PVText value={toPidDisplay(pvValue)} />
@@ -488,6 +488,7 @@ const PIDInput = ({ label, pvValue, value, onChange, onFocus, onBlur, onSubmit, 
                 max="10.00"
                 type="number"
                 value={value}
+                disabled={disabled}
                 onChange={onChange}
                 onFocus={onFocus}
                 onBlur={onBlur}
@@ -518,6 +519,7 @@ const ValveControl = ({
                           correctionEnabled,
                           onCorrectionChange,
                           error,
+                          controlsDisabled = false,
                       }) => {
     const {t} = useLanguage();
 
@@ -528,7 +530,7 @@ const ValveControl = ({
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-3">
                         <span className="text-xs font-bold text-slate-500 uppercase">{t('industrial.pidEnabled')}</span>
-                        <Toggle checked={pidMonitoringEnabled} onChange={onPidMonitoringChange} />
+                        <Toggle checked={pidMonitoringEnabled} onChange={onPidMonitoringChange} disabled={controlsDisabled} />
                     </div>
                     {/*<div className="flex items-center gap-3">*/}
                     {/*    <span className="text-xs font-bold text-slate-500 uppercase">*/}
@@ -551,6 +553,7 @@ const ValveControl = ({
                             }`}
                             type="number"
                             value={percentage}
+                            disabled={controlsDisabled}
                             onChange={(event) => onPercentageChange?.(event.target.value)}
                             onFocus={onPercentageFocus}
                             onBlur={onPercentageBlur}
@@ -571,8 +574,9 @@ const ValveControl = ({
                         onBlur={() => onPidBlur?.('p')}
                         onSubmit={onSubmit}
                         isModified={modifiedPidFields?.p}
-                        isSubmitting={isSubmitting}
+                        isSubmitting={isSubmitting || controlsDisabled}
                         error={error}
+                        disabled={controlsDisabled}
                     />
                     <PIDInput
                         label="I:"
@@ -583,8 +587,9 @@ const ValveControl = ({
                         onBlur={() => onPidBlur?.('i')}
                         onSubmit={onSubmit}
                         isModified={modifiedPidFields?.i}
-                        isSubmitting={isSubmitting}
+                        isSubmitting={isSubmitting || controlsDisabled}
                         error={error}
+                        disabled={controlsDisabled}
                     />
                     <PIDInput
                         label="D:"
@@ -595,14 +600,15 @@ const ValveControl = ({
                         onBlur={() => onPidBlur?.('d')}
                         onSubmit={onSubmit}
                         isModified={modifiedPidFields?.d}
-                        isSubmitting={isSubmitting}
+                        isSubmitting={isSubmitting || controlsDisabled}
                         error={error}
+                        disabled={controlsDisabled}
                     />
                 </div>
                 <button
                     type="button"
                     onClick={onSubmit}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || controlsDisabled}
                     className="w-full py-2 border border-primary text-primary font-bold rounded-lg bg-white hover:bg-primary hover:text-white hover:shadow-lg hover:shadow-primary/20 transition-all text-xs mt-auto disabled:opacity-50"
                 >
                     {t('common.confirm')}
@@ -622,6 +628,7 @@ const ReturnValveControl = ({
                                 onSubmit,
                                 isSubmitting,
                                 error,
+                                controlsDisabled = false,
                             }) => {
     const { t } = useLanguage();
 
@@ -642,6 +649,7 @@ const ReturnValveControl = ({
                                 }`}
                                 type="number"
                                 value={openingRatio}
+                                disabled={controlsDisabled}
                                 onChange={(event) => onOpeningRatioChange?.(event.target.value)}
                                 onFocus={onOpeningRatioFocus}
                                 onBlur={onOpeningRatioBlur}
@@ -657,7 +665,7 @@ const ReturnValveControl = ({
                 <button
                     type="button"
                     onClick={onSubmit}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || controlsDisabled}
                     className="w-full py-2 border border-primary text-primary font-bold rounded-lg bg-white hover:bg-primary hover:text-white hover:shadow-lg hover:shadow-primary/20 transition-all text-xs mt-auto disabled:opacity-50"
                 >
                     {t('common.confirm')}
@@ -678,6 +686,7 @@ const MotorControl = ({
                           onSubmit,
                           isSubmitting,
                           error,
+                          controlsDisabled = false,
                       }) => {
     const { t } = useLanguage();
     const [enabled, setEnabled] = useState(false);
@@ -831,12 +840,12 @@ const MotorControl = ({
                         <button
                             type="button"
                             onClick={handleAbnormalReset}
-                            disabled={isSubmittingAbnormalReset}
+                            disabled={isSubmittingAbnormalReset || controlsDisabled}
                             className="px-3 py-1 bg-red-50 border border-red-100 rounded-lg text-[10px] font-bold text-red-600 hover:bg-red-100 transition-all shadow-sm disabled:opacity-50"
                         >
                             {t('industrial.reset')}
                         </button>
-                        <ToggleEmer checked={enabled} onChange={handleTogglePumpStart} disabled={isSubmittingPumpStart} />
+                        <ToggleEmer checked={enabled} onChange={handleTogglePumpStart} disabled={isSubmittingPumpStart || controlsDisabled} />
                     </div>
                 </div>
             </div>
@@ -853,6 +862,7 @@ const MotorControl = ({
                                     }`}
                                     type="number"
                                     value={targetFrequency ?? ''}
+                                    disabled={controlsDisabled}
                                     onChange={(event) => onTargetFrequencyChange?.(event.target.value)}
                                     onFocus={onTargetFrequencyFocus}
                                     onBlur={onTargetFrequencyBlur}
@@ -866,8 +876,7 @@ const MotorControl = ({
                             <button
                                 type="button"
                                 onClick={onSubmit}
-                                // disabled={!enabled || isSubmitting}
-                                disabled={isSubmitting}
+                                disabled={isSubmitting || controlsDisabled}
                                 className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold border border-primary/20 hover:bg-primary hover:text-white transition-all disabled:opacity-50"
                             >
                                 {t('common.confirm')}
@@ -2472,10 +2481,6 @@ export function IndustrialControl({ device, onBack }) {
                 </div>
             </header>
 
-            <fieldset
-                disabled={dryModeEnabled}
-                className="contents [&_input:disabled]:bg-slate-100 [&_input:disabled]:text-slate-500 [&_input:disabled]:border-slate-200 [&_input:disabled]:cursor-not-allowed"
-            >
             <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
                 {telemetry.map((item) => (
                     <TelemetryCard key={item.label} data={item} />
@@ -2500,6 +2505,7 @@ export function IndustrialControl({ device, onBack }) {
                                     }`}
                                     type="number"
                                     value={outletTargetTempSv}
+                                    disabled={dryModeEnabled}
                                     onFocus={() => {
                                         isEditingOutletTargetTempRef.current = true;
                                     }}
@@ -2522,7 +2528,7 @@ export function IndustrialControl({ device, onBack }) {
                         <button
                             type="button"
                             onClick={handleSubmitOutletTargetTemp}
-                            disabled={isSubmittingOutletTargetTemp}
+                            disabled={isSubmittingOutletTargetTemp || dryModeEnabled}
                             className="w-full px-2 py-1 bg-primary text-white text-[12px] font-bold rounded disabled:opacity-50"
                         >
                             {t('common.confirm')}
@@ -2559,6 +2565,7 @@ export function IndustrialControl({ device, onBack }) {
                     correctionEnabled={outletCorrectionEnabled}
                     onCorrectionChange={(enabled) => handleUpdatePidSwitch('pid2_direction', enabled)}
                     error={valvePidError}
+                    controlsDisabled={dryModeEnabled}
                 />
                 <ReturnValveControl
                     sensorValues={sensorValues}
@@ -2580,6 +2587,7 @@ export function IndustrialControl({ device, onBack }) {
                     onSubmit={handleSubmitReturnValveOpening}
                     isSubmitting={isSubmittingReturnValveOpening}
                     error={returnValveError}
+                    controlsDisabled={dryModeEnabled}
                 />
                 <MotorControl
                     deviceIdentifier={deviceIdentifier}
@@ -2600,6 +2608,7 @@ export function IndustrialControl({ device, onBack }) {
                     onSubmit={handleSubmitPumpFrequency}
                     isSubmitting={isSubmittingPumpFrequency}
                     error={pumpError}
+                    controlsDisabled={dryModeEnabled}
                 />
             </section>
 
@@ -2609,7 +2618,7 @@ export function IndustrialControl({ device, onBack }) {
                         <h2 className="text-[20px] font-bold flex items-center gap-2">{t('industrial.fanControl')}</h2>
                         <div className="flex items-center gap-3">
                             <span className="text-xs font-bold text-slate-500 uppercase">{t('industrial.pidStartMonitoring')}</span>
-                            <Toggle checked={pidMonitoringEnabled} onChange={(enabled) => handleUpdatePidSwitch('pid1_switch', enabled)} />
+                            <Toggle checked={pidMonitoringEnabled} onChange={(enabled) => handleUpdatePidSwitch('pid1_switch', enabled)} disabled={dryModeEnabled} />
                         </div>
                         {/*<div className="flex items-center gap-3">*/}
                         {/*    <span className="text-xs font-bold text-slate-500 uppercase">*/}
@@ -2634,7 +2643,7 @@ export function IndustrialControl({ device, onBack }) {
                     <div className="space-y-4 items-center gap-2">
                         <div className="flex space-x-4">
                             <h3 className="uppercase tracking-wider font-bold text-slate-400">{t('industrial.oneClickEnableAll')}</h3>
-                            <Toggle checked={allFansEnabled} onChange={handleToggleAllFans} disabled={isEmergencyEnabled} />
+                            <Toggle checked={allFansEnabled} onChange={handleToggleAllFans} disabled={isEmergencyEnabled || dryModeEnabled} />
                             {/*<PVText value={sensorValues.rpm} />*/}
                         </div>
                         <div className="flex items-center gap-4">
@@ -2643,7 +2652,7 @@ export function IndustrialControl({ device, onBack }) {
                                     <input
                                         type="number"
                                         value={allFansRpmTarget ?? ''}
-                                        disabled={isEmergencyEnabled}
+                                        disabled={isEmergencyEnabled || dryModeEnabled}
                                         onChange={(event) => {
                                             isEditingAllFansRpmTargetRef.current = true;
                                             isModifiedAllFansRpmTargetRef.current = true;
@@ -2666,7 +2675,7 @@ export function IndustrialControl({ device, onBack }) {
                                     <button
                                         type="button"
                                         onClick={handleSubmitAllFansSv}
-                                        disabled={isSubmittingAllFans || isEmergencyEnabled}
+                                        disabled={isSubmittingAllFans || isEmergencyEnabled || dryModeEnabled}
                                         className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold border border-primary/20 hover:bg-primary hover:text-white transition-all disabled:opacity-50"
                                     >
                                         {t('common.confirm')}
@@ -2692,6 +2701,7 @@ export function IndustrialControl({ device, onBack }) {
                                         type="number"
                                         step="0.01"
                                         value={pressureTarget}
+                                        disabled={dryModeEnabled}
                                         onChange={(event) => {
                                             isEditingPressureTargetRef.current = true;
                                             setPressureTarget(normalizePressureTargetInputValue(event.target.value));
@@ -2715,7 +2725,7 @@ export function IndustrialControl({ device, onBack }) {
                                 <button
                                     type="button"
                                     onClick={handleSubmitPressureTarget}
-                                    disabled={isSubmittingPressureTarget}
+                                    disabled={isSubmittingPressureTarget || dryModeEnabled}
                                     className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold border border-primary/20 hover:bg-primary hover:text-white transition-all disabled:opacity-50"
                                 >
                                     {t('common.confirm')}
@@ -2748,6 +2758,7 @@ export function IndustrialControl({ device, onBack }) {
                                             <input
                                                 type="number"
                                                 value={pidValues[item.key]}
+                                                disabled={dryModeEnabled}
                                                 onFocus={() => {
                                                     isEditingPidValuesRef.current = true;
                                                 }}
@@ -2777,7 +2788,7 @@ export function IndustrialControl({ device, onBack }) {
                             <button
                                 type="button"
                                 onClick={handleSubmitPidValues}
-                                disabled={isSubmittingPid}
+                                disabled={isSubmittingPid || dryModeEnabled}
                                 className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold border border-primary/20 hover:bg-primary hover:text-white transition-all disabled:opacity-50"
                             >
                                 {t('common.confirm')}
@@ -2802,7 +2813,7 @@ export function IndustrialControl({ device, onBack }) {
                             onToggle={handleToggleFan}
                             isSubmitting={submittingFanId === fan.id}
                             error={fanErrors[fan.id]}
-                            svLocked={isEmergencyEnabled}
+                            svLocked={isEmergencyEnabled || dryModeEnabled}
                         />
                     ))}
                 </motion.div>
@@ -2813,7 +2824,6 @@ export function IndustrialControl({ device, onBack }) {
                 onClose={() => setIsModalOpen(false)}
                 device={device}
             />
-            </fieldset>
         </div>
     );
 }
