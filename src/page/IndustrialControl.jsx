@@ -2338,6 +2338,11 @@ export function IndustrialControl({ device, onBack }) {
 
         const nextValue = enabled ? 1 : 0;
         const previousValue = isEmergencyEnabled;
+        const previousDryModeEnabled = dryModeEnabled;
+        const previousDryModeRemainingSeconds = dryModeRemainingSeconds;
+        const previousDryModeCounterReady = isDryModeCounterReady;
+        const previousDryModeEndTime = dryModeEndTimeRef.current;
+        const previousDryModeSyncResumeAt = dryModeInputSyncResumeAtRef.current;
         const previousFans = fans;
         const previousAllFansRpmTarget = allFansRpmTarget;
         const nextFans = enabled
@@ -2365,6 +2370,13 @@ export function IndustrialControl({ device, onBack }) {
             setFans(nextFans);
             setAllFansRpmTarget('0');
             isModifiedAllFansRpmTargetRef.current = false;
+            if (dryModeEnabled) {
+                setDryModeEnabled(false);
+                setDryModeRemainingSeconds(0);
+                setIsDryModeCounterReady(false);
+                dryModeEndTimeRef.current = null;
+                dryModeInputSyncResumeAtRef.current = 0;
+            }
         }
 
         try {
@@ -2391,11 +2403,20 @@ export function IndustrialControl({ device, onBack }) {
                 throw new Error(`HTTP ${response.status}`);
             }
 
+            if (enabled && previousDryModeEnabled) {
+                await postDryModeState(false);
+            }
+
             fetchFanHoldingData();
         } catch (error) {
             console.error('緊急開關設定失敗:', error);
             emergencyOverrideRef.current = null;
             setIsEmergencyEnabled(previousValue);
+            setDryModeEnabled(previousDryModeEnabled);
+            setDryModeRemainingSeconds(previousDryModeRemainingSeconds);
+            setIsDryModeCounterReady(previousDryModeCounterReady);
+            dryModeEndTimeRef.current = previousDryModeEndTime;
+            dryModeInputSyncResumeAtRef.current = previousDryModeSyncResumeAt;
             setFans(previousFans);
             setAllFansRpmTarget(previousAllFansRpmTarget);
         } finally {
@@ -2600,6 +2621,7 @@ export function IndustrialControl({ device, onBack }) {
                     error={pumpError}
                 />
             </section>
+            </fieldset>
 
             <section className="space-y-6">
                 <div className="flex items-center justify-between">
@@ -2628,6 +2650,10 @@ export function IndustrialControl({ device, onBack }) {
                     </div>
                 </div>
 
+                <fieldset
+                    disabled={dryModeEnabled}
+                    className="contents [&_input:disabled]:bg-slate-100 [&_input:disabled]:text-slate-500 [&_input:disabled]:border-slate-200 [&_input:disabled]:cursor-not-allowed"
+                >
                 <div className="bg-slate-50/50 p-6 rounded-xl border border-slate-200 mb-8 grid grid-cols-1 xl:grid-cols-3 gap-8">
                     <div className="space-y-4 items-center gap-2">
                         <div className="flex space-x-4">
@@ -2804,6 +2830,7 @@ export function IndustrialControl({ device, onBack }) {
                         />
                     ))}
                 </motion.div>
+                </fieldset>
             </section>
 
             <ConnectSetting
@@ -2811,7 +2838,6 @@ export function IndustrialControl({ device, onBack }) {
                 onClose={() => setIsModalOpen(false)}
                 device={device}
             />
-            </fieldset>
         </div>
     );
 }
