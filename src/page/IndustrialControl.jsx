@@ -1335,7 +1335,7 @@ export function IndustrialControl({ device, onBack }) {
     }, [deviceIdentifier, t, connectionStatus]);
 
     const handleToggleDryMode = async (enabled) => {
-        if (!deviceIdentifier || isSubmittingDryMode) {
+        if (!deviceIdentifier || isSubmittingDryMode || isEmergencyEnabled) {
             return;
         }
 
@@ -2449,7 +2449,11 @@ export function IndustrialControl({ device, onBack }) {
                 <div className="flex items-center gap-3">
                     <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
                         <span className="whitespace-nowrap text-sm font-medium text-slate-700">{t('industrial.dryMoldPrevention')}</span>
-                        <Toggle checked={dryModeEnabled} onChange={handleToggleDryMode} disabled={isSubmittingDryMode} />
+                        <Toggle
+                            checked={dryModeEnabled}
+                            onChange={handleToggleDryMode}
+                            disabled={isSubmittingDryMode || isEmergencyEnabled}
+                        />
                         {dryModeEnabled && (
                             <div className="flex min-w-[88px] flex-col rounded-lg bg-slate-50 px-3 py-1 text-center">
                                 <span className="text-[11px] font-medium text-slate-500">{t('industrial.countdown')}</span>
