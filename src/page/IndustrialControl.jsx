@@ -2443,7 +2443,18 @@ export function IndustrialControl({ device, onBack }) {
                 <div className="flex items-center gap-3">
                     <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
                         <span className="whitespace-nowrap text-sm font-medium text-slate-700">{t('industrial.dryMoldPrevention')}</span>
-                        <Toggle checked={dryModeEnabled} onChange={handleToggleDryMode} disabled={isSubmittingDryMode || isEmergencyEnabled} />
+                        <span className="group relative inline-flex items-center">
+                            <Toggle checked={dryModeEnabled} onChange={handleToggleDryMode} disabled={isSubmittingDryMode || isEmergencyEnabled} />
+                            {isEmergencyEnabled && (
+                                <span
+                                    role="tooltip"
+                                    className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-max max-w-[220px] -translate-x-1/2 rounded-lg bg-slate-800 px-3 py-2 text-center text-[11px] font-medium leading-snug text-white shadow-lg group-hover:block"
+                                >
+                                    <span className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-slate-800"></span>
+                                    {t('industrial.dryModeDisabledHint')}
+                                </span>
+                            )}
+                        </span>
                         {dryModeEnabled && (
                             <div className="flex min-w-[88px] flex-col rounded-lg bg-slate-50 px-3 py-1 text-center">
                                 <span className="text-[11px] font-medium text-slate-500">{t('industrial.countdown')}</span>
