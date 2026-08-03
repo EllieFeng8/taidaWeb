@@ -993,6 +993,7 @@ export function IndustrialControl({ device, onBack }) {
     const [dryModeEnabled, setDryModeEnabled] = useState(false);
     const [isSubmittingDryMode, setIsSubmittingDryMode] = useState(false);
     const [dryModeRemainingSeconds, setDryModeRemainingSeconds] = useState(0);
+    const [isDryModeCounterReady, setIsDryModeCounterReady] = useState(false);
     const [allFansEnabled, setAllFansEnabled] = useState(false);
     const [outletPidMonitoringEnabled, setOutletPidMonitoringEnabled] = useState(false);
     const [outletCorrectionEnabled, setOutletCorrectionEnabled] = useState(false);
@@ -1065,7 +1066,7 @@ export function IndustrialControl({ device, onBack }) {
 
     const deviceIdentifier = device?.name ?? device?.deviceName ?? device?.id ?? device?.deviceId;
     const sensorValues = mapSensorValues(sensorData);
-    const formattedDryModeCountdown = formatCountdown(dryModeRemainingSeconds);
+    const formattedDryModeCountdown = isDryModeCounterReady ? formatCountdown(dryModeRemainingSeconds) : '--:--';
 
     const parseDryModeCoilValue = (payload) => {
         if (typeof payload === 'boolean') {
@@ -1077,7 +1078,7 @@ export function IndustrialControl({ device, onBack }) {
         }
 
         if (payload && typeof payload === 'object') {
-            const rawValue = payload.value ?? payload.state ?? payload.enabled ?? payload.coil17 ?? payload.c17;
+            const rawValue = payload.dry_function ?? payload.dryFunction ?? payload.value ?? payload.state ?? payload.enabled ?? payload.coil17 ?? payload.c17;
             if (typeof rawValue === 'boolean') {
                 return rawValue;
             }
@@ -1095,7 +1096,7 @@ export function IndustrialControl({ device, onBack }) {
         if (!deviceIdentifier) return null;
 
         try {
-            const response = await fetch(`/api/modbus/coil/${encodeURIComponent(deviceIdentifier)}/${DRY_MODE_COIL_ADDRESS}`, {
+            const response = await fetch(`/api/modbus/coils/${encodeURIComponent(deviceIdentifier)}`, {
                 method: 'GET',
             });
 
@@ -1154,12 +1155,14 @@ export function IndustrialControl({ device, onBack }) {
         isAutoStoppingDryModeRef.current = false;
         setDryModeEnabled(false);
         setDryModeRemainingSeconds(0);
+        setIsDryModeCounterReady(false);
     }, [deviceIdentifier]);
 
     useEffect(() => {
         if (!deviceIdentifier) {
             setDryModeEnabled(false);
             setDryModeRemainingSeconds(0);
+            setIsDryModeCounterReady(false);
             return undefined;
         }
 
@@ -1170,6 +1173,22 @@ export function IndustrialControl({ device, onBack }) {
 
             const nextDryModeEnabled = await fetchDryModeState();
             if (cancelled || nextDryModeEnabled === null) return;
+
+            if (nextDryModeEnabled) {
+                const data = await fetchInputRegisters();
+                if (cancelled) return;
+
+                const counter = Number(data?.dry_counter ?? data?.dryCounter ?? NaN);
+                if (Number.isFinite(counter)) {
+                    setDryModeRemainingSeconds(Math.max(0, Math.floor(counter)));
+                    setIsDryModeCounterReady(true);
+                } else {
+                    setIsDryModeCounterReady(false);
+                }
+            } else {
+                setDryModeRemainingSeconds(0);
+                setIsDryModeCounterReady(false);
+            }
 
             setDryModeEnabled((currentValue) => {
                 if (currentValue !== nextDryModeEnabled) {
@@ -1204,6 +1223,7 @@ export function IndustrialControl({ device, onBack }) {
     useEffect(() => {
         if (!dryModeEnabled) {
             setDryModeRemainingSeconds(0);
+            setIsDryModeCounterReady(false);
             return undefined;
         }
 
@@ -1217,6 +1237,7 @@ export function IndustrialControl({ device, onBack }) {
             const counter = Number(data?.dry_counter ?? data?.dryCounter ?? NaN);
             if (Number.isFinite(counter)) {
                 setDryModeRemainingSeconds(Math.max(0, Math.floor(counter)));
+                setIsDryModeCounterReady(true);
             }
         };
 
@@ -1232,6 +1253,7 @@ export function IndustrialControl({ device, onBack }) {
     useEffect(() => {
         if (
             !dryModeEnabled
+            || !isDryModeCounterReady
             || dryModeRemainingSeconds > 0
             || isSubmittingDryMode
             || isAutoStoppingDryModeRef.current
@@ -1255,7 +1277,7 @@ export function IndustrialControl({ device, onBack }) {
                 setIsSubmittingDryMode(false);
                 isSubmittingDryModeRef.current = false;
             });
-    }, [deviceIdentifier, dryModeEnabled, dryModeRemainingSeconds]);
+    }, [deviceIdentifier, dryModeEnabled, dryModeRemainingSeconds, isDryModeCounterReady]);
 
     useEffect(() => { isSubmittingPidRef.current = isSubmittingPid; }, [isSubmittingPid]);
     useEffect(() => { isSubmittingValvePidRef.current = isSubmittingValvePid; }, [isSubmittingValvePid]);
@@ -1439,6 +1461,7 @@ export function IndustrialControl({ device, onBack }) {
 
         const previousValue = dryModeEnabled;
         const previousRemainingSeconds = dryModeRemainingSeconds;
+        const previousCounterReady = isDryModeCounterReady;
         const previousSyncResumeAt = dryModeInputSyncResumeAtRef.current;
 
         setDryModeEnabled(enabled);
@@ -1450,8 +1473,10 @@ export function IndustrialControl({ device, onBack }) {
 
         if (enabled) {
             setDryModeRemainingSeconds(0);
+            setIsDryModeCounterReady(false);
         } else {
             setDryModeRemainingSeconds(0);
+            setIsDryModeCounterReady(false);
         }
 
         try {
@@ -1461,6 +1486,7 @@ export function IndustrialControl({ device, onBack }) {
             setDryModeEnabled(previousValue);
             dryModeInputSyncResumeAtRef.current = previousSyncResumeAt;
             setDryModeRemainingSeconds(previousRemainingSeconds);
+            setIsDryModeCounterReady(previousCounterReady);
         } finally {
             setIsSubmittingDryMode(false);
             isSubmittingDryModeRef.current = false;
