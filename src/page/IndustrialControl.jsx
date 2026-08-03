@@ -1091,6 +1091,34 @@ export function IndustrialControl({ device, onBack }) {
     };
 
     useEffect(() => {
+        if (!deviceIdentifier || !connectionStatus) return;
+
+        let cancelled = false;
+
+        const syncDryModeState = async () => {
+            const data = await fetchInputRegisters();
+            if (cancelled || !data) return;
+
+            const counter = Number(data?.dry_counter ?? data?.dryCounter ?? NaN);
+            if (!Number.isFinite(counter)) return;
+
+            const remainingSeconds = Math.max(0, Math.floor(counter));
+            setDryModeEnabled(remainingSeconds > 0);
+            setDryModeRemainingSeconds(remainingSeconds);
+            setIsDryModeCounterReady(remainingSeconds > 0);
+            dryModeEndTimeRef.current = remainingSeconds > 0
+                ? Date.now() + remainingSeconds * 1000
+                : null;
+        };
+
+        syncDryModeState();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [deviceIdentifier, connectionStatus]);
+
+    useEffect(() => {
         preserveOutletValveOpeningRef.current = false;
         preserveReturnValveOpeningRef.current = false;
         isModifiedAllFansRpmTargetRef.current = false;
