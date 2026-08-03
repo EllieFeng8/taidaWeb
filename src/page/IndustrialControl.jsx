@@ -27,6 +27,7 @@ const DIFF_PRESSURE_API_MIN = 0;
 const DIFF_PRESSURE_API_MAX = 10000;
 const FAN_MAX_RPM_3570 = 3570;
 const DRY_MODE_INPUT_SYNC_DELAY_MS = 3000;
+const DRY_MODE_COIL_ADDRESS = 17;
 
 const toDisplay = (modbusValue, maxRange) => {
     if (modbusValue === undefined || modbusValue === null || Number.isNaN(Number(modbusValue))) {
@@ -1060,12 +1061,59 @@ export function IndustrialControl({ device, onBack }) {
     const editingFanIdsRef = useRef(new Set());
     const dryModeInputSyncResumeAtRef = useRef(0);
     const isAutoStoppingDryModeRef = useRef(false);
+    const isSubmittingDryModeRef = useRef(false);
 
     const deviceIdentifier = device?.name ?? device?.deviceName ?? device?.id ?? device?.deviceId;
     const sensorValues = mapSensorValues(sensorData);
     const formattedDryModeCountdown = formatCountdown(dryModeRemainingSeconds);
+
+    const parseDryModeCoilValue = (payload) => {
+        if (typeof payload === 'boolean') {
+            return payload;
+        }
+
+        if (typeof payload === 'number') {
+            return payload === 1;
+        }
+
+        if (payload && typeof payload === 'object') {
+            const rawValue = payload.value ?? payload.state ?? payload.enabled ?? payload.coil17 ?? payload.c17;
+            if (typeof rawValue === 'boolean') {
+                return rawValue;
+            }
+
+            const numericValue = Number(rawValue);
+            if (Number.isFinite(numericValue)) {
+                return numericValue === 1;
+            }
+        }
+
+        return null;
+    };
+
+    const fetchDryModeState = async () => {
+        if (!deviceIdentifier) return null;
+
+        try {
+            const response = await fetch(`/api/modbus/coil/${encodeURIComponent(deviceIdentifier)}/${DRY_MODE_COIL_ADDRESS}`, {
+                method: 'GET',
+            });
+
+            if (!response.ok) {
+                console.error('Failed to fetch dry mode state:', response.status);
+                return null;
+            }
+
+            const data = await response.json();
+            return parseDryModeCoilValue(data);
+        } catch (err) {
+            console.error('Error fetching dry mode state:', err);
+            return null;
+        }
+    };
+
     const postDryModeState = async (enabled) => {
-        const response = await fetch(`/api/modbus/coil/${encodeURIComponent(deviceIdentifier)}/17`, {
+        const response = await fetch(`/api/modbus/coil/${encodeURIComponent(deviceIdentifier)}/${DRY_MODE_COIL_ADDRESS}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1109,6 +1157,51 @@ export function IndustrialControl({ device, onBack }) {
     }, [deviceIdentifier]);
 
     useEffect(() => {
+        if (!deviceIdentifier) {
+            setDryModeEnabled(false);
+            setDryModeRemainingSeconds(0);
+            return undefined;
+        }
+
+        let cancelled = false;
+
+        const syncDryModeState = async () => {
+            if (!connectionStatus || isSubmittingDryModeRef.current) return;
+
+            const nextDryModeEnabled = await fetchDryModeState();
+            if (cancelled || nextDryModeEnabled === null) return;
+
+            setDryModeEnabled((currentValue) => {
+                if (currentValue !== nextDryModeEnabled) {
+                    dryModeInputSyncResumeAtRef.current = 0;
+                    if (!nextDryModeEnabled) {
+                        setDryModeRemainingSeconds(0);
+                    }
+                }
+
+                return nextDryModeEnabled;
+            });
+        };
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                syncDryModeState();
+            }
+        };
+
+        syncDryModeState();
+        const intervalId = setInterval(syncDryModeState, DEFAULT_POLLING_INTERVAL_MS);
+        window.addEventListener('focus', syncDryModeState);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            cancelled = true;
+            clearInterval(intervalId);
+            window.removeEventListener('focus', syncDryModeState);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [deviceIdentifier, connectionStatus]);
+
+    useEffect(() => {
         if (!dryModeEnabled) {
             setDryModeRemainingSeconds(0);
             return undefined;
@@ -1150,6 +1243,7 @@ export function IndustrialControl({ device, onBack }) {
 
         isAutoStoppingDryModeRef.current = true;
         setIsSubmittingDryMode(true);
+        isSubmittingDryModeRef.current = true;
         setDryModeEnabled(false);
 
         postDryModeState(false)
@@ -1159,6 +1253,7 @@ export function IndustrialControl({ device, onBack }) {
             .finally(() => {
                 isAutoStoppingDryModeRef.current = false;
                 setIsSubmittingDryMode(false);
+                isSubmittingDryModeRef.current = false;
             });
     }, [deviceIdentifier, dryModeEnabled, dryModeRemainingSeconds]);
 
@@ -1170,6 +1265,7 @@ export function IndustrialControl({ device, onBack }) {
     useEffect(() => { isSubmittingAllFansRef.current = isSubmittingAllFans; }, [isSubmittingAllFans]);
     useEffect(() => { isSubmittingPressureTargetRef.current = isSubmittingPressureTarget; }, [isSubmittingPressureTarget]);
     useEffect(() => { isSubmittingOutletTargetTempRef.current = isSubmittingOutletTargetTemp; }, [isSubmittingOutletTargetTemp]);
+    useEffect(() => { isSubmittingDryModeRef.current = isSubmittingDryMode; }, [isSubmittingDryMode]);
     useEffect(() => { submittingFanIdRef.current = submittingFanId; }, [submittingFanId]);
     useEffect(() => { modifiedPidFieldsRef.current = modifiedPidFields; }, [modifiedPidFields]);
     useEffect(() => { modifiedValvePidFieldsRef.current = modifiedValvePidFields; }, [modifiedValvePidFields]);
@@ -1347,6 +1443,7 @@ export function IndustrialControl({ device, onBack }) {
 
         setDryModeEnabled(enabled);
         setIsSubmittingDryMode(true);
+        isSubmittingDryModeRef.current = true;
         dryModeInputSyncResumeAtRef.current = enabled
             ? Date.now() + DRY_MODE_INPUT_SYNC_DELAY_MS
             : 0;
@@ -1366,6 +1463,7 @@ export function IndustrialControl({ device, onBack }) {
             setDryModeRemainingSeconds(previousRemainingSeconds);
         } finally {
             setIsSubmittingDryMode(false);
+            isSubmittingDryModeRef.current = false;
         }
     };
 
@@ -1475,10 +1573,25 @@ export function IndustrialControl({ device, onBack }) {
             return;
         }
 
-        fetchFanHoldingData();
-        const intervalId = setInterval(fetchFanHoldingData, DEFAULT_POLLING_INTERVAL_MS);
+        const refreshFanHoldingData = () => {
+            fetchFanHoldingData();
+        };
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                refreshFanHoldingData();
+            }
+        };
 
-        return () => clearInterval(intervalId);
+        refreshFanHoldingData();
+        const intervalId = setInterval(refreshFanHoldingData, DEFAULT_POLLING_INTERVAL_MS);
+        window.addEventListener('focus', refreshFanHoldingData);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            clearInterval(intervalId);
+            window.removeEventListener('focus', refreshFanHoldingData);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
     }, [deviceIdentifier, submittingFanId, t, connectionStatus]);
 
     const handleUpdatePidSwitch = async (key, enabled) => {

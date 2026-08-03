@@ -11,6 +11,7 @@ import { formatApiNumber } from '../utils/formatApiNumber';
 
 const API_HOST = '';
 const FALLBACK_VALUE = '--';
+const DEFAULT_POLLING_INTERVAL_MS = 1000;
 
 const SCALE_4096 = 4095;
 const SCALE_65535 = 10000;
@@ -231,10 +232,25 @@ export const GroupControl = ({ group, onBack }) => {
       }
     };
 
-    fetchGroupHoldingData();
+    const refreshGroupHoldingData = () => {
+      fetchGroupHoldingData();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshGroupHoldingData();
+      }
+    };
+
+    refreshGroupHoldingData();
+    const intervalId = setInterval(refreshGroupHoldingData, DEFAULT_POLLING_INTERVAL_MS);
+    window.addEventListener('focus', refreshGroupHoldingData);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       isActive = false;
+      clearInterval(intervalId);
+      window.removeEventListener('focus', refreshGroupHoldingData);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [group?.id]);
 
