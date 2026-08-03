@@ -361,7 +361,7 @@ const translations = {
     'industrial.status.warningShort': '警告',
     'industrial.status.optimalShort': '最佳',
     'industrial.error.fetchSensor': '設備感測資料獲取失敗:',
-    'industrial.dryMoldPrevention': '乾燥防霉',
+    'industrial.dryMoldPrevention': '關機乾燥防霉',
     'industrial.countdown': '倒數計時',
 
 
@@ -787,7 +787,7 @@ const translations = {
     'industrial.status.warningShort': 'Warning',
     'industrial.status.optimalShort': 'Optimal',
     'industrial.error.fetchSensor': 'Failed to fetch device sensor data:',
-    'industrial.dryMoldPrevention': 'Drying and preventing mold',
+    'industrial.dryMoldPrevention': 'Shutdown Drying and Mold Prevention',
     'industrial.countdown': 'Countdown',
 
     // Group Control
