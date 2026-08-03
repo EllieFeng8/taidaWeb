@@ -6,6 +6,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, Check, Settings } from 'lucide-react';
+import Swal from 'sweetalert2';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatApiNumber } from '../utils/formatApiNumber';
 
@@ -408,6 +409,11 @@ const buildPressureAutoFansFromHolding = (holdingPayload) => buildFansFromHoldin
         isActive: true,
         status: 'running',
     };
+});
+
+const hasFanPvBelowThreshold = (currentFans, thresholdPercent) => currentFans.some((fan) => {
+    const pvPercent = Number(fan.pvPercent);
+    return Number.isFinite(pvPercent) && pvPercent < thresholdPercent;
 });
 
 const formatCountdown = (seconds) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
@@ -2236,11 +2242,22 @@ export function IndustrialControl({ device, onBack }) {
             return;
         }
 
-        const nextValue = clampValveOpeningValue(outletValveOpening);
+        const shouldForceOutletValveClosed = hasFanPvBelowThreshold(fans, 35);
+        const nextValue = shouldForceOutletValveClosed ? 0 : clampValveOpeningValue(outletValveOpening);
         const pVal = clampPidValue(valvePidValues.p);
         const iVal = clampPidValue(valvePidValues.i);
         const dVal = clampPidValue(valvePidValues.d);
         setValvePidError('');
+
+        if (shouldForceOutletValveClosed) {
+            setOutletValveOpening('0');
+            await Swal.fire({
+                icon: 'warning',
+                title: '風扇 PV 過低',
+                text: '任一台風扇 PV 低於 35%，出水閥開度已自動改為 0%。',
+                confirmButtonText: t('common.confirm'),
+            });
+        }
 
         const currentValvePidValues = {
             p: String(pVal),
