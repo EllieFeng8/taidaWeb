@@ -1090,12 +1090,50 @@ export function IndustrialControl({ device, onBack }) {
         }
     };
 
+    const fetchDryModeCoilsState = async () => {
+        if (!deviceIdentifier) return null;
+
+        try {
+            const response = await fetch(`/api/modbus/coils/${encodeURIComponent(deviceIdentifier)}`, { method: 'GET' });
+            if (!response.ok) {
+                console.error('Failed to fetch coils:', response.status);
+                return null;
+            }
+
+            const data = await response.json();
+            const dryFunction = data?.dry_function ?? data?.dryFunction;
+            if (typeof dryFunction === 'boolean') {
+                return dryFunction;
+            }
+
+            const numericValue = Number(dryFunction);
+            return Number.isFinite(numericValue) ? numericValue === 1 : null;
+        } catch (err) {
+            console.error('Error fetching coils:', err);
+            return null;
+        }
+    };
+
     useEffect(() => {
         if (!deviceIdentifier || !connectionStatus) return;
 
         let cancelled = false;
 
         const syncDryModeState = async () => {
+            const nextDryModeEnabled = await fetchDryModeCoilsState();
+            if (cancelled || nextDryModeEnabled === null) return;
+
+            if (!nextDryModeEnabled) {
+                setDryModeEnabled(false);
+                setDryModeRemainingSeconds(0);
+                setIsDryModeCounterReady(false);
+                dryModeEndTimeRef.current = null;
+                return;
+            }
+
+            setDryModeEnabled(true);
+            setIsDryModeCounterReady(false);
+
             const data = await fetchInputRegisters();
             if (cancelled || !data) return;
 
@@ -1103,10 +1141,9 @@ export function IndustrialControl({ device, onBack }) {
             if (!Number.isFinite(counter)) return;
 
             const remainingSeconds = Math.max(0, Math.floor(counter));
-            setDryModeEnabled(remainingSeconds > 0);
             setDryModeRemainingSeconds(remainingSeconds);
-            setIsDryModeCounterReady(remainingSeconds > 0);
-            dryModeEndTimeRef.current = remainingSeconds > 0
+            setIsDryModeCounterReady(true);
+            dryModeEndTimeRef.current = remainingSeconds
                 ? Date.now() + remainingSeconds * 1000
                 : null;
         };
