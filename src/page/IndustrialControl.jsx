@@ -6,6 +6,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, Check, Settings } from 'lucide-react';
+import Swal from 'sweetalert2';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatApiNumber } from '../utils/formatApiNumber';
 
@@ -26,6 +27,7 @@ const DIFF_PRESSURE_MAX = 1250;
 const DIFF_PRESSURE_API_MIN = 0;
 const DIFF_PRESSURE_API_MAX = 10000;
 const FAN_MAX_RPM_3570 = 3570;
+const OUTLET_VALVE_MIN_FAN_PV_PERCENT = 35;
 const DRY_MODE_INPUT_SYNC_DELAY_MS = 3000;
 const DRY_MODE_COIL_ADDRESS = 17;
 
@@ -410,6 +412,13 @@ const buildPressureAutoFansFromHolding = (holdingPayload) => buildFansFromHoldin
         status: 'running',
     };
 });
+
+const getLowFanPvIds = (currentFans) => (currentFans ?? [])
+    .filter((fan) => {
+        const pvPercent = Number(fan?.pvPercent);
+        return Number.isFinite(pvPercent) && pvPercent < OUTLET_VALVE_MIN_FAN_PV_PERCENT;
+    })
+    .map((fan) => fan.id);
 
 const formatCountdown = (seconds) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 
@@ -2306,11 +2315,28 @@ export function IndustrialControl({ device, onBack }) {
             return;
         }
 
-        const nextValue = clampValveOpeningValue(outletValveOpening);
+        const lowFanPvIds = getLowFanPvIds(fans);
+        const shouldForceOutletValveClosed = lowFanPvIds.length > 0;
+        const nextValue = shouldForceOutletValveClosed
+            ? 0
+            : clampValveOpeningValue(outletValveOpening);
         const pVal = clampPidValue(valvePidValues.p);
         const iVal = clampPidValue(valvePidValues.i);
         const dVal = clampPidValue(valvePidValues.d);
         setValvePidError('');
+
+        if (shouldForceOutletValveClosed) {
+            setOutletValveOpening('0');
+            Swal.fire({
+                icon: 'warning',
+                title: t('industrial.outletValveLowFanPvWarningTitle'),
+                text: t('industrial.outletValveLowFanPvWarningText', {
+                    threshold: OUTLET_VALVE_MIN_FAN_PV_PERCENT,
+                    fans: lowFanPvIds.join(', '),
+                }),
+                confirmButtonText: t('common.confirm'),
+            });
+        }
 
         const currentValvePidValues = {
             p: String(pVal),
@@ -2320,7 +2346,9 @@ export function IndustrialControl({ device, onBack }) {
 
         const payload = {
             // ...buildSvPayload(null, null, currentValvePidValues),
-            outlet_electric_valve_opening_sv: toOpeningRatio(nextValue, MAX_VALVE_100),
+            outlet_electric_valve_opening_sv: shouldForceOutletValveClosed
+                ? 0
+                : toOpeningRatio(nextValue, MAX_VALVE_100),
             group2_pid_p_sv: toPidModbus(pVal),
             group2_pid_i_sv: toPidModbus(iVal),
             group2_pid_d_sv: toPidModbus(dVal),
