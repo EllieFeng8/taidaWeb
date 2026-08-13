@@ -22,6 +22,7 @@ const MAX_PID_100 = 100;
 const MAX_PID_10 = 10;
 const MAX_PRESSURE_1000 = 1000;
 const FAN_MAX_RPM_3570 = 3570;
+const VALVE_OPENING_MIN_PERCENT_FOR_PUMP = 20;
 
 const toDisplay = (modbusValue, maxRange) => {
   if (modbusValue === undefined || modbusValue === null || Number.isNaN(Number(modbusValue))) {
@@ -55,6 +56,30 @@ const toModbus16 = (displayValue, maxRange) => {
   if (Number.isNaN(val)) return 0;
   // console.log('toModbus', Math.round((val / maxRange) * SCALE_4096));
   return Math.round((val / maxRange) * SCALE_65535);
+};
+
+const SCALE_MIN = SCALE_4096 * 0.2;
+const SCALE_MAX = SCALE_4096 * 0.95;
+
+const fromOpeningRatio = (modbusValue, maxRange) => {
+  const val = Number(modbusValue);
+
+  if (!Number.isFinite(val)) {
+    return null;
+  }
+
+  const ratio = ((val - SCALE_MIN) / (SCALE_MAX - SCALE_MIN)) * maxRange;
+  const clampedRatio = Math.max(0, Math.min(ratio, maxRange));
+
+  return parseFloat(clampedRatio.toFixed(1));
+};
+
+const clampPumpFrequencyValue = (value) => {
+  if (Number.isNaN(Number(value))) {
+    return 0;
+  }
+
+  return Math.min(MAX_FREQ_60, Math.max(0, Number(value)));
 };
 
 const toPidDisplay = (modbusValue) => {
@@ -93,6 +118,18 @@ const handleEnterSubmit = (event, onSubmit) => {
   onSubmit?.();
 };
 
+const getValveOpeningRatio = (holdingPayload, pvKey, svKey) => {
+  const pvValue = Number(holdingPayload?.[pvKey]);
+
+  if (Number.isFinite(pvValue)) {
+    return pvValue <= MAX_VALVE_100 ? pvValue : toDisplay(pvValue, MAX_VALVE_100);
+  }
+
+  const svRatio = fromOpeningRatio(holdingPayload?.[svKey], MAX_VALVE_100);
+
+  return svRatio;
+};
+
 export const GroupControl = ({ group, onBack }) => {
   const { t } = useLanguage();
   const [pidOn, setPidOn] = useState(false);
@@ -103,12 +140,15 @@ export const GroupControl = ({ group, onBack }) => {
   const [tempDefaultValue, setTempDefaultValue] = useState('');
   const [targetPressureDefaultValue, setTargetPressureDefaultValue] = useState('');
   const [cvOutputDefaultValue, setCvOutputDefaultValue] = useState('');
+  const [pumpFrequencyDefaultValue, setPumpFrequencyDefaultValue] = useState('');
   const isEditingTempRef = useRef(false);
   const isEditingTargetPressureRef = useRef(false);
   const isEditingCvOutputRef = useRef(false);
+  const isEditingPumpFrequencyRef = useRef(false);
   const tempInputRef = useRef(null);
   const targetPressureInputRef = useRef(null);
   const cvOutputInputRef = useRef(null);
+  const pumpFrequencyInputRef = useRef(null);
   const toastRef = useRef(null);
   const toastTimeoutRef = useRef(null);
   const [valveEmergency, setValveEmergency] = useState(false);
@@ -116,6 +156,11 @@ export const GroupControl = ({ group, onBack }) => {
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('success');
   const [isSubmittingToggle, setIsSubmittingToggle] = useState(false);
+  const [isSubmittingPumpFrequency, setIsSubmittingPumpFrequency] = useState(false);
+  const [pumpGuardDialog, setPumpGuardDialog] = useState({
+    open: false,
+    devices: [],
+  });
 
   useEffect(() => () => {
     if (toastTimeoutRef.current) {
@@ -149,6 +194,21 @@ export const GroupControl = ({ group, onBack }) => {
       .filter(Boolean)
   );
 
+  const fetchDeviceHoldingData = async (deviceIdentifier) => {
+    console.log('API Request [GET]:', `${API_HOST}/api/modbus/holding/${encodeURIComponent(deviceIdentifier)}`);
+    const response = await fetch(`${API_HOST}/api/modbus/holding/${encodeURIComponent(deviceIdentifier)}`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('API Response:', data);
+    return data ?? {};
+  };
+
   useEffect(() => {
     let isActive = true;
 
@@ -178,17 +238,7 @@ export const GroupControl = ({ group, onBack }) => {
           return;
         }
 
-        console.log('API Request [GET]:', `${API_HOST}/api/modbus/holding/${encodeURIComponent(deviceIdentifier)}`);
-        const holdingResponse = await fetch(`${API_HOST}/api/modbus/holding/${encodeURIComponent(deviceIdentifier)}`, {
-          method: 'GET',
-        });
-
-        if (!holdingResponse.ok) {
-          throw new Error(`HTTP ${holdingResponse.status}`);
-        }
-
-        const nextHoldingData = await holdingResponse.json();
-        console.log('API Response:', nextHoldingData);
+        const nextHoldingData = await fetchDeviceHoldingData(deviceIdentifier);
 
         if (!isActive) {
           return;
@@ -221,6 +271,13 @@ export const GroupControl = ({ group, onBack }) => {
           setCvOutputDefaultValue(nextCvOutputValue);
           if (cvOutputInputRef.current) {
             cvOutputInputRef.current.value = nextCvOutputValue;
+          }
+        }
+        if (!isEditingPumpFrequencyRef.current) {
+          const nextPumpFrequencyValue = String(toDisplay(nextHoldingData?.circulating_pump_sv, MAX_FREQ_60) ?? '');
+          setPumpFrequencyDefaultValue(nextPumpFrequencyValue);
+          if (pumpFrequencyInputRef.current) {
+            pumpFrequencyInputRef.current.value = nextPumpFrequencyValue;
           }
         }
       } catch (error) {
@@ -402,6 +459,40 @@ export const GroupControl = ({ group, onBack }) => {
     setGroupDetail(nextGroupDetail ?? null);
   };
 
+  const getPumpFrequencyBlockedDevices = async () => {
+    const nextGroupDetail = await fetchGroupDetail();
+    const groupDeviceIdentifiers = getGroupDeviceIdentifiers(nextGroupDetail);
+
+    if (!groupDeviceIdentifiers.length) {
+      return [];
+    }
+
+    const valveStatuses = await Promise.all(groupDeviceIdentifiers.map(async (deviceIdentifier) => {
+      const nextHoldingData = await fetchDeviceHoldingData(deviceIdentifier);
+      const outletValveRatio = getValveOpeningRatio(
+        nextHoldingData,
+        'outlet_electric_valve_opening_pv',
+        'outlet_electric_valve_opening_sv'
+      );
+      const mixingValveRatio = getValveOpeningRatio(
+        nextHoldingData,
+        'return_electric_valve_opening_pv',
+        'return_electric_valve_opening_sv'
+      );
+
+      return {
+        deviceIdentifier,
+        outletValveRatio,
+        mixingValveRatio,
+      };
+    }));
+
+    return valveStatuses.filter(({ outletValveRatio, mixingValveRatio }) => (
+      (Number.isFinite(outletValveRatio) && outletValveRatio < VALVE_OPENING_MIN_PERCENT_FOR_PUMP)
+      || (Number.isFinite(mixingValveRatio) && mixingValveRatio < VALVE_OPENING_MIN_PERCENT_FOR_PUMP)
+    ));
+  };
+
   const handleToggleValue = async (key, checked, setter) => {
     if (isSubmittingToggle) return;
 
@@ -496,6 +587,42 @@ export const GroupControl = ({ group, onBack }) => {
     }
   };
 
+  const handleSubmitPumpFrequency = async () => {
+    const nextValue = Number(pumpFrequencyInputRef.current?.value ?? '');
+
+    if (nextValue < 0 || nextValue > MAX_FREQ_60 || Number.isNaN(nextValue)) {
+      showToast(t('groupControl.pumpFrequencyRange'), 'error');
+      return;
+    }
+
+    const normalizedValue = clampPumpFrequencyValue(nextValue);
+    const modbusValue = toModbus(normalizedValue, MAX_FREQ_60);
+
+    setIsSubmittingPumpFrequency(true);
+
+    try {
+      const blockedDevices = await getPumpFrequencyBlockedDevices();
+
+      if (blockedDevices.length) {
+        setPumpGuardDialog({
+          open: true,
+          devices: blockedDevices,
+        });
+        return;
+      }
+
+      await submitControlKeyToGroupDevices('circulating_pump_sv', modbusValue);
+      setPumpFrequencyDefaultValue(String(normalizedValue));
+      isEditingPumpFrequencyRef.current = false;
+      showSavedToast();
+    } catch (error) {
+      console.error('群組混水泵浦頻率設定失敗:', error);
+      showToast(t('common.error'), 'error');
+    } finally {
+      setIsSubmittingPumpFrequency(false);
+    }
+  };
+
   const Toggle = ({ checked, onChange }) => (
     <button
       onClick={() => onChange(!checked)}
@@ -576,6 +703,50 @@ export const GroupControl = ({ group, onBack }) => {
         {toastMessage}
       </div>
 
+      {pumpGuardDialog.open && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/40 px-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pump-guard-title"
+            className="w-full max-w-lg rounded-2xl border border-red-100 bg-white p-6 shadow-2xl shadow-slate-900/20"
+          >
+            <div className="space-y-3">
+              <h2 id="pump-guard-title" className="text-xl font-extrabold text-slate-900">
+                {t('groupControl.pumpFrequencyBlockedTitle')}
+              </h2>
+              <p className="text-sm font-medium leading-6 text-slate-600">
+                {t('groupControl.pumpFrequencyBlockedMessage')}
+              </p>
+              <div className="max-h-56 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50">
+                {pumpGuardDialog.devices.map((device) => (
+                  <div
+                    key={device.deviceIdentifier}
+                    className="flex items-center justify-between gap-4 border-b border-slate-100 px-4 py-3 last:border-b-0"
+                  >
+                    <span className="text-sm font-bold text-slate-700">{device.deviceIdentifier}</span>
+                    <span className="text-xs font-bold text-red-600">
+                      {t('industrial.outletValveControl')}: {Number.isFinite(device.outletValveRatio) ? `${device.outletValveRatio}%` : FALLBACK_VALUE}
+                      {' / '}
+                      {t('industrial.mixingValveControl')}: {Number.isFinite(device.mixingValveRatio) ? `${device.mixingValveRatio}%` : FALLBACK_VALUE}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setPumpGuardDialog({ open: false, devices: [] })}
+                className="rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 active:scale-95"
+              >
+                {t('common.confirm')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -646,6 +817,47 @@ export const GroupControl = ({ group, onBack }) => {
                     {t('common.confirm')}
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </ControlSection>
+
+        {/* Mixing Pump Control */}
+        <ControlSection
+          title={t('industrial.mixingPumpControl')}
+          icon={Droplets}
+        >
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-500">{t('industrial.targetFrequency')}</label>
+                <p className="text-xs font-bold text-slate-400">
+                  PV: {formatDisplayValue(toDisplay(holdingData?.circulating_pump_pv, MAX_FREQ_60))} Hz
+                </p>
+              </div>
+              <div className="flex w-full gap-3 md:w-auto">
+                <div className="relative flex-1 md:w-40">
+                  <input
+                    ref={pumpFrequencyInputRef}
+                    type="text"
+                    defaultValue={pumpFrequencyDefaultValue}
+                    onChange={() => {
+                      isEditingPumpFrequencyRef.current = true;
+                    }}
+                    onKeyDown={(event) => handleEnterSubmit(event, handleSubmitPumpFrequency)}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 pr-10 text-sm font-bold text-slate-700 outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={isSubmittingPumpFrequency}
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">Hz</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSubmitPumpFrequency}
+                  disabled={isSubmittingPumpFrequency}
+                  className="px-8 py-3 bg-primary text-white hover:bg-primary/90 rounded-xl font-bold transition-all shadow-lg shadow-primary/20 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSubmittingPumpFrequency ? t('common.saving') : t('common.confirm')}
+                </button>
               </div>
             </div>
           </div>

@@ -22,6 +22,8 @@ const MAX_TEMP_100 = 100;
 const MAX_FREQ_60 = 60;
 const MAX_PID_100 = 100;
 const MAX_PID_10 = 10;
+const OUTLET_TARGET_TEMP_MIN = 10;
+const OUTLET_TARGET_TEMP_MAX = 30;
 const DIFF_PRESSURE_MIN = -1250;
 const DIFF_PRESSURE_MAX = 1250;
 const DIFF_PRESSURE_API_MIN = 0;
@@ -228,10 +230,20 @@ const normalizePumpFrequencyInputValue = (value) => {
 
 const clampOutletTargetTempValue = (value) => {
     if (Number.isNaN(Number(value))) {
-        return 0;
+        return OUTLET_TARGET_TEMP_MIN;
     }
 
-    return Math.min(MAX_TEMP_100, Math.max(0, Number(value)));
+    return Math.round(Math.min(OUTLET_TARGET_TEMP_MAX, Math.max(OUTLET_TARGET_TEMP_MIN, Number(value))));
+};
+
+const formatOutletTargetTempValue = (value) => String(clampOutletTargetTempValue(value));
+
+const formatOutletTargetTempDisplayValue = (value) => {
+    if (Number.isNaN(Number(value))) {
+        return '0';
+    }
+
+    return String(Math.round(Number(value)));
 };
 
 const normalizeOutletTargetTempInputValue = (value) => {
@@ -239,12 +251,7 @@ const normalizeOutletTargetTempInputValue = (value) => {
         return '';
     }
 
-    const numericValue = Number(value);
-    if (Number.isNaN(numericValue)) {
-        return value;
-    }
-
-    return String(clampOutletTargetTempValue(numericValue));
+    return value;
 };
 
 const clampValveOpeningValue = (value) => {
@@ -485,27 +492,18 @@ const submitOnEnter = (event, onSubmit, disabled = false) => {
 const PIDInput = ({ label, pvValue, value, onChange, onFocus, onBlur, onSubmit, isModified, isSubmitting, error, disabled = false }) => (
     <div className="space-y-1.5 space-x-1.5">
         <label className="text-[14px] font-bold text-slate-500 uppercase">{label}</label>
-        <PVText value={toPidDisplay(pvValue)} />
         <div className="relative">
             <input
-                className={`text-left w-full border rounded-lg px-3 py-2 text-[12px] focus:ring-2 focus:ring-primary/20 outline-none transition-colors ${
-                    isModified || error
-                        ? 'bg-red-50 border-red-500'
-                        : 'bg-slate-50 border-slate-200'
-                }`}
+                className="text-left w-full border rounded-lg px-3 py-2 text-[12px] bg-slate-50 border-slate-200 outline-none transition-colors disabled:opacity-100"
                 step="0.01"
                 min="0"
                 max="10.00"
                 type="number"
-                value={value}
-                disabled={disabled}
-                onChange={onChange}
-                onFocus={onFocus}
-                onBlur={onBlur}
-                onKeyDown={(event) => submitOnEnter(event, onSubmit, isSubmitting)}
+                value={toPidDisplay(pvValue)}
+                disabled
+                readOnly
                 placeholder={FALLBACK_VALUE}
             />
-            {error && <span className="absolute -top-4 right-0 text-[10px] font-bold text-red-500">{error}</span>}
         </div>
     </div>
 );
@@ -553,25 +551,16 @@ const ValveControl = ({
             <div className="p-6 flex-1 flex flex-col gap-6">
                 <div className="space-y-2 space-x-1.5">
                     <label className="text-xs text-[14px] font-semibold text-slate-600 ">{t('industrial.openingRatio')}</label>
-                    <PVText value={sensorValues.OutletWaterPV} unit="%" />
                     <div className="relative">
                         <input
-                            className={`text-left w-full border rounded-lg px-3 py-2 text-[14px] font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors ${
-                                (modifiedPidFields?.opening || error)
-                                    ? 'bg-red-50 border-red-500'
-                                    : 'bg-slate-50 border-slate-200'
-                            }`}
+                            className="text-left w-full border rounded-lg px-3 py-2 text-[14px] font-bold text-primary bg-slate-50 border-slate-200 outline-none transition-colors disabled:opacity-100"
                             type="number"
-                            value={percentage}
-                            disabled={controlsDisabled}
-                            onChange={(event) => onPercentageChange?.(event.target.value)}
-                            onFocus={onPercentageFocus}
-                            onBlur={onPercentageBlur}
-                            onKeyDown={(event) => submitOnEnter(event, onSubmit, isSubmitting)}
+                            value={formatDisplayValue(sensorValues.OutletWaterPV)}
+                            disabled
+                            readOnly
                             placeholder={FALLBACK_VALUE}
                         />
                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-slate-400 font-bold">%</span>
-                        {error && <span className="absolute -top-4 right-0 text-[10px] font-bold text-red-500">{error}</span>}
                     </div>
                 </div>
                 <div className="grid grid-cols-3 gap-4 text-[14px]">
@@ -615,14 +604,6 @@ const ValveControl = ({
                         disabled={controlsDisabled}
                     />
                 </div>
-                <button
-                    type="button"
-                    onClick={onSubmit}
-                    disabled={isSubmitting || controlsDisabled}
-                    className="w-full py-2 border border-primary text-primary font-bold rounded-lg bg-white hover:bg-primary hover:text-white hover:shadow-lg hover:shadow-primary/20 transition-all text-xs mt-auto disabled:opacity-50"
-                >
-                    {t('common.confirm')}
-                </button>
             </div>
         </div>
     );
@@ -651,35 +632,20 @@ const ReturnValveControl = ({
                 <div className="grid grid-cols-1 gap-4">
                     <div className="space-y-1.5 space-x-1.5">
                         <label className="text-[14px] font-bold text-slate-500 uppercase">{t('industrial.openingRatio')}</label>
-                        <PVText value={sensorValues.MixWaterPV} unit="%" />
                         <div className="relative">
                             <input
-                                className={`text-left w-full border rounded-lg px-3 py-2 text-[14px] font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none transition-colors ${
-                                    error ? 'bg-red-50 border-red-500' : 'bg-slate-50 border-slate-200'
-                                }`}
+                                className="text-left w-full border rounded-lg px-3 py-2 text-[14px] font-bold text-primary bg-slate-50 border-slate-200 outline-none transition-colors disabled:opacity-100"
                                 type="number"
-                                value={openingRatio}
-                                disabled={controlsDisabled}
-                                onChange={(event) => onOpeningRatioChange?.(event.target.value)}
-                                onFocus={onOpeningRatioFocus}
-                                onBlur={onOpeningRatioBlur}
-                                onKeyDown={(event) => submitOnEnter(event, onSubmit, isSubmitting)}
+                                value={formatDisplayValue(sensorValues.MixWaterPV)}
+                                disabled
+                                readOnly
                                 placeholder={FALLBACK_VALUE}
                             />
                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">%</span>
-                            {error && <span className="absolute -top-4 right-0 text-[10px] font-bold text-red-500">{error}</span>}
                         </div>
                     </div>
 
                 </div>
-                <button
-                    type="button"
-                    onClick={onSubmit}
-                    disabled={isSubmitting || controlsDisabled}
-                    className="w-full py-2 border border-primary text-primary font-bold rounded-lg bg-white hover:bg-primary hover:text-white hover:shadow-lg hover:shadow-primary/20 transition-all text-xs mt-auto disabled:opacity-50"
-                >
-                    {t('common.confirm')}
-                </button>
             </div>
         </div>
     );
@@ -863,34 +829,19 @@ const MotorControl = ({
                 <div className="grid grid-cols-1 gap-6">
                     <div className="flex-1 space-y-1.5 space-x-1.5">
                         <label className="text-[14px] font-bold text-slate-500 uppercase">{t('industrial.targetFrequency')}</label>
-                        <PVText value={toDisplay(holdingData?.circulating_pump_pv, MAX_FREQ_60)} unit="Hz" />
                         <div className="flex flex-1 gap-2">
                             <div className="relative flex-1">
                                 <input
-                                    className={`text-left w-full border rounded-lg px-3 py-3 text-[14px] font-bold focus:ring-2 focus:ring-primary/20 outline-none disabled:opacity-50 transition-colors ${
-                                        error ? 'bg-red-50 border-red-500' : 'bg-slate-50 border-slate-200'
-                                    }`}
+                                    className="text-left w-full border rounded-lg px-3 py-3 text-[14px] font-bold bg-slate-50 border-slate-200 outline-none disabled:opacity-100 transition-colors"
                                     type="number"
-                                    value={targetFrequency ?? ''}
-                                    disabled={controlsDisabled}
-                                    onChange={(event) => onTargetFrequencyChange?.(event.target.value)}
-                                    onFocus={onTargetFrequencyFocus}
-                                    onBlur={onTargetFrequencyBlur}
-                                    onKeyDown={(event) => submitOnEnter(event, onSubmit, isSubmitting)}
+                                    value={toDisplay(holdingData?.circulating_pump_pv, MAX_FREQ_60)}
+                                    disabled
+                                    readOnly
                                     placeholder={FALLBACK_VALUE}
                                     // disabled={!enabled}
                                 />
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 font-bold text-slate-400">Hz</span>
-                                {error && <span className="absolute -top-4 right-0 text-[10px] font-bold text-red-500">{error}</span>}
                             </div>
-                            <button
-                                type="button"
-                                onClick={onSubmit}
-                                disabled={isSubmitting || controlsDisabled}
-                                className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold border border-primary/20 hover:bg-primary hover:text-white transition-all disabled:opacity-50"
-                            >
-                                {t('common.confirm')}
-                            </button>
                         </div>
                     </div>
                     <div className="px-6 py-3 bg-primary/5 rounded-xl border border-primary/10">
@@ -1560,7 +1511,7 @@ export function IndustrialControl({ device, onBack }) {
                     }
                 }
                 if (!isEditingOutletTargetTempRef.current && !isSubmittingOutletTargetTempRef.current && !isModifiedOutletTargetTempRef.current) {
-                    setOutletTargetTempSv(String(toDisplay16(data?.outlet_target_temp_sv, MAX_TEMP_100) || ''));
+                    setOutletTargetTempSv(formatOutletTargetTempValue(toDisplay16(data?.outlet_target_temp_sv, MAX_TEMP_100)));
                 }
                 if (!isEditingCirculatingPumpSvRef.current && !isSubmittingPumpFrequencyRef.current) {
                     setCirculatingPumpSv(String(toDisplay(data?.circulating_pump_sv, MAX_FREQ_60) || ''));
@@ -2216,6 +2167,8 @@ export function IndustrialControl({ device, onBack }) {
         }
 
         const nextValue = clampOutletTargetTempValue(outletTargetTempSv);
+        const nextDisplayValue = formatOutletTargetTempValue(nextValue);
+        setOutletTargetTempSv(nextDisplayValue);
         setTempError('');
 
         setIsSubmittingOutletTargetTemp(true);
@@ -2248,7 +2201,7 @@ export function IndustrialControl({ device, onBack }) {
                 throw new Error(`HTTP ${response.status}`);
             }
 
-            setOutletTargetTempSv(String(nextValue));
+            setOutletTargetTempSv(nextDisplayValue);
             isEditingOutletTargetTempRef.current = false;
             isModifiedOutletTargetTempRef.current = false;
             fetchFanHoldingData();
@@ -2662,7 +2615,9 @@ export function IndustrialControl({ device, onBack }) {
                         </span>
                     </div>
                     <div className="pt-2 border-t border-slate-100 space-y-2">
-                        <PVText value={toDisplay16(holdingData?.outlet_target_temp_pv, MAX_TEMP_100)} unit="°C" />
+                        <span className="text-[14px] text-slate-400 font-black">
+                            PV: {formatOutletTargetTempDisplayValue(toDisplay16(holdingData?.outlet_target_temp_pv, MAX_TEMP_100))} °C
+                        </span>
                         <div className="flex items-center gap-2">
                             <span className="text-[16px] font-bold text-slate-500 shrink-0">{t('industrial.targetTemperature')}</span>
                             <div className="relative flex-1">
@@ -2671,6 +2626,9 @@ export function IndustrialControl({ device, onBack }) {
                                         tempError ? 'bg-red-50 border-red-500 focus:ring-red-200' : 'bg-white border-slate-200 focus:ring-1 focus:ring-primary'
                                     }`}
                                     type="number"
+                                    step="1"
+                                    min={OUTLET_TARGET_TEMP_MIN}
+                                    max={OUTLET_TARGET_TEMP_MAX}
                                     value={outletTargetTempSv}
                                     disabled={dryModeEnabled}
                                     onFocus={() => {

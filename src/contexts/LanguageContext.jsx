@@ -418,6 +418,9 @@ const translations = {
     'groupControl.tempRange': '目標溫度有效範圍為 0-100',
     'groupControl.pressureRange': '目標壓差有效範圍為 0-1000',
     'groupControl.fanRange': '控制輸出有效範圍為 0-100',
+    'groupControl.pumpFrequencyRange': '混水泵浦頻率有效範圍為 0-60 Hz',
+    'groupControl.pumpFrequencyBlockedTitle': '無法設置混水泵浦頻率',
+    'groupControl.pumpFrequencyBlockedMessage': '群組內有設備的混水閥或出水閥開度比例低於 20%，請先調整閥門開度後再設置頻率。',
 
     // Configuration Panel
     'config.title': '配置面板',
@@ -846,6 +849,9 @@ const translations = {
     'groupControl.tempRange': 'Target temperature range: 0-100',
     'groupControl.pressureRange': 'Target pressure range: 0-1000',
     'groupControl.fanRange': 'Control output range: 0-100',
+    'groupControl.pumpFrequencyRange': 'Mixing pump frequency range: 0-60 Hz',
+    'groupControl.pumpFrequencyBlockedTitle': 'Cannot set mixing pump frequency',
+    'groupControl.pumpFrequencyBlockedMessage': 'At least one device in this group has a mixing valve or outlet valve opening below 20%. Adjust valve opening before setting the frequency.',
 
     // Configuration Panel
     'config.title': 'Configuration Panel',
