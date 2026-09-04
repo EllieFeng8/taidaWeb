@@ -16,6 +16,7 @@ export default function GroupSettings() {
   const [view, setView] = React.useState('list');
   const [groups, setGroups] = useState([]);
   const [deletingGroupId, setDeletingGroupId] = useState(null);
+  const isInputFocusedRef = React.useRef(false);
 
   const fetchGroups = React.useCallback(() => {
     return fetch(`/api/groups`, {
@@ -23,11 +24,15 @@ export default function GroupSettings() {
     })
         .then(res => res.json())
         .then(data => {
-          setGroups(Array.isArray(data) ? data : []);
+          if (!isInputFocusedRef.current) {
+            setGroups(Array.isArray(data) ? data : []);
+          }
         })
         .catch(err => {
           console.error(t('groups.error.fetchGroups'), err);
-          setGroups([]);
+          if (!isInputFocusedRef.current) {
+            setGroups([]);
+          }
         });
   }, [t]);
 
@@ -83,7 +88,19 @@ export default function GroupSettings() {
   }
 
   return (
-      <div className="flex min-h-screen font-sans bg-background-light">
+      <div
+        className="flex min-h-screen font-sans bg-background-light"
+        onFocusCapture={(event) => {
+          if (event.target instanceof HTMLInputElement) {
+            isInputFocusedRef.current = true;
+          }
+        }}
+        onBlurCapture={(event) => {
+          if (event.target instanceof HTMLInputElement) {
+            isInputFocusedRef.current = false;
+          }
+        }}
+      >
 
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
 

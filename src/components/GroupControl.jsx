@@ -93,6 +93,75 @@ const handleEnterSubmit = (event, onSubmit) => {
   onSubmit?.();
 };
 
+// Keep these component types stable. Defining them inside GroupControl would create
+// a new type on every polling update and remount their entire subtree, including
+// any input the user is currently editing.
+const Toggle = ({ checked, onChange }) => (
+  <button
+    type="button"
+    onClick={() => onChange(!checked)}
+    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+      checked ? 'bg-primary' : 'bg-slate-200'
+    }`}
+  >
+    <span
+      className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+        checked ? 'translate-x-5.5' : 'translate-x-0.5'
+      }`}
+    />
+  </button>
+);
+
+const ToggleSwitch = ({ checked, onChange, color = 'bg-blue-600' }) => (
+  <button
+    type="button"
+    onClick={() => onChange(!checked)}
+    className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none ${
+      checked ? color : 'bg-slate-200 bg-slate-700'
+    }`}
+  >
+    <div
+      className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform duration-200 ${
+        checked ? 'translate-x-5' : 'translate-x-0'
+      }`}
+    />
+  </button>
+);
+
+const EmergencyStop = ({ active, onToggle, resetLabel, onLabel, offLabel }) => (
+  <div className="flex items-center gap-3">
+    <button type="button" className="px-4 py-2 bg-white/50 bg-red-900/40 text-red-600 text-red-400 hover:bg-white hover:text-red-700 hover:border-red-200 hover:shadow-sm active:scale-95 active:bg-red-100 active:shadow-none rounded-lg font-bold text-sm transition-all border border-red-100 border-red-900/30">
+      {resetLabel}
+    </button>
+    <div className="flex items-center gap-3 px-4 py-1.5 bg-red-50 bg-red-900/20 rounded-full border border-red-100 border-red-900/30">
+      <span className="text-xs font-bold text-red-600 text-red-400">
+        {active ? onLabel : offLabel}
+      </span>
+      <ToggleSwitch checked={active} onChange={onToggle} color="bg-red-600" />
+    </div>
+  </div>
+);
+
+const FansEmergencyStop = ({ active, onToggle, onLabel, offLabel }) => (
+  <div className="flex items-center gap-3 px-4 py-1.5 bg-red-50 bg-red-900/20 rounded-full border border-red-100 border-red-900/30">
+    <span className="text-xs font-bold text-red-600 text-red-400">{active ? onLabel : offLabel}</span>
+    <ToggleSwitch checked={active} onChange={onToggle} color="bg-red-600" />
+  </div>
+);
+
+const ControlSection = ({ title, icon: Icon, headerRight = null, children }) => (
+  <section className="space-y-4">
+    <div className="flex items-center justify-between gap-4">
+      <h3 className="flex items-center gap-2 text-lg font-bold text-slate-800">
+        <Icon size={20} className="text-primary" />
+        {title}
+      </h3>
+      {headerRight}
+    </div>
+    {children}
+  </section>
+);
+
 export const GroupControl = ({ group, onBack }) => {
   const { t } = useLanguage();
   const [pidOn, setPidOn] = useState(false);
@@ -109,6 +178,7 @@ export const GroupControl = ({ group, onBack }) => {
   const tempInputRef = useRef(null);
   const targetPressureInputRef = useRef(null);
   const cvOutputInputRef = useRef(null);
+  const isInputFocusedRef = useRef(false);
   const toastRef = useRef(null);
   const toastTimeoutRef = useRef(null);
   const [valveEmergency, setValveEmergency] = useState(false);
@@ -171,10 +241,14 @@ export const GroupControl = ({ group, onBack }) => {
           return;
         }
 
-        setGroupDetail(nextGroupDetail ?? null);
+        if (!isInputFocusedRef.current) {
+          setGroupDetail(nextGroupDetail ?? null);
+        }
 
         if (!deviceIdentifier) {
-          setHoldingData({});
+          if (!isInputFocusedRef.current) {
+            setHoldingData({});
+          }
           return;
         }
 
@@ -191,6 +265,12 @@ export const GroupControl = ({ group, onBack }) => {
         console.log('API Response:', nextHoldingData);
 
         if (!isActive) {
+          return;
+        }
+
+        // Polling must not trigger a control-page render while the user is typing.
+        // The latest values will be applied by the next poll after focus leaves.
+        if (isInputFocusedRef.current) {
           return;
         }
 
@@ -496,67 +576,6 @@ export const GroupControl = ({ group, onBack }) => {
     }
   };
 
-  const Toggle = ({ checked, onChange }) => (
-    <button
-      onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-        checked ? 'bg-primary' : 'bg-slate-200'
-      }`}
-    >
-      <span
-        className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-          checked ? 'translate-x-5.5' : 'translate-x-0.5'
-        }`}
-      />
-    </button>
-  );
-  const ToggleSwitch = ({ checked, onChange, color = 'bg-blue-600' }) => (
-      <button
-          onClick={() => onChange(!checked)}
-          className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none ${
-              checked ? color : 'bg-slate-200 bg-slate-700'
-          }`}
-      >
-        <div
-            className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform duration-200 ${
-                checked ? 'translate-x-5' : 'translate-x-0'
-            }`}
-        />
-      </button>
-  );
-  const EmergencyStop = ({ active, onToggle }) => (
-    <div className="flex items-center gap-3">
-      <button className="px-4 py-2 bg-white/50 bg-red-900/40 text-red-600 text-red-400 hover:bg-white hover:text-red-700 hover:border-red-200 hover:shadow-sm active:scale-95 active:bg-red-100 active:shadow-none rounded-lg font-bold text-sm transition-all border border-red-100 border-red-900/30">
-        {t('groupControl.reset')}
-      </button>
-      <div className="flex items-center gap-3 px-4 py-1.5 bg-red-50 bg-red-900/20 rounded-full border border-red-100 border-red-900/30">
-        <span className="text-xs font-bold text-red-600 text-red-400">
-          {active ? t('groupControl.emergencyOn') : t('groupControl.emergencyOff')}
-        </span>
-        <ToggleSwitch checked={active} onChange={onToggle} color="bg-red-600" />
-      </div>
-    </div>
-  );
-  const FansEmergencyStop = ({ active, onToggle }) => (
-      <div className="flex items-center gap-3 px-4 py-1.5 bg-red-50 bg-red-900/20 rounded-full border border-red-100 border-red-900/30">
-        <span className="text-xs font-bold text-red-600 text-red-400">{active ? t('groupControl.emergencyOn') : t('groupControl.emergencyOff')}</span>
-        <ToggleSwitch checked={active} onChange={onToggle} color="bg-red-600" />
-      </div>
-  );
-
-  const ControlSection = ({ title, icon: Icon, headerRight = null, children }) => (
-    <section className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <h3 className="flex items-center gap-2 text-lg font-bold text-slate-800">
-          <Icon size={20} className="text-primary" />
-          {title}
-        </h3>
-        {headerRight}
-      </div>
-      {children}
-    </section>
-  );
-
   const currentDeviceLabel =
     groupDetail?.devices?.[0]?.name ??
     groupDetail?.devices?.[0]?.deviceName ??
@@ -607,7 +626,7 @@ export const GroupControl = ({ group, onBack }) => {
           title={t('industrial.outletValveControl')}
           icon={Droplets}
 
-          headerRight={<EmergencyStop active={valveEmergency} onToggle={(checked) => handleToggleValue('pump_start', checked, setValveEmergency)} />}
+          headerRight={<EmergencyStop active={valveEmergency} onToggle={(checked) => handleToggleValue('pump_start', checked, setValveEmergency)} resetLabel={t('groupControl.reset')} onLabel={t('groupControl.emergencyOn')} offLabel={t('groupControl.emergencyOff')} />}
         >
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <div className="flex flex-col gap-6">
@@ -633,6 +652,12 @@ export const GroupControl = ({ group, onBack }) => {
                     ref={tempInputRef}
                     type="text"
                     defaultValue={tempDefaultValue}
+                    onFocus={() => {
+                      isInputFocusedRef.current = true;
+                    }}
+                    onBlur={() => {
+                      isInputFocusedRef.current = false;
+                    }}
                     onChange={() => {
                       isEditingTempRef.current = true;
                     }}
@@ -655,7 +680,7 @@ export const GroupControl = ({ group, onBack }) => {
         <ControlSection
             title={t('groupControl.fanMatrixControl')}
             icon={Wind}
-            headerRight={<FansEmergencyStop active={fanEmergency} onToggle={(checked) => handleToggleValue('fan_power_start', checked, setFanEmergency)} />}
+            headerRight={<FansEmergencyStop active={fanEmergency} onToggle={(checked) => handleToggleValue('fan_power_start', checked, setFanEmergency)} onLabel={t('groupControl.emergencyOn')} offLabel={t('groupControl.emergencyOff')} />}
         >
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -681,6 +706,12 @@ export const GroupControl = ({ group, onBack }) => {
                     type="text"
                     placeholder={t('groupControl.enterValue')}
                     defaultValue={targetPressureDefaultValue}
+                    onFocus={() => {
+                      isInputFocusedRef.current = true;
+                    }}
+                    onBlur={() => {
+                      isInputFocusedRef.current = false;
+                    }}
                     onChange={() => {
                       isEditingTargetPressureRef.current = true;
                     }}
@@ -724,6 +755,12 @@ export const GroupControl = ({ group, onBack }) => {
                           ref={cvOutputInputRef}
                           type="text"
                           defaultValue={cvOutputDefaultValue}
+                          onFocus={() => {
+                            isInputFocusedRef.current = true;
+                          }}
+                          onBlur={() => {
+                            isInputFocusedRef.current = false;
+                          }}
                           onChange={() => {
                             isEditingCvOutputRef.current = true;
                           }}
