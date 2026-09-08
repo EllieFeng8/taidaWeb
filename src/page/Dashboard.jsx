@@ -240,6 +240,68 @@ const cardVariants = {
 
 
 
+const DryModeStatus = ({device, isConnected}) => {
+    const {t} = useLanguage();
+    const [status, setStatus] = useState({enabled: null, countdown: '--:--'});
+    const identifier = device?.name ?? device?.deviceName ?? device?.id ?? device?.deviceId;
+
+    useEffect(() => {
+        let disposed = false;
+        let polling = false;
+        setStatus({enabled: null, countdown: '--:--'});
+        if (!isConnected || !identifier) return;
+
+        const poll = async () => {
+            if (disposed || polling) return;
+            polling = true;
+            const next = {enabled: null, countdown: '--:--'};
+            try {
+                const response = await fetch(`/api/modbus/coils/${encodeURIComponent(identifier)}`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const payload = await response.json();
+                const raw = payload && typeof payload === 'object'
+                    ? payload.dry_function ?? payload.dryFunction ?? payload.value ?? payload.state ?? payload.enabled ?? payload.coil17 ?? payload.c17
+                    : payload;
+                if (typeof raw === 'boolean') next.enabled = raw;
+                else if (raw != null && String(raw).trim() !== '' && [0, 1].includes(Number(raw))) next.enabled = Number(raw) === 1;
+
+                if (next.enabled) {
+                    const inputResponse = await fetch(`/api/modbus/input/${encodeURIComponent(identifier)}`);
+                    if (!inputResponse.ok) throw new Error(`HTTP ${inputResponse.status}`);
+                    const input = await inputResponse.json();
+                    const rawCounter = input?.dry_counter ?? input?.dryCounter;
+                    if (rawCounter != null && String(rawCounter).trim() !== '' && Number.isFinite(Number(rawCounter))) {
+                        const seconds = Math.max(0, Math.floor(Number(rawCounter)));
+                        next.countdown = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+                    }
+                }
+            } catch (error) {
+                console.error(`設備 ${identifier} 乾燥防霉資料獲取失敗:`, error);
+            } finally {
+                if (!disposed) setStatus(next);
+                polling = false;
+            }
+        };
+        poll();
+        const interval = setInterval(poll, 1000);
+        return () => {
+            disposed = true;
+            clearInterval(interval);
+        };
+    }, [identifier, isConnected]);
+
+    const enabled = Boolean(isConnected) && status.enabled === true;
+    return (
+        <div className="mx-4 mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+            <span className="font-medium text-slate-600">{t('industrial.dryMoldPrevention')}</span>
+            <span className="flex flex-wrap items-center gap-3">
+                <span role="img" aria-label={enabled ? t('dashboard.dryModeOn') : t('dashboard.dryModeOff')} className={`size-2.5 shrink-0 rounded-full ${enabled ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                {enabled === true && <span className="text-slate-600">{t('industrial.countdown')} <span className="font-mono font-semibold tabular-nums">{status.countdown}</span></span>}
+            </span>
+        </div>
+    );
+};
+
 // --- Components ---
 const DeviceCard = ({device, onSelect, isConnected, index}) => {
     const {t} = useLanguage();
@@ -280,6 +342,7 @@ const DeviceCard = ({device, onSelect, isConnected, index}) => {
           </span>
             </div>
 
+            <DryModeStatus device={device} isConnected={isConnected} />
             <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Column 1: Water & Air */}
                 <div className="space-y-3">
