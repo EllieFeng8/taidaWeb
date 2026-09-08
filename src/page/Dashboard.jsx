@@ -131,11 +131,17 @@ const mapSensorValues = (sensorPayload, sensorMapping = DEFAULT_SENSOR_FIELD_ORD
     return mappedValues;
 };
 
-const normalizeDevice = (device, index, sensorPayload, sensorMapping = DEFAULT_SENSOR_FIELD_ORDER) => {
+const normalizeDevice = (device, index, sensorPayload, sensorMapping = DEFAULT_SENSOR_FIELD_ORDER, coilsPayload = null, inputPayload = null) => {
     // console.log('Normalizing device', {device, sensorPayload});
     const name = device?.name ?? device?.deviceName ?? `Device ${index + 1}`;
     const id = String(device?.id ?? device?.deviceId ?? name);
     const sensorValues = mapSensorValues(sensorPayload, sensorMapping);
+    const dryFunction = coilsPayload?.dry_function ?? coilsPayload?.dryFunction;
+    const dryModeEnabled = [true, 1, '1'].includes(dryFunction)
+        ? true
+        : [false, 0, '0'].includes(dryFunction) ? false : null;
+    const counter = Number(inputPayload?.dry_counter ?? inputPayload?.dryCounter ?? NaN);
+    const remainingSeconds = Number.isFinite(counter) ? Math.max(0, Math.floor(counter)) : null;
     // console.log('Normalized sensor values:', sensorValues);
 
     return {
@@ -143,6 +149,9 @@ const normalizeDevice = (device, index, sensorPayload, sensorMapping = DEFAULT_S
         ...sensorValues,
         id,
         name,
+        dryModeEnabled,
+        dryModeCountdown: remainingSeconds === null ? '--:--'
+            : `${String(Math.floor(remainingSeconds / 60)).padStart(2, '0')}:${String(remainingSeconds % 60).padStart(2, '0')}`,
         status: normalizeDeviceStatus(device?.status, sensorPayload),
         water: {
             in: formatCombinedMetric(sensorValues.InletWaterTemp, '°C', sensorValues.InletWaterPressure, 'pa'),
@@ -279,6 +288,20 @@ const DeviceCard = ({device, onSelect, isConnected, index}) => {
                 <span className={isDisconnected ? 'text-white/80' : 'text-slate-400'}>
             {/*<MoreVertical size={18}/>*/}
           </span>
+            </div>
+
+            <div className="mx-4 mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                <span className="font-medium text-slate-700">{t('industrial.dryMoldPrevention')}</span>
+                <span className="flex items-center gap-2">
+                    <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${
+                        !isDisconnected && device.dryModeEnabled === true ? 'bg-emerald-500' : 'bg-red-500'
+                    }`} />
+                    {!isDisconnected && device.dryModeEnabled === true && (
+                        <span className="font-semibold tabular-nums text-emerald-700">
+                            {t('industrial.countdown')} {device.dryModeCountdown}
+                        </span>
+                    )}
+                </span>
             </div>
 
             <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -448,7 +471,11 @@ export const Dashboard = ({onSelectDevice}) => {
     }, []);
 
     useEffect(() => {
+        let cancelled = false;
+        let fetching = false;
         const fetchDevices = async () => {
+            if (fetching || cancelled) return;
+            fetching = true;
             try {
                 // 先獲取連線狀態，確保我們有最新的狀態來決定是否 call sensor api
                 const statusResponse = await fetch('/api/devices/connection/status', {
@@ -456,6 +483,7 @@ export const Dashboard = ({onSelectDevice}) => {
                 });
                 const statusData = await statusResponse.json();
                 const currentConnectionStatusMap = normalizeConnectionStatusMap(statusData);
+                if (cancelled) return;
                 setConnectionStatusMap(currentConnectionStatusMap);
 
                 const response = await fetch('/api/devices', {
@@ -478,13 +506,22 @@ export const Dashboard = ({onSelectDevice}) => {
                         }
 
                         try {
-                            const sensorResponse = await fetch(`/api/sensor/last/${encodeURIComponent(deviceIdentifier)}`, {
-                                method: 'GET',
+                            const results = await Promise.allSettled([
+                                `/api/sensor/last/${encodeURIComponent(deviceIdentifier)}`,
+                                `/api/modbus/coils/${encodeURIComponent(deviceIdentifier)}`,
+                                `/api/modbus/input/${encodeURIComponent(deviceIdentifier)}`,
+                            ].map(async (url) => {
+                                const result = await fetch(url, { method: 'GET' });
+                                if (!result.ok) throw new Error(`${url}: ${result.status}`);
+                                return result.json();
+                            }));
+                            const [sensorData, coilsData, inputData] = results.map((result) => {
+                                if (result.status === 'fulfilled') return result.value;
+                                console.error(`設備 ${deviceIdentifier} 資料獲取失敗:`, result.reason);
+                                return null;
                             });
-                            const sensorData = await sensorResponse.json();
-                            // console.log('sensorData:', sensorData);
 
-                            return normalizeDevice(device, index, sensorData, sensorMapping);
+                            return normalizeDevice(device, index, sensorData, sensorMapping, coilsData, inputData);
                         } catch (error) {
                             console.error(`設備 ${deviceIdentifier} 感測資料獲取失敗:`, error);
                             return normalizeDevice(device, index, null, sensorMapping);
@@ -492,17 +529,22 @@ export const Dashboard = ({onSelectDevice}) => {
                     })
                 );
 
-                setDevices(normalizedDevices);
+                if (!cancelled) setDevices(normalizedDevices);
             } catch (err) {
                 console.error('設備獲取失敗:', err);
-                setDevices([]);
+                if (!cancelled) setDevices([]);
+            } finally {
+                fetching = false;
             }
         };
 
         fetchDevices();
         const interval = setInterval(fetchDevices, 1000);
 
-        return () => clearInterval(interval);
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+        };
     }, [sensorMapping]);
 
     // 移除重複的 fetchConnectionStatuses useEffect，已整合進 fetchDevices
