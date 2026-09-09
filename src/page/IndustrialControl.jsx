@@ -855,6 +855,7 @@ const MotorControl = ({
                         >
                             {t('industrial.reset')}
                         </button>
+                        <span className="text-xs font-bold text-slate-500 uppercase">{t('industrial.pumpEmergencySwitch')}</span>
                         <ToggleEmer checked={enabled} onChange={handleTogglePumpStart} disabled={isSubmittingPumpStart || controlsDisabled} />
                     </div>
                 </div>
