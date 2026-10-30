@@ -1338,7 +1338,7 @@ export function IndustrialControl({ device, onBack }) {
             colorClass: 'text-primary',
             metrics: [
                 { name: t('industrial.temperature'), value: sensorValues.InletWaterTemp, unit: '°C' },
-                { name: t('industrial.pressure'), value: sensorValues.InletWaterPressure, unit: 'pa' },
+                { name: t('industrial.pressure'), value: sensorValues.InletWaterPressure, unit: 'kpa' },
             ],
         },
         {
@@ -1346,7 +1346,7 @@ export function IndustrialControl({ device, onBack }) {
             colorClass: 'text-orange-500',
             metrics: [
                 { name: t('industrial.temperature'), value: sensorValues.InletPumpTemp, unit: '°C' },
-                { name: t('industrial.pressure'), value: sensorValues.InletPumpPressure, unit: 'pa' },
+                { name: t('industrial.pressure'), value: sensorValues.InletPumpPressure, unit: 'kpa' },
             ],
         },
         {
@@ -1354,7 +1354,7 @@ export function IndustrialControl({ device, onBack }) {
             colorClass: 'text-indigo-500',
             metrics: [
                 { name: t('industrial.temperature'), value: sensorValues.OutletWaterTemp, unit: '°C' },
-                { name: t('industrial.pressure'), value: sensorValues.OutletWaterPressure, unit: 'pa' },
+                { name: t('industrial.pressure'), value: sensorValues.OutletWaterPressure, unit: 'kpa' },
             ],
         },
         {

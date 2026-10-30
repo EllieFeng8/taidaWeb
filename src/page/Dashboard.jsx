@@ -144,9 +144,9 @@ const normalizeDevice = (device, index, sensorPayload, sensorMapping = DEFAULT_S
         name,
         status: normalizeDeviceStatus(device?.status, sensorPayload),
         water: {
-            in: formatCombinedMetric(sensorValues.InletWaterTemp, '°C', sensorValues.InletWaterPressure, 'pa'),
-            out: formatCombinedMetric(sensorValues.InletPumpTemp, '°C', sensorValues.InletPumpPressure, 'pa'),
-            return: formatCombinedMetric(sensorValues.OutletWaterTemp, '°C', sensorValues.OutletWaterPressure, 'pa'),
+            in: formatCombinedMetric(sensorValues.InletWaterTemp, '°C', sensorValues.InletWaterPressure, 'kpa'),
+            out: formatCombinedMetric(sensorValues.InletPumpTemp, '°C', sensorValues.InletPumpPressure, 'kpa'),
+            return: formatCombinedMetric(sensorValues.OutletWaterTemp, '°C', sensorValues.OutletWaterPressure, 'kpa'),
         },
         air: {
             in: formatCombinedMetric(sensorValues.InletAirTemp, '°C', sensorValues.InletAirHumidity, '%'),
