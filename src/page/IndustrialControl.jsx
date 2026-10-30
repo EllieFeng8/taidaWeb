@@ -274,9 +274,9 @@ const TELEMETRY_SENSOR_ORDER = [
     'InletWaterTemp', //S1 入水溫
     'InletWaterPressure', //S2 入水壓
     'OutletWaterTemp', //S3 出水溫
-    'OutletWaterPressure', //S4 出水壓
+    'InletPumpPressure', //S4 設備出水壓力
     'InletPumpTemp', //S5 泵普入水溫
-    'InletPumpPressure', //S6 泵普入水壓
+    'OutletWaterPressure', //S6 回水壓力（UI：泵浦入水）
     'InletLeftCoilTemp', //S7 盤管左入溫
     'OutletLeftCoilTemp', //S8 盤管左出溫
     'InletRightCoilTemp', //S9 盤管右入溫
